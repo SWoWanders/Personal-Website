@@ -1047,21 +1047,12 @@ function footstep(run){
   o.connect(og); og.connect(SND.dry); const w=ctx.createGain(); w.gain.value=.3; og.connect(w).connect(SND.wet); o.start(t); o.stop(t+.15);
   // toe roll a moment later
   burst(t+.07+Math.random()*.02, .05, 'bandpass', 1500+Math.random()*500, 1.4, .16*v, pan, .4);
-  if(Math.random()<.04) creak(t+.05, .02);
-}
-function creak(t, gain, wetOnly){
-  const ctx=SND.ctx, o=ctx.createOscillator(), f=ctx.createBiquadFilter(), g=ctx.createGain();
-  o.type='sawtooth'; const f0=180+Math.random()*160; o.frequency.setValueAtTime(f0,t); o.frequency.linearRampToValueAtTime(f0*(1.15+Math.random()*.3),t+.25+Math.random()*.25);
-  f.type='bandpass'; f.frequency.value=900+Math.random()*700; f.Q.value=7;
-  const d=.35+Math.random()*.3; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain,t+.06); g.gain.linearRampToValueAtTime(0,t+d);
-  o.connect(f).connect(g); if(!wetOnly) g.connect(SND.dry); g.connect(SND.wet); o.start(t); o.stop(t+d+.05);
 }
 function scheduleDistant(){
   setTimeout(()=>{
     if(SND.ctx && SND.on && SND.ctx.state==='running'){
       const t=SND.ctx.currentTime+.05, r=Math.random();
-      if(r<.45) creak(t, .02, true);                                    // the building settling
-      else if(r<.8) burst(t, .25, 'lowpass', 220, .7, .12, (Math.random()-.5)*1.4, 1.6);  // a distant soft thud
+      if(r<.65) burst(t, .25, 'lowpass', 220, .7, .12, (Math.random()-.5)*1.4, 1.6);  // a distant soft thud
       else { for(let i=0;i<3+Math.floor(Math.random()*4);i++) burst(t+i*.55, .06, 'bandpass', 900, 1, .035, .6, 2); }   // far-off footsteps
     }
     scheduleDistant();
