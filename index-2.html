@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Steve — Video, Art, Code, Music</title>
+<meta name="description" content="Steve's World of Wanders, Steve's Art Channel, Steve's Mind Wanders and SWoW Music — four channels from Ottawa.">
+<meta name="theme-color" content="#FEF4C3">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Steve — Video, Art, Code, Music">
+<meta property="og:description" content="Four channels from Ottawa: World of Wanders, Art Channel, Mind Wanders and SWoW Music.">
+<!-- TODO: add <meta property="og:image" content="https://swowanders.github.io/share.png"> once a share image exists -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Kaushan+Script&family=Lobster&family=Titan+One&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   PALETTE — sampled from the logos
+   #1C8FDE Mind Wanders blue    #498AE4 brain blue
+   #C81627 Mind Wanders red     #D80036 World of Wanders red
+   #FFF800 signal yellow        #FFFF73 World of Wanders outline
+   #2B97AA SWoW teal            #FEF4C3 SWoW cream
+   #00BFF3 "Steve's" cyan (estimated by eye, not sampled)
+   #000000 black
+   ========================================================= */
+:root{
+  --blue:#1C8FDE; --blue2:#498AE4; --red:#C81627; --wred:#D80036;
+  --yellow:#FFF800; --pale:#FFFF73; --teal:#2B97AA; --cream:#FEF4C3;
+  --cyan:#00BFF3; --black:#000;
+  --font:'Archivo', system-ui, sans-serif;
+  --lw:clamp(6px,1.1vmin,12px);
+}
+body{
+  --paper:var(--cream); --p1:var(--blue); --p2:var(--red); --p3:var(--yellow); --p4:var(--teal);
+  --line:var(--black); --shape:var(--black);
+}
+body[data-room="wanders"]{--paper:#000; --p1:var(--wred); --p2:var(--cyan); --p3:var(--pale); --p4:var(--wred); --line:var(--cream); --shape:var(--cream);}
+body[data-room="art"]{--p1:var(--red); --p2:var(--blue); --p3:var(--yellow); --p4:#000;}
+body[data-room="mind"]{--paper:var(--blue); --p1:var(--blue2); --p2:var(--red); --p3:var(--yellow); --p4:#000;}
+body[data-room="swow"]{--paper:var(--teal); --p1:var(--cream); --p2:#000; --p3:var(--cream); --p4:#000;}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:#000; font-family:var(--font);
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+  transition:background-color .8s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+a{color:inherit}
+button{font:inherit; color:inherit}
+
+/* ---------- focus: keyboard + gamepad ---------- */
+:focus{outline:none}
+:focus-visible, .nav-mode :focus{outline:4px solid #000; outline-offset:4px; box-shadow:0 0 0 8px var(--yellow)}
+
+/* =========================================================
+   MULTIPLANE — painted glass planes, separated in depth
+   ========================================================= */
+.plane{position:fixed; inset:-12%; pointer-events:none; will-change:transform}
+.plane *{position:absolute; transition:background-color .8s ease, border-color .8s ease}
+.plane.back{z-index:1}
+.plane.mid{z-index:2; filter:drop-shadow(1.2vmin 1.6vmin 0 rgba(0,0,0,.16))}
+.plane.fore{z-index:20; filter:drop-shadow(2.6vmin 3.2vmin 0 rgba(0,0,0,.22))}
+
+.m-blk{}
+.m-v{width:var(--lw); transform:translateX(-50%); background:var(--line)}
+.m-h{height:var(--lw); transform:translateY(-50%); background:var(--line)}
+
+.s-half{width:30vmin; height:60vmin; right:9%; top:30%; background:var(--p4); border-radius:30vmin 0 0 30vmin}
+.s-arcs{left:9%; top:8%; width:38vmin; height:38vmin; border-bottom-right-radius:100%;
+  background:repeating-radial-gradient(circle at 0 0, var(--p1) 0 2.2vmin, transparent 2.2vmin 4.4vmin)}
+.s-bar{left:7%; bottom:24%; width:46vmin; height:3vmin; background:var(--shape); transform:rotate(-24deg)}
+.s-dots{right:22%; bottom:13%; width:24vmin; height:14vmin;
+  background:radial-gradient(circle, var(--shape) 0 22%, transparent 24%) 0 0/3.5vmin 3.5vmin}
+.s-circle{left:57%; top:13%; width:9vmin; height:9vmin; border-radius:50%; background:var(--p2)}
+.s-stripes{left:31%; bottom:9%; width:20vmin; height:6vmin;
+  background:repeating-linear-gradient(to bottom, var(--shape) 0 .8vmin, transparent .8vmin 2vmin)}
+
+.f-sun{right:3%; top:1%; width:36vmin; height:36vmin; border-radius:50%; background:var(--p3)}
+.f-tri{left:3%; top:42%; width:18vmin; height:24vmin; background:var(--shape); clip-path:polygon(0 0,100% 50%,0 100%)}
+.f-bar{right:9%; bottom:5%; width:5vmin; height:30vmin; background:var(--p1)}
+
+/* =========================================================
+   VIEWS
+   ========================================================= */
+.view{
+  position:fixed; inset:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain;
+  opacity:0; visibility:hidden; transform:scale(.96);
+  transition:opacity .45s ease, transform .7s cubic-bezier(.2,.8,.2,1), visibility 0s linear .7s;
+}
+.view.active{opacity:1; visibility:visible; transform:none; transition-delay:0s}
+#hub{z-index:10}
+#hub:not(.active){transform:scale(1.14)}   /* camera dollies in through the glass */
+.room{z-index:30}
+
+/* ---------- HUB ---------- */
+.hub-wrap{
+  min-height:100%; display:grid; grid-template-rows:auto 1fr auto; gap:clamp(10px,2.5vmin,28px);
+  padding:max(clamp(16px,4vmin,48px), env(safe-area-inset-top)) clamp(16px,4vmin,48px) max(clamp(14px,3vmin,32px), env(safe-area-inset-bottom));
+}
+.mast{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 18px}
+.mast h1{margin:0; font-weight:900; font-stretch:125%; font-size:clamp(40px,9vmin,96px); line-height:.85; letter-spacing:-.02em; text-transform:uppercase;
+  background:var(--cream); padding:4px 10px 2px; border:var(--lw) solid #000}
+.mast p{margin:0; font-weight:700; font-stretch:85%; font-size:clamp(13px,2vmin,18px); letter-spacing:.14em; text-transform:uppercase;
+  background:#000; color:var(--cream); padding:6px 10px}
+.ticks{display:flex; gap:6px; align-self:center}
+.ticks i{width:clamp(12px,2vmin,18px); aspect-ratio:1; display:block; border:3px solid #000}
+.ticks i:nth-child(1){background:var(--red)} .ticks i:nth-child(2){background:var(--yellow)} .ticks i:nth-child(3){background:var(--blue)}
+
+.badges{
+  --b:min(38vw, 24dvh, 240px);
+  display:grid; grid-template-columns:repeat(2, var(--b)); justify-content:center; align-content:center;
+  gap:clamp(14px,3.5vmin,44px) clamp(20px,7vw,72px);
+}
+@media (orientation:landscape){
+  .badges{--b:min(18vw, 40dvh, 260px); grid-template-columns:repeat(4, var(--b))}
+}
+@media (orientation:landscape) and (max-height:520px){
+  .badges{--b:min(18vw, 50dvh)}
+  .mast p{display:none}
+  .mast h1{font-size:clamp(26px,9vh,48px)}
+  .lab small{display:none}
+  .hub-wrap{gap:8px}
+}
+.badge{display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.6vmin,14px); text-decoration:none; color:#000; border-radius:12px; outline-offset:8px}
+.badge:focus-visible, .nav-mode .badge:focus{outline:none; box-shadow:none}
+.disc{
+  position:relative; width:var(--b); aspect-ratio:1; border-radius:50%; display:block;
+  box-shadow:1.2vmin 1.6vmin 0 rgba(0,0,0,.24);
+  transition:transform .4s cubic-bezier(.2,.9,.3,1.35), box-shadow .4s ease;
+}
+.disc svg{width:100%; height:100%; display:block}
+.badge:hover .disc, .badge:focus .disc{transform:translate(-.7vmin,-.9vmin) scale(1.06); box-shadow:2.6vmin 3.2vmin 0 rgba(0,0,0,.26)}
+.badge:active .disc{transform:scale(.97)}
+.badge:focus-visible .disc, .nav-mode .badge:focus .disc{box-shadow:0 0 0 6px #000, 0 0 0 13px var(--yellow), 2.6vmin 3.2vmin 0 rgba(0,0,0,.26)}
+.new{position:absolute; top:2%; right:2%; background:var(--yellow); color:#000; border:3px solid #000; border-radius:50%;
+  width:28%; aspect-ratio:1; display:grid; place-items:center; font-weight:900; font-size:clamp(10px,1.8vmin,15px); text-transform:uppercase; transform:rotate(12deg)}
+.new[hidden]{display:none}
+.lab{background:var(--cream); border:3px solid #000; padding:6px 10px; text-align:center; max-width:calc(var(--b) + 40px)}
+.lab b{display:block; font-weight:800; font-stretch:82%; font-size:clamp(13px,2vmin,18px); line-height:1.1}
+.lab small{display:block; font-size:clamp(10px,1.45vmin,12.5px); letter-spacing:.12em; text-transform:uppercase; margin-top:3px; font-weight:600}
+
+.hub-foot{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between}
+.hub-foot .links{display:flex; gap:10px; flex-wrap:wrap}
+.pill{display:inline-flex; align-items:center; min-height:44px; padding:0 16px; background:var(--cream); border:3px solid #000; text-decoration:none; font-weight:800; font-size:14px; cursor:pointer}
+.pill.dark{background:#000; color:var(--cream)}
+.pill:hover{background:var(--yellow)}
+.pill.dark:hover{background:var(--red); color:#fff}
+.hint{font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; background:var(--cream); border:2px solid #000; padding:4px 8px}
+@media (orientation:landscape) and (max-height:520px){ .hint{display:none} }
+
+/* ---------- ROOMS ---------- */
+.room-bar{
+  position:sticky; top:0; z-index:3; display:flex; justify-content:space-between; align-items:center; gap:12px;
+  padding:max(12px, env(safe-area-inset-top)) clamp(12px,4vw,40px) 12px;
+}
+.back-btn{display:inline-flex; align-items:center; gap:8px; min-height:48px; padding:0 18px; background:#000; color:var(--cream);
+  border:3px solid #000; font-weight:800; font-size:15px; cursor:pointer; box-shadow:5px 5px 0 var(--p3)}
+.back-btn:hover{background:var(--red); color:#fff}
+.room-ch{font-weight:900; font-stretch:125%; font-size:14px; letter-spacing:.12em; background:var(--cream); border:3px solid #000; padding:8px 10px}
+.room-inner{max-width:1120px; margin:0 auto; padding:6px clamp(12px,4vw,40px) max(56px, env(safe-area-inset-bottom)); display:grid; gap:clamp(20px,3.4vw,36px)}
+
+.card{background:var(--cream); color:#000; border:5px solid #000; box-shadow:10px 12px 0 #000; padding:clamp(18px,3vw,36px)}
+.card.dark{background:#000; color:var(--pale); border-color:var(--wred); box-shadow:10px 12px 0 var(--wred)}
+.card h2{margin:0 0 14px; font-weight:900; font-stretch:90%; font-size:clamp(22px,3.2vw,34px); text-transform:uppercase; line-height:1}
+.card p{font-size:clamp(15px,1.8vw,18px); line-height:1.6; max-width:62ch; margin:0 0 12px}
+
+.title-card{display:grid; grid-template-columns:auto 1fr; gap:clamp(16px,3vw,36px); align-items:center}
+.title-card > svg{width:clamp(96px,17vw,180px); height:auto; filter:drop-shadow(6px 8px 0 rgba(0,0,0,.25))}
+.title-card h1{margin:0 0 10px; font-weight:900; font-stretch:78%; font-size:clamp(34px,6.4vw,76px); line-height:.9; text-transform:uppercase; letter-spacing:-.01em}
+.title-card .kicker{display:inline-block; font-weight:800; font-size:12px; letter-spacing:.16em; text-transform:uppercase; background:#000; color:var(--cream); padding:5px 8px; margin-bottom:12px}
+.card.dark .kicker{background:var(--wred); color:#fff}
+@media (max-width:560px){ .title-card{grid-template-columns:1fr} }
+
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)); gap:5px; background:#000; border:5px solid #000; box-shadow:10px 12px 0 #000}
+.tile{min-height:clamp(110px,16vw,150px); padding:18px 20px; display:flex; flex-direction:column; justify-content:space-between; text-decoration:none; cursor:pointer;
+  font-weight:900; font-stretch:90%; font-size:clamp(22px,2.8vw,30px); text-transform:uppercase; line-height:1; transition:filter .2s, transform .2s}
+.tile small{font-weight:600; font-stretch:100%; font-size:13px; letter-spacing:.08em; text-transform:none; opacity:.85}
+.tile:hover{filter:brightness(1.08)}
+.tile:focus-visible, .nav-mode .tile:focus{outline:5px solid #000; outline-offset:-12px; box-shadow:inset 0 0 0 12px var(--yellow)}
+.t-red{background:var(--wred); color:#fff} .t-cyan{background:var(--cyan); color:#000} .t-blue{background:var(--blue); color:#000}
+.t-yellow{background:var(--yellow); color:#000} .t-cream{background:var(--cream); color:#000} .t-black{background:#000; color:var(--cream)}
+.t-teal{background:var(--teal); color:#000} .t-mred{background:var(--red); color:#fff}
+
+.lite{position:relative; width:100%; aspect-ratio:16/9; border:5px solid #000; background:#000 center/cover no-repeat; cursor:pointer; padding:0; display:block}
+.lite::after{content:''; position:absolute; left:50%; top:50%; width:84px; height:84px; transform:translate(-50%,-50%); border-radius:50%;
+  background:var(--wred) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 7l8 5-8 5z' fill='white'/%3E%3C/svg%3E") center/50% no-repeat; border:4px solid #000}
+.lite iframe{position:absolute; inset:0; width:100%; height:100%; border:0}
+.placeholder{aspect-ratio:16/9; border:5px dashed currentColor; display:grid; place-items:center; text-align:center; padding:20px; font-weight:700; opacity:.85}
+
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
+.chip{min-height:44px; padding:0 14px; background:var(--cream); border:3px solid #000; font-weight:800; font-size:14px; cursor:pointer}
+.chip[aria-pressed="true"]{background:#000; color:var(--cream)}
+.apps{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr)); gap:5px; background:#000; border:5px solid #000; box-shadow:10px 12px 0 #000}
+.app{position:relative; background:var(--cream); color:#000; padding:22px 20px 18px; min-height:170px; display:flex; flex-direction:column; text-decoration:none; cursor:pointer; transition:background .2s, color .2s}
+.app::before{content:''; position:absolute; top:0; right:0; width:22px; height:22px; background:var(--c); border-left:4px solid #000; border-bottom:4px solid #000; transition:width .25s, height .25s}
+.app .n{font-weight:900; font-stretch:125%; font-size:12px; opacity:.5}
+.app h3{margin:8px 0 6px; font-size:18px; font-weight:800; line-height:1.2; padding-right:20px}
+.app p{margin:0; font-size:14px; line-height:1.5; flex:1; opacity:.85}
+.app .go{margin-top:12px; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase}
+.app:hover, .app:focus{background:#000; color:var(--cream)}
+.app:hover::before, .app:focus::before{width:44px; height:44px}
+.app:focus-visible, .nav-mode .app:focus{outline:5px solid var(--yellow); outline-offset:-10px; box-shadow:none}
+.app[hidden]{display:none}
+
+.frames{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:5px; background:#000; border:5px solid #000}
+.frame{aspect-ratio:4/5; background:var(--cream); position:relative; overflow:hidden}
+.frame i{position:absolute; display:block}
+
+.player{display:flex; align-items:center; gap:18px}
+.vinyl{width:clamp(70px,12vw,110px); aspect-ratio:1; border-radius:50%; flex-shrink:0; border:4px solid #000;
+  background:radial-gradient(circle, var(--cream) 0 14%, #000 15% 18%, transparent 19%), repeating-radial-gradient(circle, #000 0 2px, #1d1d1d 2px 5px);
+  animation:spin 5s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.others{display:flex; flex-wrap:wrap; gap:14px}
+.mini{display:flex; align-items:center; gap:10px; text-decoration:none; background:var(--cream); color:#000; border:3px solid #000; padding:6px 14px 6px 6px; font-weight:800; font-size:14px; min-height:56px}
+.mini svg{width:44px; height:44px}
+.mini:hover{background:var(--yellow)}
+
+/* ---------- toast ---------- */
+.toast{position:fixed; left:50%; bottom:max(20px, env(safe-area-inset-bottom)); transform:translate(-50%,140%); z-index:60;
+  background:#000; color:var(--cream); border:3px solid var(--yellow); padding:12px 18px; font-weight:700; font-size:14px;
+  max-width:min(92vw,520px); text-align:center; visibility:hidden; transition:transform .35s cubic-bezier(.2,.9,.3,1.2), visibility 0s linear .35s}
+.toast.show{transform:translate(-50%,0); visibility:visible; transition-delay:0s}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important; transition-duration:.01ms !important}
+  .view, #hub:not(.active){transform:none !important}
+}
+</style>
+</head>
+<body data-room="hub">
+
+<!-- ============ LOGO SYMBOLS (vector redraws of the logos) ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Steve's World of Wanders -->
+  <symbol id="logo-wanders" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="100" fill="#D80036"/>
+    <circle cx="100" cy="100" r="88" fill="#000"/>
+    <text x="100" y="66" text-anchor="middle" font-family="Kaushan Script" font-size="30" fill="#00BFF3">Steve's</text>
+    <g font-family="Lobster" fill="#000" stroke="#FFFF73" stroke-width="6" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">
+      <text x="100" y="106" font-size="36" textLength="138" lengthAdjust="spacingAndGlyphs">World of</text>
+      <text x="100" y="148" font-size="44" textLength="146" lengthAdjust="spacingAndGlyphs">Wanders</text>
+    </g>
+  </symbol>
+  <!-- Steve's Art Channel (new badge, built from the family palette) -->
+  <symbol id="logo-art" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="100" fill="#FFF800"/>
+    <circle cx="100" cy="100" r="86" fill="#000"/>
+    <text x="100" y="60" text-anchor="middle" font-family="Kaushan Script" font-size="24" fill="#00BFF3">Steve's</text>
+    <circle cx="60" cy="96" r="20" fill="#C81627"/>
+    <polygon points="100,74 122,116 78,116" fill="#1C8FDE"/>
+    <rect x="122" y="78" width="36" height="36" fill="#FFF800"/>
+    <text x="100" y="152" text-anchor="middle" font-family="Archivo" font-weight="900" font-size="34" letter-spacing="6" fill="#FEF4C3">ART</text>
+    <text x="100" y="172" text-anchor="middle" font-family="Archivo" font-weight="700" font-size="10.5" letter-spacing="3" fill="#FFFF73">CHANNEL</text>
+  </symbol>
+  <!-- Steve's Mind Wanders "M" (geometry measured from the icon) -->
+  <symbol id="logo-mind" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="100" fill="#1C8FDE"/>
+    <circle cx="100" cy="100" r="86.2" fill="#C81627"/>
+    <rect x="63.7" y="33.3" width="68.2" height="85.8" fill="#FFF800"/>
+    <rect x="63.7" y="119.1" width="68.2" height="50.5" fill="#000"/>
+    <rect x="80.7" y="50.9" width="8" height="100.9" fill="#C81627"/>
+    <rect x="106.4" y="50.9" width="8" height="100.9" fill="#C81627"/>
+  </symbol>
+  <!-- SWoW Music -->
+  <symbol id="logo-swow" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="100" fill="#2B97AA"/>
+    <circle cx="100" cy="100" r="90" fill="none" stroke="#FEF4C3" stroke-width="3" opacity=".55"/>
+    <g font-family="Titan One" font-size="58" text-anchor="middle">
+      <text x="105" y="125" fill="#000" textLength="150" lengthAdjust="spacingAndGlyphs">swow</text>
+      <text x="100" y="118" fill="#FEF4C3" textLength="150" lengthAdjust="spacingAndGlyphs">swow</text>
+    </g>
+    <text x="100" y="150" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="11" letter-spacing="4" fill="#000">MUSIC</text>
+  </symbol>
+</svg>
+
+<!-- ============ MULTIPLANE ============ -->
+<div class="plane back" data-depth="0.25" aria-hidden="true"></div>
+<div class="plane mid" data-depth="0.6" aria-hidden="true">
+  <div class="s-arcs"></div><div class="s-half"></div><div class="s-circle"></div>
+  <div class="s-bar"></div><div class="s-dots"></div><div class="s-stripes"></div>
+</div>
+<div class="plane fore" data-depth="1.3" aria-hidden="true">
+  <div class="f-sun"></div><div class="f-tri"></div><div class="f-bar"></div>
+</div>
+
+<!-- ============ HUB ============ -->
+<section class="view active" id="hub" data-view="hub">
+  <div class="hub-wrap" data-depth="0.12">
+    <header class="mast">
+      <h1>Steve</h1>
+      <span class="ticks" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p>Video · Art · Code · Music — Ottawa</p>
+    </header>
+
+    <nav class="badges" aria-label="Channels">
+      <a class="badge" href="#/wanders" data-go="wanders">
+        <span class="disc"><svg role="img" aria-label="Steve's World of Wanders logo"><use href="#logo-wanders"/></svg><span class="new" hidden>New</span></span>
+        <span class="lab"><b>Steve's World of Wanders</b><small>YouTube · Instagram · Facebook</small></span>
+      </a>
+      <a class="badge" href="#/art" data-go="art">
+        <span class="disc"><svg role="img" aria-label="Steve's Art Channel logo"><use href="#logo-art"/></svg><span class="new" hidden>New</span></span>
+        <span class="lab"><b>Steve's Art Channel</b><small>Coming soon</small></span>
+      </a>
+      <a class="badge" href="#/mind" data-go="mind">
+        <span class="disc"><svg role="img" aria-label="Steve's Mind Wanders logo"><use href="#logo-mind"/></svg><span class="new" hidden>New</span></span>
+        <span class="lab"><b>Steve's Mind Wanders</b><small>Creative coding hub</small></span>
+      </a>
+      <a class="badge" href="#/swow" data-go="swow">
+        <span class="disc"><svg role="img" aria-label="SWoW Music logo"><use href="#logo-swow"/></svg><span class="new" hidden>New</span></span>
+        <span class="lab"><b>SWoW Music</b><small>AI-made albums</small></span>
+      </a>
+    </nav>
+
+    <footer class="hub-foot">
+      <div class="links">
+        <a class="pill dark" data-link="support" data-name="Support">Support the work</a>
+        <a class="pill" data-link="email" data-name="Email">Contact</a>
+      </div>
+      <span class="hint">Tap · click · arrow keys · game controller</span>
+    </footer>
+  </div>
+</section>
+
+<!-- ============ ROOM: WORLD OF WANDERS ============ -->
+<section class="view room" id="room-wanders" data-view="wanders" aria-label="Steve's World of Wanders">
+  <div class="room-bar"><button class="back-btn" data-back>← Channels</button><span class="room-ch">CH 01</span></div>
+  <div class="room-inner">
+    <div class="card dark title-card">
+      <svg aria-hidden="true"><use href="#logo-wanders"/></svg>
+      <div>
+        <span class="kicker">The main channel</span>
+        <h1>Steve's World<br>of Wanders</h1>
+        <p>400+ videos and counting. Subscribe on YouTube, and follow along between uploads on Instagram and Facebook.</p>
+      </div>
+    </div>
+    <div class="tiles">
+      <a class="tile t-red" data-link="wanders.youtube" data-sub="1" data-name="YouTube">Subscribe<small>YouTube</small></a>
+      <a class="tile t-cyan" data-link="wanders.instagram" data-name="Instagram">Follow<small>Instagram</small></a>
+      <a class="tile t-blue" data-link="wanders.facebook" data-name="Facebook">Like<small>Facebook</small></a>
+    </div>
+    <div class="card dark">
+      <h2>Latest upload</h2>
+      <div id="wanders-video"></div>
+    </div>
+    <div class="card"><h2>Other channels</h2><div class="others" data-others="wanders"></div></div>
+  </div>
+</section>
+
+<!-- ============ ROOM: ART CHANNEL ============ -->
+<section class="view room" id="room-art" data-view="art" aria-label="Steve's Art Channel">
+  <div class="room-bar"><button class="back-btn" data-back>← Channels</button><span class="room-ch">CH 02</span></div>
+  <div class="room-inner">
+    <div class="card title-card">
+      <svg aria-hidden="true"><use href="#logo-art"/></svg>
+      <div>
+        <span class="kicker">Coming soon</span>
+        <h1>Steve's Art<br>Channel</h1>
+        <p>A new YouTube channel for AI art and traditional art, with a blog to go with it. It isn't live yet — subscribe to World of Wanders to hear when it launches.</p>
+      </div>
+    </div>
+    <div class="frames" aria-hidden="true">
+      <div class="frame"><i style="left:12%;top:10%;width:56%;aspect-ratio:1;border-radius:50%;background:var(--red)"></i><i style="left:0;bottom:22%;width:100%;height:10px;background:#000"></i><i style="right:10%;bottom:6%;width:30%;height:14%;background:var(--blue)"></i></div>
+      <div class="frame" style="background:var(--yellow)"><i style="left:0;top:0;width:60%;height:60%;background:var(--blue);border-bottom-right-radius:100%"></i><i style="right:14%;bottom:14%;width:34%;aspect-ratio:1;background:#000"></i></div>
+      <div class="frame" style="background:#000"><i style="left:20%;top:16%;width:60%;height:44%;background:var(--cream);clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="left:0;bottom:0;width:100%;height:24%;background:var(--teal)"></i></div>
+      <div class="frame"><i style="left:30%;top:0;width:10px;height:100%;background:#000"></i><i style="left:0;top:55%;width:100%;height:10px;background:#000"></i><i style="left:0;top:0;width:30%;height:55%;background:var(--red)"></i><i style="right:0;bottom:0;width:40%;height:45%;background:var(--yellow)"></i></div>
+    </div>
+    <div class="tiles">
+      <a class="tile t-yellow" data-link="art.youtube" data-sub="1" data-name="Art Channel">Art Channel<small>Not live yet</small></a>
+      <a class="tile t-red" data-link="wanders.youtube" data-sub="1" data-name="YouTube">Get notified<small>Subscribe to World of Wanders</small></a>
+    </div>
+    <div class="card"><h2>Other channels</h2><div class="others" data-others="art"></div></div>
+  </div>
+</section>
+
+<!-- ============ ROOM: MIND WANDERS ============ -->
+<section class="view room" id="room-mind" data-view="mind" aria-label="Steve's Mind Wanders">
+  <div class="room-bar"><button class="back-btn" data-back>← Channels</button><span class="room-ch">CH 03</span></div>
+  <div class="room-inner">
+    <div class="card title-card">
+      <svg aria-hidden="true"><use href="#logo-mind"/></svg>
+      <div>
+        <span class="kicker">Creative coding hub</span>
+        <h1>Steve's Mind<br>Wanders</h1>
+        <p>Games, tools and odd experiments, almost all built as single HTML files that run right in your browser.</p>
+        <div class="chips" role="group" aria-label="Filter apps" id="chips"></div>
+      </div>
+    </div>
+    <div class="apps" id="apps"></div>
+    <div class="tiles">
+      <a class="tile t-black" data-link="mind.github" data-name="GitHub">Source<small>GitHub</small></a>
+    </div>
+    <div class="card"><h2>Other channels</h2><div class="others" data-others="mind"></div></div>
+  </div>
+</section>
+
+<!-- ============ ROOM: SWOW MUSIC ============ -->
+<section class="view room" id="room-swow" data-view="swow" aria-label="SWoW Music">
+  <div class="room-bar"><button class="back-btn" data-back>← Channels</button><span class="room-ch">CH 04</span></div>
+  <div class="room-inner">
+    <div class="card title-card">
+      <svg aria-hidden="true"><use href="#logo-swow"/></svg>
+      <div>
+        <span class="kicker">AI-made albums</span>
+        <h1>SWoW<br>Music</h1>
+        <p>Steve's World of Wanders, in sound — albums made with AI tools.</p>
+      </div>
+    </div>
+    <div class="card player">
+      <div class="vinyl" aria-hidden="true"></div>
+      <div><h2 style="margin-bottom:6px">Latest release</h2><p style="margin:0">Add your newest album here.</p></div>
+    </div>
+    <div class="tiles" id="swow-tiles">
+      <a class="tile t-cream" data-link="swow.youtube" data-name="YouTube">Watch<small>YouTube</small></a>
+      <a class="tile t-black" data-link="swow.spotify" data-name="Spotify">Stream<small>Spotify</small></a>
+      <a class="tile t-yellow" data-link="swow.bandcamp" data-name="Bandcamp">Buy<small>Bandcamp</small></a>
+    </div>
+    <div class="card"><h2>Other channels</h2><div class="others" data-others="swow"></div></div>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =========================================================
+   CONFIG — fill these in. Empty links show a "not added yet"
+   message instead of failing silently.
+   ========================================================= */
+const CONFIG = {
+  wanders: { youtube:'', instagram:'', facebook:'', featuredVideoId:'', updated:'' },
+  art:     { youtube:'', updated:'' },
+  mind:    { github:'https://github.com/swowanders', updated:'' },
+  swow:    { youtube:'', spotify:'', bandcamp:'', updated:'' },
+  support: '',   // Ko-fi / Patreon / Buy Me a Coffee URL
+  email:   ''    // plain address, e.g. 'steve@example.com'
+};
+// `updated`: ISO date (e.g. '2026-11-02'). A "New" sticker shows on that badge for visitors who last came before then.
+
+const TAGS = { g:'Games', o:'Ottawa', a:'Archive & retro', i:'AI', m:'Media & tools' };
+const APPS = [
+  ['SonicFlow','A personal music player that fixes its own metadata, pulls lyrics, and reacts to each track with live visualizers.','m',''],
+  ["Steve's Ottawa",'An exploration and vlogging RPG built on real OC Transpo routing and live Ottawa weather.','go',''],
+  ['OTTWATCH','Ottawa events, kept current by a scraper that runs every day.','o',''],
+  ['CutLab','Video analysis and editing with AI vision, transcription and face tracking.','mi',''],
+  ['Aethermorph','Mobile-first AI animation and text-to-image.','i',''],
+  ['Tape Lathe','AI music generation through the ElevenLabs Music API.','im',''],
+  ['Story-Poem Loom','Three creative modes, each pairing an AI writer and illustrator with their own critics.','i',''],
+  ['Story Path Architect','A choose-your-own-adventure engine built on public domain books.','ia',''],
+  ['Apple II Emulator','A full 6502 core with WOZ disk support — an entire Apple II in one HTML file.','a',''],
+  ['Retro Broadcast Day Player','An 80s TV channel simulator with CRT effects and a real broadcast-day schedule.','a',''],
+  ['Pulp Vault','A swipe-through reader for public domain comics and pulp magazines from Archive.org.','a',''],
+  ['Public Archive','Public domain film, music, comics and ephemera, gathered into one feed.','a',''],
+  ['Ottawa Archive Collector','Collects archival Ottawa photographs from several archives in one pass.','oa',''],
+  ['Neighbourhood Simplifier','Turns real Ottawa neighbourhoods into simple line-drawing maps for hand-drawing reference.','om',''],
+  ['Ottawa Field Guide','A geofenced audio walking tour of Ottawa with a map, compass navigation and historic photos.','o',''],
+  ['A Round Tuit','A to-do and chores app built on circular cards, with tags, a time-sensitive stack and calendar export.','m',''],
+  ['Dungeon Overflow','A dungeon crawler dressed as a Commodore 64 game.','ga',''],
+  ["Little Steve's Farm",'A farm simulator drawn through a custom "stained glass LCD" renderer.','g',''],
+  ['The Rotten Depths','A dark-fantasy dungeon crawler with monster abominations, inventory and equipment.','g',''],
+  ["Spectromancer's Tower",'A greyscale pixel game: climb a seven-level tower of telescope and spectroscope puzzles.','g',''],
+  ['Shape Weave','Turns a portrait into a tessellating pattern of triangles, squares, hexagons or halftone dots.','m',''],
+  ['Splice Slideshow Studio','A slideshow and video editor with crossfades, face-targeted Ken Burns zooms and a music track.','m','']
+]; // 4th field = URL. Empty = "link not added yet".
+
+const ROUTES = ['wanders','art','mind','swow'];
+const NAMES = { wanders:"Steve's World of Wanders", art:"Steve's Art Channel", mind:"Steve's Mind Wanders", swow:'SWoW Music' };
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (s,r=document)=>r.querySelector(s), $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const views = $$('.view');
+const activeView = ()=> views.find(v=>v.classList.contains('active')) || views[0];
+let current = 'hub';
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* ---------- Mondrian back plane ---------- */
+(function buildBack(){
+  const P=$('.plane.back');
+  const blocks=[[0,0,18,28,'--p2'],[84,28,16,43,'--p3'],[62,71,22,29,'--p1'],[0,71,18,29,'--p4'],[62,0,22,12,'--p4'],[84,86,16,14,'--p2']];
+  const v=[[18,0,100],[62,0,71],[84,0,100],[40,71,100]];
+  const h=[[28,0,100],[71,0,100],[12,62,84],[86,84,100]];
+  let html='';
+  blocks.forEach(([x,y,w,hh,c])=> html+=`<div class="m-blk" style="left:${x}%;top:${y}%;width:${w}%;height:${hh}%;background:var(${c})"></div>`);
+  v.forEach(([x,a,b])=> html+=`<div class="m-v" style="left:${x}%;top:${a}%;height:${b-a}%"></div>`);
+  h.forEach(([y,a,b])=> html+=`<div class="m-h" style="top:${y}%;left:${a}%;width:${b-a}%"></div>`);
+  P.innerHTML=html;
+})();
+
+/* ---------- links ---------- */
+function getPath(p){ return p.split('.').reduce((o,k)=>o==null?o:o[k], CONFIG); }
+function wireLink(el, url, name){
+  if(url){
+    el.href=url;
+    if(!url.startsWith('mailto:')){ el.target='_blank'; el.rel='noopener'; }
+  } else {
+    el.removeAttribute('href'); el.setAttribute('role','button'); el.tabIndex=0; el.dataset.soon=name;
+  }
+}
+$$('[data-link]').forEach(el=>{
+  const key=el.dataset.link; let url=getPath(key)||'';
+  if(key==='email' && url) url='mailto:'+url;
+  if(url && el.dataset.sub && /youtube\.com/.test(url)) url+=(url.includes('?')?'&':'?')+'sub_confirmation=1';
+  wireLink(el, url, el.dataset.name || el.textContent.trim());
+});
+
+/* ---------- featured video (loads YouTube only on click) ---------- */
+(function(){
+  const box=$('#wanders-video'), id=CONFIG.wanders.featuredVideoId;
+  if(!id){ box.innerHTML='<div class="placeholder">Featured video goes here — set <code>featuredVideoId</code> in CONFIG.</div>'; return; }
+  const b=document.createElement('button'); b.className='lite'; b.setAttribute('aria-label','Play latest video');
+  b.style.backgroundImage=`url(https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg)`;
+  b.addEventListener('click',()=>{ b.innerHTML=`<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1" title="Latest video" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`; b.style.cursor='default'; });
+  box.appendChild(b);
+})();
+
+/* ---------- apps + filter ---------- */
+(function(){
+  const grid=$('#apps'), chips=$('#chips'), colors=['#1C8FDE','#C81627','#FFF800','#2B97AA'];
+  APPS.forEach(([name,desc,tags,url],i)=>{
+    const a=document.createElement('a'); a.className='app'; a.dataset.tags=tags; a.style.setProperty('--c',colors[i%4]);
+    a.innerHTML=`<span class="n">${String(i+1).padStart(2,'0')}</span><h3>${name}</h3><p>${desc}</p><span class="go">${url?'Open app →':'Link coming'}</span>`;
+    wireLink(a,url,name); grid.appendChild(a);
+  });
+  const keys=['all',...Object.keys(TAGS)];
+  keys.forEach(k=>{
+    const b=document.createElement('button'); b.className='chip'; b.textContent=k==='all'?'All':TAGS[k];
+    b.setAttribute('aria-pressed', k==='all'); b.dataset.filter=k;
+    b.addEventListener('click',()=>{
+      $$('.chip',chips).forEach(c=>c.setAttribute('aria-pressed', c===b));
+      let n=0; $$('.app',grid).forEach(a=>{ const show=k==='all'||a.dataset.tags.includes(k); a.hidden=!show; if(show)n++; });
+      toast(`${b.textContent}: ${n} app${n===1?'':'s'}`);
+    });
+    chips.appendChild(b);
+  });
+})();
+
+/* ---------- cross-links between channels ---------- */
+$$('[data-others]').forEach(box=>{
+  ROUTES.filter(r=>r!==box.dataset.others).forEach(r=>{
+    box.insertAdjacentHTML('beforeend',`<a class="mini" href="#/${r}"><svg aria-hidden="true"><use href="#logo-${r}"/></svg>${NAMES[r]}</a>`);
+  });
+});
+
+/* ---------- "New since your last visit" ---------- */
+(function(){
+  let last=null; try{ last=localStorage.getItem('sw-last-visit'); localStorage.setItem('sw-last-visit', new Date().toISOString()); }catch(e){}
+  if(!last) return;
+  ROUTES.forEach(r=>{ const u=CONFIG[r].updated; if(u && new Date(u)>new Date(last)) $(`.badge[data-go="${r}"] .new`).hidden=false; });
+})();
+
+/* ---------- router ---------- */
+function route(){
+  const m=location.hash.match(/^#\/(\w+)/), r=(m && ROUTES.includes(m[1])) ? m[1] : 'hub';
+  const prev=current; current=r; document.body.dataset.room=r;
+  views.forEach(v=>v.classList.toggle('active', v.dataset.view===r));
+  const v=activeView(); v.scrollTop=0;
+  document.title = r==='hub' ? 'Steve — Video, Art, Code, Music' : NAMES[r]+' — Steve';
+  if(prev===r) return;
+  setTimeout(()=>{
+    if(r==='hub'){ const b=$(`.badge[data-go="${prev}"]`); if(b) b.focus({preventScroll:true}); }
+    else $('[data-back]',v).focus({preventScroll:true});
+  }, 80);
+}
+function goHub(){ if(current!=='hub') location.hash='#/'; }
+function cycle(dir){ const i=ROUTES.indexOf(current); const n= i<0 ? (dir>0?0:3) : (i+dir+4)%4; location.hash='#/'+ROUTES[n]; }
+addEventListener('hashchange', route);
+route();
+
+/* ---------- clicks ---------- */
+document.addEventListener('click',e=>{
+  const s=e.target.closest('[data-soon]');
+  if(s){ e.preventDefault(); toast(`${s.dataset.soon}: link not added yet`); return; }
+  if(e.target.closest('[data-back]')) goHub();
+});
+
+/* =========================================================
+   INPUT — spatial navigation shared by keyboard + gamepad
+   ========================================================= */
+const FOCUSABLE='a[href], button:not([disabled]), [data-soon]';
+function focusables(){ return $$(FOCUSABLE, activeView()).filter(el=>el.offsetParent!==null || getComputedStyle(el).position==='fixed'); }
+function setNav(on=true){ document.body.classList.toggle('nav-mode', on); }
+function move(dx,dy){
+  const list=focusables(); if(!list.length) return;
+  const cur=document.activeElement;
+  if(!list.includes(cur)){ list[0].focus(); return; }
+  const r=cur.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+  let best=null, bestS=Infinity;
+  for(const el of list){
+    if(el===cur) continue;
+    const q=el.getBoundingClientRect(), ex=q.left+q.width/2, ey=q.top+q.height/2;
+    const vx=ex-cx, vy=ey-cy, primary=dx?vx*dx:vy*dy;
+    if(primary<=4) continue;
+    const s=primary + (dx?Math.abs(vy):Math.abs(vx))*2.5;
+    if(s<bestS){ bestS=s; best=el; }
+  }
+  if(best){ best.focus(); best.scrollIntoView({block:'nearest', behavior: RM?'auto':'smooth'}); }
+  else if(dy){ const v=activeView(); v.scrollBy({top:dy*v.clientHeight*.5, behavior:RM?'auto':'smooth'}); }
+}
+function activate(){
+  const el=document.activeElement;
+  if(!el || el===document.body || !activeView().contains(el)){ const f=focusables()[0]; if(f) f.focus(); return; }
+  if(el.tagName==='A' && el.target==='_blank' && el.href){
+    const w=window.open(el.href,'_blank');
+    if(w){ try{ w.opener=null; }catch(e){} } else { toast('Opening in this tab…'); location.href=el.href; }
+    return;
+  }
+  el.click();
+}
+
+/* keyboard */
+addEventListener('keydown',e=>{
+  if(e.altKey||e.ctrlKey||e.metaKey) return;
+  const k=e.key, dirs={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+  if(dirs[k]){ e.preventDefault(); setNav(); move(...dirs[k]); return; }
+  if(k==='Escape' || k==='Backspace'){ if(current!=='hub'){ e.preventDefault(); goHub(); } return; }
+  if(k===' ' || (k==='Enter' && document.activeElement?.dataset.soon!==undefined)){
+    const el=document.activeElement;
+    if(el && (el.tagName==='A' || el.getAttribute('role')==='button')){ e.preventDefault(); activate(); }
+    return;
+  }
+  if(/^[1-4]$/.test(k)){ location.hash='#/'+ROUTES[+k-1]; return; }
+  if(k==='Tab') setNav();
+});
+addEventListener('pointerdown',()=>setNav(false),{passive:true});
+
+/* gamepad */
+const held={}, next={}, stick={x:0,y:0};
+const dead=v=>Math.abs(v)<.18?0:v;
+function dir(name,on,t,fn){
+  if(on){ if(!held[name]){ held[name]=true; next[name]=t+380; setNav(); fn(); } else if(t>=next[name]){ next[name]=t+130; fn(); } }
+  else held[name]=false;
+}
+function press(name,on,fn){ if(on && !held[name]){ held[name]=true; setNav(); fn(); } else if(!on) held[name]=false; }
+function pollPad(t){
+  const pads=navigator.getGamepads?navigator.getGamepads():[]; let p=null;
+  for(const g of pads){ if(g && g.connected){ p=g; break; } }
+  if(!p){ stick.x=stick.y=0; return; }
+  const b=i=>!!(p.buttons[i] && p.buttons[i].pressed), a=p.axes;
+  dir('up',   b(12)||a[1]<-.5, t, ()=>move(0,-1));
+  dir('down', b(13)||a[1]> .5, t, ()=>move(0, 1));
+  dir('left', b(14)||a[0]<-.5, t, ()=>move(-1,0));
+  dir('right',b(15)||a[0]> .5, t, ()=>move( 1,0));
+  press('a', b(0), activate);
+  press('b', b(1), goHub);
+  press('start', b(9), goHub);
+  press('lb', b(4), ()=>cycle(-1));
+  press('rb', b(5), ()=>cycle(1));
+  const rx=dead(a[2]||0), ry=dead(a[3]||0);
+  if(current==='hub'){ stick.x=rx; stick.y=ry; }
+  else { stick.x=rx; stick.y=0; if(ry) activeView().scrollTop+=ry*22; }
+}
+addEventListener('gamepadconnected',()=>toast('Controller connected — D-pad to move, A to open, B to go back, LB/RB to switch channels'));
+addEventListener('gamepaddisconnected',()=>toast('Controller disconnected'));
+
+/* =========================================================
+   MULTIPLANE CAMERA — mouse, device tilt, right stick,
+   focus, scroll, plus a slow idle drift
+   ========================================================= */
+const planes=$$('.plane, .hub-wrap').map(el=>({el, d:+el.dataset.depth}));
+const cam={x:0,y:0}, mouse={x:0,y:0,on:false}, tilt={x:0,y:0,on:false}, lean={x:0,y:0};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+addEventListener('pointermove',e=>{ if(e.pointerType!=='mouse') return; mouse.x=e.clientX/innerWidth*2-1; mouse.y=e.clientY/innerHeight*2-1; mouse.on=true; },{passive:true});
+document.addEventListener('mouseleave',()=>{ mouse.on=false; });
+addEventListener('focusin',e=>{
+  const r=e.target.getBoundingClientRect?.(); if(!r) return;
+  lean.x=clamp((r.left+r.width/2)/innerWidth*2-1,-1,1); lean.y=clamp((r.top+r.height/2)/innerHeight*2-1,-1,1);
+});
+let base=null;
+addEventListener('deviceorientation',e=>{
+  if(e.gamma==null || e.beta==null) return;
+  if(!base) base={b:e.beta,g:e.gamma};
+  base.b+=(e.beta-base.b)*.004; base.g+=(e.gamma-base.g)*.004;   // slowly re-centre on how you hold it
+  const db=e.beta-base.b, dg=e.gamma-base.g;
+  const ang=(screen.orientation&&screen.orientation.angle) || window.orientation || 0;
+  let x=dg, y=db;
+  if(ang===90){ x=db; y=-dg; } else if(ang===270||ang===-90){ x=-db; y=dg; }
+  tilt.x=clamp(x/22,-1,1); tilt.y=clamp(y/22,-1,1); tilt.on=true;
+});
+// iOS asks permission for tilt; ask quietly on first touch
+addEventListener('touchend',function ask(){
+  removeEventListener('touchend',ask);
+  if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission){ DeviceOrientationEvent.requestPermission().catch(()=>{}); }
+},{passive:true});
+
+function frame(t){
+  pollPad(t);
+  let tx=0, ty=0;
+  if(mouse.on){ tx=mouse.x; ty=mouse.y; } else if(tilt.on){ tx=tilt.x; ty=tilt.y; }
+  if(!RM){ tx+=Math.sin(t/5200)*.22; ty+=Math.cos(t/6900)*.16; }
+  tx=clamp(tx+stick.x+lean.x*.45,-1.5,1.5); ty=clamp(ty+stick.y+lean.y*.3,-1.5,1.5);
+  cam.x+=(tx-cam.x)*.06; cam.y+=(ty-cam.y)*.06;
+  const amp=RM?0:Math.min(innerWidth,innerHeight)*.045;
+  const sc=current==='hub'?0:Math.min(activeView().scrollTop,1400)*(RM?0:.09);
+  for(const p of planes){
+    const isHub=p.el.classList.contains('hub-wrap');
+    if(isHub && current!=='hub') continue;
+    p.el.style.transform=`translate3d(${(-cam.x*p.d*amp).toFixed(2)}px,${(-cam.y*p.d*amp - (isHub?0:sc*p.d)).toFixed(2)}px,0)`;
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
