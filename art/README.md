@@ -50,3 +50,9 @@ The galleries make your art hard to save:
 - Every full-size view carries a small "© Steve's Art Channel" watermark and an "All rights reserved" notice.
 
 No website can make art completely uncopyable. Anyone can take a screenshot, and because this repository is public, the files in `art/` can be opened directly on GitHub. So only upload web-sized copies (about 1600–2000 px), never print-quality originals.
+
+## Duplicates are removed automatically
+
+Every time art or `gallery.html` changes on GitHub, the **Remove duplicate art** check runs (see the repository's **Actions** tab). It spots the same image uploaded twice, even if one copy was resized or saved in a different format (JPG, PNG, WebP…). It keeps the copy the gallery lists first, or failing that the oldest one. Then it deletes the extra file and any gallery entry pointing to it.
+
+Removed files stay in the repository's history, so nothing is lost for good. If the check ever removes something it shouldn't have, two very similar but different pieces might have been mistaken for one. Ask Claude to restore it.

@@ -1,0 +1,38 @@
+name: Remove duplicate art
+
+# Runs whenever art or the gallery list changes. Finds the same image uploaded
+# more than once (even resized or re-saved) and removes the extra copies.
+on:
+  push:
+    branches: [main]
+    paths: ['art/**', 'gallery.html']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dedupe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - name: Find and remove duplicates
+        run: python tools/dedupe_art.py | tee dedupe.log
+      - name: Commit any removals
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A art gallery.html
+            git commit -m "Remove duplicate art" -m "$(cat dedupe.log)"
+            git push
+            { echo '### Duplicates removed'; echo '```'; cat dedupe.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No duplicates found.' >> "$GITHUB_STEP_SUMMARY"
+          fi

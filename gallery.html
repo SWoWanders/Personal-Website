@@ -224,6 +224,14 @@ const AI_ART = [
     slot: 1,
     frame: 'black'
   },
+  {
+    src: 'art/ai/rootbound.jpg',
+    title: 'Rootbound',
+    medium: 'AI-generated image',
+    description: 'A pale young figure in a high Victorian lace collar wears a towering crown of gnarled branches and sculpted flowers, set against faded floral wallpaper in muted, antique tones.',
+    slot: 2,
+    frame: 'oak'
+  },
 ];
 
 const TRADITIONAL_ART = [
@@ -447,7 +455,9 @@ const hitList = [];
 /* assign artworks to slots */
 const assigned = new Array(NSLOTS).fill(null);
 const warnings = [];
+const seenSrc = new Set();
 ARTWORKS.forEach((a,i)=>{ if(!a || !a.src){ warnings.push(`Artwork #${i+1} has no image (src).`); return; }
+  if(seenSrc.has(a.src)){ console.warn('[gallery] skipped duplicate entry for', a.src); a.__placed=true; return; } seenSrc.add(a.src);
   if(a.slot!=null){
     const n=+a.slot;
     if(!(n>=1 && n<=NSLOTS)) warnings.push(`"${a.title||a.src}" asks for spot ${a.slot}, but spots go 1–${NSLOTS}. Placed in the next free spot.`);
