@@ -1037,7 +1037,7 @@ function burst(t, dur, type, freq, q, gain, pan, wet){
 }
 function footstep(run){
   if(!SND.ctx || !SND.on || SND.ctx.state!=='running') return;
-  const ctx=SND.ctx, t=ctx.currentTime+.005, v=(run?1.15:1)*(.75+Math.random()*.3), pan=SND.side*.12; SND.side*=-1;
+  const ctx=SND.ctx, t=ctx.currentTime+.005, v=.32*(run?1.15:1)*(.8+Math.random()*.25), pan=SND.side*.12; SND.side*=-1;
   // heel click
   burst(t, .045, 'bandpass', 2300+Math.random()*900, 1.1, .5*v, pan, .5);
   // woody knock of the floorboard
@@ -1047,7 +1047,7 @@ function footstep(run){
   o.connect(og); og.connect(SND.dry); const w=ctx.createGain(); w.gain.value=.3; og.connect(w).connect(SND.wet); o.start(t); o.stop(t+.15);
   // toe roll a moment later
   burst(t+.07+Math.random()*.02, .05, 'bandpass', 1500+Math.random()*500, 1.4, .16*v, pan, .4);
-  if(Math.random()<.05) creak(t+.05, .05);
+  if(Math.random()<.04) creak(t+.05, .02);
 }
 function creak(t, gain, wetOnly){
   const ctx=SND.ctx, o=ctx.createOscillator(), f=ctx.createBiquadFilter(), g=ctx.createGain();
@@ -1075,14 +1075,16 @@ function setSound(on){
   toast(on ? 'Sound on' : 'Sound off', 1200);
 }
 if(!SND.on){ $('#sndBtn').textContent='🔇'; $('#sndBtn').setAttribute('aria-pressed','false'); $('#sndBtn').setAttribute('aria-label','Sound off'); }
-function stepSounds(run){
+function stepSounds(run, dt){
   if(SND.lastX===null){ SND.lastX=player.x; SND.lastZ=player.z; return; }
   const d=Math.hypot(player.x-SND.lastX, player.z-SND.lastZ); SND.lastX=player.x; SND.lastZ=player.z;
-  if(d>1 || (auto && auto.fade)){ SND.stepAcc=0; return; }   // teleports make no footsteps
-  if(d<.0005){ if(SND.stepAcc>.25) { SND.stepAcc=0; } return; }
-  SND.stepAcc+=d;
-  const stride = run ? .95 : .72;
-  if(SND.stepAcc>=stride){ SND.stepAcc-=stride; footstep(run); }
+  if(d>1 || (auto && auto.fade) || dt<=0){ SND.stepAcc=0; return; }   // teleports make no footsteps
+  const speed=d/dt;
+  if(speed<.25){ SND.stepAcc=Math.min(SND.stepAcc,.6); return; }
+  // a relaxed gallery stroll: under 2 steps a second, a little quicker when running
+  const cadence = run ? 2.3 : 1.25 + .55*Math.min(1, speed/2.6);
+  SND.stepAcc += dt*cadence;
+  if(SND.stepAcc>=1){ SND.stepAcc-=1; footstep(run); }
 }
 
 /* ---------------- main loop ---------------- */
@@ -1111,7 +1113,7 @@ function frame(){
     player.yaw += turn*1.9*dt - pad.rx*Math.abs(pad.rx)*2.6*dt;
     player.pitch = Math.max(-1.1, Math.min(1.1, player.pitch - pad.ry*Math.abs(pad.ry)*1.8*dt));
   }
-  if(!anyOverlay()) stepSounds(keys.has('shift')||pad.run);
+  if(!anyOverlay()) stepSounds(keys.has('shift')||pad.run, dt);
   // gentle walking bob
   const spd=Math.hypot(player.vx,player.vz); const bob = RM ? 0 : Math.sin(performance.now()/170)*.018*Math.min(1,spd/2.6);
   camera.position.set(player.x, EYE+bob, player.z);
