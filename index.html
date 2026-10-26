@@ -355,6 +355,7 @@ svg use{overflow:visible}
     <div class="tiles">
       <a class="tile t-red" data-link="art.youtube" data-sub="1" data-name="Art Channel">Subscribe<small>YouTube · @stevesartc</small></a>
       <a class="tile t-yellow" data-link="art.youtube" data-name="Art Channel">Watch<small>Browse the channel</small></a>
+      <a class="tile t-black" data-link="art.gallery" data-name="Virtual Gallery">Enter the gallery<small>Walk through the 3D virtual gallery</small></a>
     </div>
     <div class="card"><h2>Other channels</h2><div class="others" data-others="art"></div></div>
   </div>
@@ -415,7 +416,7 @@ svg use{overflow:visible}
    ========================================================= */
 const CONFIG = {
   wanders: { youtube:'https://www.youtube.com/@stevesworldofwanders', instagram:'', facebook:'', featuredVideoId:'', updated:'' },
-  art:     { youtube:'https://www.youtube.com/@stevesartc', updated:'' },
+  art:     { youtube:'https://www.youtube.com/@stevesartc', gallery:'gallery.html', updated:'' },
   mind:    { github:'https://github.com/swowanders', updated:'' },
   swow:    { youtube:'', spotify:'', bandcamp:'', updated:'' },
   support: '',   // Ko-fi / Patreon / Buy Me a Coffee URL
@@ -479,7 +480,7 @@ function getPath(p){ return p.split('.').reduce((o,k)=>o==null?o:o[k], CONFIG); 
 function wireLink(el, url, name){
   if(url){
     el.href=url;
-    if(!url.startsWith('mailto:')){ el.target='_blank'; el.rel='noopener'; }
+    if(/^https?:/.test(url)){ el.target='_blank'; el.rel='noopener'; }
   } else {
     el.removeAttribute('href'); el.setAttribute('role','button'); el.tabIndex=0; el.dataset.soon=name;
   }

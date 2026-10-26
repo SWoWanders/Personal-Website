@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Virtual Gallery — Steve's Art Channel</title>
+<meta name="description" content="Walk through Steve's virtual art gallery: AI art and traditional art, hung in a 3D gallery you can explore.">
+<meta name="theme-color" content="#0c0a09">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blue:#1C8FDE; --red:#C81627; --wred:#D80036; --yellow:#FFF800; --teal:#2B97AA; --cream:#FEF4C3; --cyan:#00BFF3;
+  --ink:#0c0a09; --font:'Archivo', system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; background:var(--ink); color:var(--cream); font-family:var(--font); overflow:hidden; -webkit-tap-highlight-color:transparent}
+canvas#c{position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; outline:none}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus{outline:none}
+.kb :focus{outline:4px solid var(--yellow); outline-offset:3px}
+
+/* ---------- HUD ---------- */
+.hud{position:fixed; z-index:5; display:flex; gap:8px; align-items:center; pointer-events:none}
+.hud > *{pointer-events:auto}
+.top{top:max(12px, env(safe-area-inset-top)); left:max(12px, env(safe-area-inset-left)); right:max(12px, env(safe-area-inset-right)); justify-content:space-between}
+.top .grp{display:flex; gap:8px}
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:44px; min-width:44px; padding:0 14px; background:var(--cream); color:#000;
+  border:3px solid #000; font-weight:800; font-size:14px; text-decoration:none; box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+.btn:hover{background:var(--yellow)}
+.btn.dark{background:#000; color:var(--cream); border-color:var(--cream)}
+.btn.dark:hover{background:var(--red); color:#fff}
+.btn[aria-pressed="true"]{background:#000; color:var(--yellow); border-color:var(--yellow)}
+.title-chip{font-weight:900; font-stretch:115%; font-size:13px; letter-spacing:.14em; text-transform:uppercase; background:#000; border:2px solid var(--cream); padding:6px 10px}
+@media (max-width:560px){ .title-chip{display:none} }
+
+.bottom{bottom:max(14px, env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%)}
+.counter{min-width:120px; text-align:center; font-weight:800; font-size:14px; background:#000; border:2px solid var(--cream); padding:10px 12px; white-space:nowrap}
+
+.reticle{position:fixed; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; background:rgba(254,244,195,.55); box-shadow:0 0 0 2px rgba(0,0,0,.5); z-index:4; pointer-events:none; transition:transform .15s, background .15s}
+.reticle.on{transform:scale(1.8); background:var(--yellow)}
+.hint{position:fixed; left:50%; bottom:calc(max(14px, env(safe-area-inset-bottom)) + 64px); transform:translateX(-50%); z-index:4; pointer-events:none;
+  background:rgba(0,0,0,.78); border:2px solid var(--cream); padding:8px 12px; font-size:14px; font-weight:700; max-width:min(92vw,560px); text-align:center; opacity:0; transition:opacity .2s}
+.hint.on{opacity:1}
+.hint b{color:var(--yellow)}
+
+/* minimap */
+.map{position:fixed; z-index:5; right:max(12px, env(safe-area-inset-right)); bottom:calc(max(14px, env(safe-area-inset-bottom)) + 62px); border:3px solid var(--cream);
+  background:rgba(0,0,0,.82); box-shadow:4px 4px 0 rgba(0,0,0,.5); cursor:crosshair; touch-action:none}
+.map[hidden]{display:none}
+.map canvas{display:block; width:min(240px, 44vw); height:auto}
+.map .cap{position:absolute; left:6px; top:4px; font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; opacity:.8; pointer-events:none}
+
+/* touch joystick */
+.stick{position:fixed; z-index:4; width:120px; height:120px; margin:-60px 0 0 -60px; border-radius:50%; border:3px solid rgba(254,244,195,.55); background:rgba(0,0,0,.25); pointer-events:none; display:none}
+.stick i{position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(254,244,195,.75); border:3px solid #000}
+.stick-hint{position:fixed; z-index:3; left:max(26px, env(safe-area-inset-left)); bottom:calc(max(14px, env(safe-area-inset-bottom)) + 70px); width:96px; height:96px; border-radius:50%;
+  border:2px dashed rgba(254,244,195,.35); display:none; place-items:center; text-align:center; font-size:10px; font-weight:800; letter-spacing:.1em; color:rgba(254,244,195,.6); pointer-events:none; text-transform:uppercase}
+.touch .stick-hint{display:grid}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); overflow:auto}
+.overlay[hidden]{display:none}
+#intro{background:rgba(12,10,9,.86)}
+.panel{width:min(760px,100%); background:var(--cream); color:#000; border:5px solid #000; box-shadow:10px 12px 0 var(--red); padding:clamp(18px,4vw,34px)}
+.panel .kicker{display:inline-block; background:#000; color:var(--cream); font-weight:800; font-size:12px; letter-spacing:.16em; text-transform:uppercase; padding:5px 8px}
+.panel h1{margin:12px 0 8px; font-weight:900; font-stretch:80%; font-size:clamp(32px,6vw,60px); line-height:.92; text-transform:uppercase}
+.panel p{margin:0 0 14px; font-size:16px; line-height:1.5; max-width:60ch}
+.ctl{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr)); gap:4px; background:#000; border:4px solid #000; margin:16px 0 20px}
+.ctl div{background:var(--cream); padding:12px 14px; font-size:13.5px; line-height:1.55}
+.ctl h3{margin:0 0 6px; font-size:12px; letter-spacing:.14em; text-transform:uppercase}
+.ctl div:nth-child(1) h3{color:var(--red)} .ctl div:nth-child(2) h3{color:var(--blue)} .ctl div:nth-child(3) h3{color:var(--teal)}
+kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(--font); background:#000; color:var(--cream); padding:1px 5px; border-radius:3px}
+.go{font-size:18px; min-height:56px; padding:0 26px; background:var(--red); color:#fff}
+.go:hover{background:#000; color:var(--yellow)}
+.go[disabled]{opacity:.6; cursor:wait}
+.load{margin-top:14px; height:10px; border:3px solid #000; background:#fff}
+.load i{display:block; height:100%; width:0; background:var(--blue); transition:width .2s}
+.status{margin-top:8px; font-size:13px; font-weight:700}
+
+#viewer{background:rgba(6,5,5,.94); cursor:zoom-out}
+.vwrap{display:grid; grid-template-columns:minmax(0,1fr) minmax(240px,340px); gap:clamp(16px,3vw,32px); align-items:center; width:min(1280px,100%); max-height:100%}
+.vimg{display:grid; place-items:center; min-height:0}
+.vimg img{max-width:100%; max-height:calc(100dvh - 60px); object-fit:contain; box-shadow:0 20px 60px rgba(0,0,0,.6); background:#111}
+.vcap{background:var(--cream); color:#000; border:4px solid #000; box-shadow:8px 10px 0 var(--red); padding:18px 20px}
+.vcap .slotno{font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; opacity:.6}
+.vcap h2{margin:6px 0 8px; font-weight:900; font-stretch:85%; font-size:clamp(22px,3vw,32px); line-height:1.02}
+.vcap .meta{font-size:13px; font-weight:700; line-height:1.6; margin-bottom:10px}
+.vcap .desc{font-size:15px; line-height:1.55; margin:0 0 12px; white-space:pre-line}
+.vcap .more{margin:2px 0 12px}
+.vcap .close-hint{font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; opacity:.6}
+@media (orientation:portrait), (max-width:760px){
+  .vwrap{grid-template-columns:1fr; align-content:start}
+  .vimg img{max-height:58dvh}
+}
+@media (orientation:landscape) and (max-height:520px){
+  .vwrap{grid-template-columns:minmax(0,1fr) 280px}
+  .vimg img{max-height:calc(100dvh - 32px)}
+  .vcap{padding:12px 14px} .vcap .desc{font-size:13px}
+}
+
+.fade{position:fixed; inset:0; background:#000; z-index:15; opacity:0; pointer-events:none; transition:opacity .22s}
+.fade.on{opacity:1}
+.toast{position:fixed; left:50%; top:calc(max(12px, env(safe-area-inset-top)) + 58px); transform:translate(-50%,-20px); opacity:0; z-index:30;
+  background:#000; color:var(--cream); border:3px solid var(--yellow); padding:10px 16px; font-weight:700; font-size:14px; max-width:min(92vw,560px); text-align:center; pointer-events:none; transition:opacity .25s, transform .25s}
+.toast.show{opacity:1; transform:translate(-50%,0)}
+.curator{position:fixed; z-index:5; left:max(12px, env(safe-area-inset-left)); top:calc(max(12px, env(safe-area-inset-top)) + 58px); background:var(--yellow); color:#000; border:3px solid #000;
+  padding:8px 12px; font-size:13px; font-weight:800; max-width:min(80vw,360px)}
+.fatal{position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:20px; background:var(--ink)}
+@media (prefers-reduced-motion: reduce){ *{transition-duration:.01ms !important} }
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="-1" aria-label="3D gallery view"></canvas>
+
+<div class="hud top">
+  <div class="grp">
+    <a class="btn dark" id="exit" href="index.html#/art">← Art Channel</a>
+    <span class="title-chip">Virtual Gallery</span>
+  </div>
+  <div class="grp">
+    <button class="btn" id="mapBtn" aria-pressed="false" title="Floor plan (M)">Map</button>
+    <button class="btn" id="helpBtn" title="Controls (H)" aria-label="Controls">?</button>
+  </div>
+</div>
+<div class="hud bottom">
+  <button class="btn" id="prev" aria-label="Previous artwork" title="Previous artwork (Q)">◀</button>
+  <span class="counter" id="counter" aria-live="polite">—</span>
+  <button class="btn" id="next" aria-label="Next artwork" title="Next artwork (E)">▶</button>
+</div>
+<div class="reticle" id="reticle"></div>
+<div class="hint" id="hint"></div>
+<div class="map" id="map" hidden><span class="cap">Floor plan · tap to go</span><canvas id="mapc" width="600" height="360"></canvas></div>
+<div class="stick" id="stick"><i></i></div>
+<div class="stick-hint">Drag here<br>to walk</div>
+<div class="fade" id="fade"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="overlay" id="intro" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+  <div class="panel">
+    <span class="kicker">Steve's Art Channel</span>
+    <h1 id="introTitle">The Virtual Gallery</h1>
+    <p>Walk the hall and step up to any piece to see it full size, with its story.</p>
+    <div class="ctl">
+      <div><h3>Touch</h3>Drag bottom-left to walk<br>Drag anywhere else to look<br>Tap a piece to view it<br>Tap the floor to walk there</div>
+      <div><h3>Mouse &amp; keyboard</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to move<br>Drag to look · click a piece<br><kbd>Q</kbd> <kbd>E</kbd> previous / next piece<br><kbd>Enter</kbd> view · <kbd>M</kbd> map · <kbd>Esc</kbd> close</div>
+      <div><h3>Controller</h3>Left stick walk · right stick look<br>Ⓐ view / close · Ⓑ back<br>LB / RB previous / next piece<br>Y map · RT run</div>
+    </div>
+    <button class="btn go" id="enter" disabled>Loading…</button>
+    <a class="btn" href="index.html#/art" style="margin-left:10px">← Back</a>
+    <div class="load" aria-hidden="true"><i id="bar"></i></div>
+    <div class="status" id="status">Building the gallery…</div>
+  </div>
+</div>
+
+<div class="overlay" id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="vTitle">
+  <div class="vwrap">
+    <div class="vimg"><img id="vImg" alt=""></div>
+    <div class="vcap">
+      <div class="slotno" id="vSlot"></div>
+      <h2 id="vTitle"></h2>
+      <div class="meta" id="vMeta"></div>
+      <p class="desc" id="vDesc"></p>
+      <div class="more" id="vMoreWrap"><a class="btn" id="vMore" target="_blank" rel="noopener">More about this piece →</a></div>
+      <div class="close-hint" id="vClose">Tap anywhere to close</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* If the 3D engine can't download, say so instead of sitting on "Loading…" forever. */
+setTimeout(function(){
+  if(window.__galleryReady) return;
+  var s=document.getElementById('status'); if(s) s.textContent="The 3D engine didn't load. Check your connection and refresh the page.";
+}, 12000);
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* =====================================================================
+   YOUR ARTWORKS
+   ---------------------------------------------------------------------
+   1. Upload your image files to the  art/  folder of this repository.
+   2. Add one { ... } block per piece below. Only `src` is required.
+   3. Pieces fill the wall spots in order (1, 2, 3 …). To hang a piece
+      on a particular spot, give it a `slot` number. Open
+      gallery.html?slots  to see every spot's number on the walls
+      and on the map. There are 123 spots.
+   ===================================================================== */
+const ARTWORKS = [
+  // {
+  //   src: 'art/harbour-at-dusk.jpg',       // file in art/, or a full https:// link
+  //   title: 'Harbour at Dusk',
+  //   year: '2026',
+  //   medium: 'AI image, hand-finished',
+  //   size: '60 × 90 cm',
+  //   description: 'A few sentences about the piece.',
+  //   link: 'https://www.youtube.com/@stevesartc',  // optional "More about this piece" button
+  //   slot: 1,                              // optional: which wall spot
+  //   frame: 'black',                       // 'black', 'white', 'oak' or 'none'
+  //   scale: 1                              // optional: 1.2 = 20% bigger on the wall
+  // },
+];
+
+/* Fill empty spots with labelled placeholder pieces until real art arrives.
+   Set to false to leave empty spots bare. */
+const SHOW_PLACEHOLDERS = true;
+
+/* ===================================================================== */
+
+const $ = s => document.querySelector(s);
+const SLOT_MODE = new URLSearchParams(location.search).has('slots');
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EXIT_URL = $('#exit').getAttribute('href');
+if(IS_TOUCH) document.body.classList.add('touch');
+
+let toastT, toastQueue=[];
+let viewerOpen=false, introOpen=true, openedAt=0;
+function toast(msg, ms=2800){
+  if(introOpen){ toastQueue.push([msg,ms]); return; } const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), ms); }
+function fatal(msg){ const d=document.createElement('div'); d.className='fatal'; d.innerHTML=`<div class="panel"><span class="kicker">Virtual Gallery</span><h1>Can't open the gallery</h1><p>${msg}</p><a class="btn" href="${EXIT_URL}">← Back to the Art Channel</a></div>`; document.body.appendChild(d); window.__galleryReady=true; }
+
+/* ---------------- renderer + scene ---------------- */
+let renderer;
+try{
+  renderer = new THREE.WebGLRenderer({ canvas: $('#c'), antialias: true, powerPreference: 'high-performance' });
+}catch(e){ fatal("This browser or device can't show 3D graphics (WebGL is turned off or not supported)."); throw e; }
+window.__galleryReady = true;
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+const TEX_MAX = IS_TOUCH ? 768 : 1024;
+
+const scene = new THREE.Scene();
+const BG = 0x0c0a09;
+scene.background = new THREE.Color(BG);
+scene.fog = new THREE.Fog(BG, 14, 52);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.05, 120);
+camera.rotation.order = 'YXZ';
+
+/* ---------------- layout ---------------- */
+const H = 5.5;                       // ceiling height
+const HALL = { x0:-30, x1:30, z0:-18, z1:18 };
+const FS_H = 3.8, FS_LEN = 12, FS_T = 0.3;   // freestanding walls
+const FS = [[0,9],[-19,9],[19,9],[0,0],[-19,0],[19,0],[0,-9],[-19,-9],[19,-9]];
+const DOOR_W = 3.2, DOOR_H = 3.4;
+const EYE = 1.65, RAD = 0.35;
+const colliders = [];  // axis-aligned boxes on the floor plan {x0,x1,z0,z1}
+
+const slots = [];
+function line(ax,az,bx,bz,nx,nz,count,maxW,maxH,kind){
+  for(let i=0;i<count;i++){
+    const t=(i+.5)/count;
+    slots.push({ n: slots.length+1, x: ax+(bx-ax)*t, z: az+(bz-az)*t, nx, nz, maxW, maxH, kind });
+  }
+}
+for(const [cx,cz] of FS){
+  line(cx-6, cz+FS_T/2, cx+6, cz+FS_T/2, 0, 1, 4, 2.1, 1.55, 'fs');
+  line(cx+6, cz-FS_T/2, cx-6, cz-FS_T/2, 0,-1, 4, 2.1, 1.55, 'fs');
+}
+line(-30, 16, -30,-16,  1, 0, 10, 2.4, 2.1, 'p');
+line(-28,-18,  28,-18,  0, 1, 17, 2.4, 2.1, 'p');
+line( 30,-16,  30, 16, -1, 0, 10, 2.4, 2.1, 'p');
+line( 28, 18,  2.8,18,  0,-1,  7, 2.4, 2.1, 'p');
+line(-2.8,18, -28, 18,  0,-1,  7, 2.4, 2.1, 'p');
+const NSLOTS = slots.length;
+
+/* ---------------- materials + textures ---------------- */
+function floorTexture(){
+  const S=1024, c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d');
+  let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; };
+  const rows=14, ph=S/rows;
+  for(let r=0;r<rows;r++){
+    let x=-rnd()*500;
+    while(x<S){
+      const len=260+rnd()*420, hue=20+rnd()*8, lit=11+rnd()*7, sat=38+rnd()*14;
+      for(const off of [0,-S,S]){
+        const px=x+off; if(px>S||px+len<0) continue;
+        g.fillStyle=`hsl(${hue},${sat}%,${lit}%)`; g.fillRect(px, r*ph, len, ph);
+        for(let k=0;k<16;k++){
+          const y0=r*ph+rnd()*ph, a=.04+rnd()*.12, amp=1+rnd()*3, fr=.004+rnd()*.012;
+          g.strokeStyle= rnd()<.75 ? `rgba(0,0,0,${a})` : `rgba(255,190,140,${a*.35})`;
+          g.lineWidth=.6+rnd()*1.6; g.beginPath();
+          for(let xx=0; xx<=len; xx+=12){ const yy=y0+Math.sin((xx+px)*fr+k)*amp; xx?g.lineTo(px+xx,yy):g.moveTo(px+xx,yy); }
+          g.stroke();
+        }
+        g.fillStyle='rgba(0,0,0,.75)'; g.fillRect(px, r*ph, 2, ph);
+      }
+      x+=len;
+    }
+    g.fillStyle='rgba(0,0,0,.7)'; g.fillRect(0, r*ph, S, 2);
+  }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set((HALL.x1-HALL.x0)/4, (HALL.z1-HALL.z0)/4); t.anisotropy=MAX_ANISO; return t;
+}
+function glowTexture(cy=.45, warm=true){
+  const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
+  const gr=g.createRadialGradient(128,256*cy,0,128,256*cy,128);
+  const col = warm ? '255,206,150' : '255,240,220';
+  gr.addColorStop(0,`rgba(${col},.95)`); gr.addColorStop(.35,`rgba(${col},.42)`); gr.addColorStop(1,`rgba(${col},0)`);
+  g.fillStyle=gr; g.fillRect(0,0,256,256);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const M = {
+  wall:  new THREE.MeshStandardMaterial({ color:0x2e2c2f, roughness:.95, envMapIntensity:.07 }),
+  ceil:  new THREE.MeshStandardMaterial({ color:0x0e0d0e, roughness:1, envMapIntensity:0 }),
+  base:  new THREE.MeshStandardMaterial({ color:0x0b0a0a, roughness:.55, envMapIntensity:.2 }),
+  floor: new THREE.MeshStandardMaterial({ map: floorTexture(), roughness:.38, metalness:0, envMapIntensity:.32 }),
+  rail:  new THREE.MeshStandardMaterial({ color:0x111111, roughness:.4, metalness:.7, envMapIntensity:.4 }),
+  lens:  new THREE.MeshBasicMaterial({ color:0xfff1d6 }),
+  frame: { black: new THREE.MeshStandardMaterial({ color:0x0d0d0d, roughness:.45, envMapIntensity:.35 }),
+           white: new THREE.MeshStandardMaterial({ color:0xe9e5dc, roughness:.6, envMapIntensity:.2 }),
+           oak:   new THREE.MeshStandardMaterial({ color:0x8a5a32, roughness:.55, envMapIntensity:.25 }),
+           none:  new THREE.MeshStandardMaterial({ color:0x1a1a1a, roughness:.9, envMapIntensity:.05 }) },
+  wash:  new THREE.MeshBasicMaterial({ map: glowTexture(.42), transparent:true, opacity:.34, blending:THREE.AdditiveBlending, depthWrite:false }),
+  pool:  new THREE.MeshBasicMaterial({ map: glowTexture(.5), transparent:true, opacity:.2, blending:THREE.AdditiveBlending, depthWrite:false }),
+  door:  new THREE.MeshStandardMaterial({ color:0x050505, roughness:1, side:THREE.BackSide, envMapIntensity:0 }),
+  wood:  new THREE.MeshStandardMaterial({ color:0x3a2416, roughness:.5, envMapIntensity:.3 }),
+  metal: new THREE.MeshStandardMaterial({ color:0x121212, roughness:.35, metalness:.8, envMapIntensity:.5 }),
+};
+
+function box(w,h,d,x,y,z,mat){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); scene.add(m); return m; }
+
+/* floor + ceiling */
+const W = HALL.x1-HALL.x0, D = HALL.z1-HALL.z0;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), M.floor); floor.rotation.x=-Math.PI/2; floor.userData.floor=true; scene.add(floor);
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), M.ceil); ceil.rotation.x=Math.PI/2; ceil.position.y=H; scene.add(ceil);
+
+/* perimeter walls (south wall has the entrance) */
+const T = .4;
+box(W+2*T, H, T, 0, H/2, HALL.z0-T/2, M.wall);
+box(T, H, D, HALL.x0-T/2, H/2, 0, M.wall);
+box(T, H, D, HALL.x1+T/2, H/2, 0, M.wall);
+const sideW = (W-DOOR_W)/2;
+box(sideW, H, T, HALL.x0+sideW/2, H/2, HALL.z1+T/2, M.wall);
+box(sideW, H, T, HALL.x1-sideW/2, H/2, HALL.z1+T/2, M.wall);
+box(DOOR_W, H-DOOR_H, T, 0, DOOR_H+(H-DOOR_H)/2, HALL.z1+T/2, M.wall);
+const vest = box(DOOR_W, DOOR_H, 3, 0, DOOR_H/2, HALL.z1+T+1.5, M.door); vest.userData.door=true;
+const doorHit = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, DOOR_H), new THREE.MeshBasicMaterial({ visible:false }));
+doorHit.position.set(0, DOOR_H/2, HALL.z1+.05); doorHit.rotation.y=Math.PI; doorHit.userData.door=true; scene.add(doorHit);
+{ // EXIT sign
+  const c=document.createElement('canvas'); c.width=256; c.height=96; const g=c.getContext('2d');
+  g.fillStyle='#0a3d22'; g.fillRect(0,0,256,96); g.fillStyle='#7dffb0'; g.font='900 54px Archivo, Arial, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('EXIT',128,52);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  const s=new THREE.Mesh(new THREE.PlaneGeometry(.7,.26), new THREE.MeshBasicMaterial({ map:t }));
+  s.position.set(0, DOOR_H+.35, HALL.z1-.02); s.rotation.y=Math.PI; s.userData.door=true; scene.add(s);
+}
+/* baseboards */
+const BB=.12, BD=.03;
+box(W, BB, BD, 0, BB/2, HALL.z0+BD/2, M.base);
+box(BD, BB, D, HALL.x0+BD/2, BB/2, 0, M.base);
+box(BD, BB, D, HALL.x1-BD/2, BB/2, 0, M.base);
+box(sideW, BB, BD, HALL.x0+sideW/2, BB/2, HALL.z1-BD/2, M.base);
+box(sideW, BB, BD, HALL.x1-sideW/2, BB/2, HALL.z1-BD/2, M.base);
+
+/* freestanding walls */
+for(const [cx,cz] of FS){
+  box(FS_LEN, FS_H, FS_T, cx, FS_H/2, cz, M.wall);
+  box(FS_LEN+.01, .04, FS_T+.01, cx, FS_H-.02, cz, M.base);             // top cap
+  box(FS_LEN+.02, BB, FS_T+2*BD, cx, BB/2, cz, M.base);
+  colliders.push({ x0:cx-FS_LEN/2, x1:cx+FS_LEN/2, z0:cz-FS_T/2, z1:cz+FS_T/2 });
+}
+/* benches */
+for(const [bx,bz] of [[0,4.5],[0,-4.5],[0,-13.5],[-19,13.5],[19,13.5]]){
+  box(2.6, .07, .55, bx, .46, bz, M.wood);
+  for(const sx of [-1.15,1.15]) box(.06, .42, .5, bx+sx, .21, bz, M.metal);
+  colliders.push({ x0:bx-1.3, x1:bx+1.3, z0:bz-.28, z1:bz+.28 });
+}
+/* ceiling track rails */
+function rail(x0,z0,x1,z1){ const len=Math.hypot(x1-x0,z1-z0); const m=box(len,.05,.05,(x0+x1)/2,H-.12,(z0+z1)/2,M.rail); m.rotation.y=-Math.atan2(z1-z0,x1-x0); }
+rail(-29,HALL.z0+1.9, 29,HALL.z0+1.9);
+rail(HALL.x0+1.9,-17, HALL.x0+1.9,17);
+rail(HALL.x1-1.9,-17, HALL.x1-1.9,17);
+rail(-29,HALL.z1-1.9, -2.5,HALL.z1-1.9); rail(2.5,HALL.z1-1.9, 29,HALL.z1-1.9);
+for(const [cx,cz] of FS){ for(const s of [-1,1]) rail(cx-6.5, cz+s*(FS_T/2+1.6), cx+6.5, cz+s*(FS_T/2+1.6)); }
+
+/* lighting */
+scene.add(new THREE.HemisphereLight(0x8c8172, 0x140e0a, .32));
+scene.add(new THREE.AmbientLight(0xffffff, .06));
+const SPOTS = [];
+for(let i=0;i<(IS_TOUCH?4:6);i++){
+  const s=new THREE.SpotLight(0xffe0b5, 0, 11, .44, .75, 1.4);
+  s.userData={ slot:-1, cur:0 }; scene.add(s); scene.add(s.target); SPOTS.push(s);
+}
+
+/* ---------------- slots: art groups, fixtures, glows ---------------- */
+const fixGeo = new THREE.CylinderGeometry(.055,.075,.22,14); fixGeo.rotateX(Math.PI/2);
+const lensGeo = new THREE.CircleGeometry(.05,14); lensGeo.translate(0,0,.112);
+const fixIM = new THREE.InstancedMesh(fixGeo, M.rail, NSLOTS);
+const lensIM = new THREE.InstancedMesh(lensGeo, M.lens, NSLOTS);
+const washIM = new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1), M.wash, NSLOTS);
+const poolIM = new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1), M.pool, NSLOTS);
+for(const im of [fixIM,lensIM,washIM,poolIM]){ im.frustumCulled=false; scene.add(im); }
+const dummy = new THREE.Object3D();
+const unitBox = new THREE.BoxGeometry(1,1,1), unitPlane = new THREE.PlaneGeometry(1,1);
+const hitList = [];
+
+/* assign artworks to slots */
+const assigned = new Array(NSLOTS).fill(null);
+const warnings = [];
+ARTWORKS.forEach((a,i)=>{ if(!a || !a.src){ warnings.push(`Artwork #${i+1} has no image (src).`); return; }
+  if(a.slot!=null){
+    const n=+a.slot;
+    if(!(n>=1 && n<=NSLOTS)) warnings.push(`"${a.title||a.src}" asks for spot ${a.slot}, but spots go 1–${NSLOTS}. Placed in the next free spot.`);
+    else if(assigned[n-1]) warnings.push(`Spot ${n} is used twice. "${a.title||a.src}" moved to the next free spot.`);
+    else { assigned[n-1]=a; a.__placed=true; }
+  }
+});
+ARTWORKS.forEach(a=>{ if(!a || !a.src || a.__placed) return; const i=assigned.indexOf(null); if(i<0){ warnings.push(`No free spot left for "${a.title||a.src}".`); return; } assigned[i]=a; a.__placed=true; });
+
+/* placeholder art, in the site's Bauhaus / Mondrian / Canadian-modern style */
+const PAL = ['#1C8FDE','#C81627','#F7E21B','#2B97AA','#FEF4C3','#111111','#D80036','#00BFF3','#E8E1CF'];
+const ASPECTS = [3/4, 1, 4/3, 2/3, 5/4, 3/4, 4/5];
+function prng(n){ let s=(n*2654435761)>>>0; return ()=>{ s^=s<<13; s>>>=0; s^=s>>17; s^=s<<5; s>>>=0; return s/4294967296; }; }
+function placeholderAspect(n){ return ASPECTS[n%ASPECTS.length]; }
+function paintPlaceholder(n, maxSide){
+  const a=placeholderAspect(n), w=a>=1?maxSide:Math.round(maxSide*a), h=a>=1?Math.round(maxSide/a):maxSide;
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'), r=prng(n+11), pick=()=>PAL[Math.floor(r()*PAL.length)];
+  const u=Math.min(w,h);
+  if(SLOT_MODE){
+    g.fillStyle='#FEF4C3'; g.fillRect(0,0,w,h); g.fillStyle='#111'; g.textAlign='center'; g.textBaseline='middle';
+    g.font=`900 ${u*.12}px Archivo, Arial, sans-serif`; g.fillText('SPOT', w/2, h*.3);
+    g.font=`900 ${u*.42}px Archivo, Arial, sans-serif`; g.fillText(String(n), w/2, h*.6);
+    g.strokeStyle='#C81627'; g.lineWidth=u*.03; g.strokeRect(u*.04,u*.04,w-u*.08,h-u*.08); return c;
+  }
+  const style=n%6;
+  g.fillStyle = style===2 ? '#FEF4C3' : (r()<.5?'#FEF4C3':'#E8E1CF'); g.fillRect(0,0,w,h);
+  if(style===0){ // Mondrian grid
+    const xs=[0], ys=[0]; let x=0,y=0; while(x<w){ x+=w*(.18+r()*.32); xs.push(Math.min(x,w)); } while(y<h){ y+=h*(.18+r()*.32); ys.push(Math.min(y,h)); }
+    for(let i=0;i<xs.length-1;i++) for(let j=0;j<ys.length-1;j++){ if(r()<.28){ g.fillStyle=['#C81627','#1C8FDE','#F7E21B','#111'][Math.floor(r()*4)]; g.fillRect(xs[i],ys[j],xs[i+1]-xs[i],ys[j+1]-ys[j]); } }
+    g.fillStyle='#111'; const lw=u*.022; xs.forEach(v=>g.fillRect(v-lw/2,0,lw,h)); ys.forEach(v=>g.fillRect(0,v-lw/2,w,lw));
+  } else if(style===1){ // concentric target
+    const cx=w*(.3+r()*.4), cy=h*(.3+r()*.4), rings=5+Math.floor(r()*5), R=u*(.4+r()*.25);
+    for(let i=rings;i>0;i--){ g.fillStyle=pick(); g.beginPath(); g.arc(cx,cy,R*i/rings,0,7); g.fill(); }
+    g.fillStyle='#111'; g.fillRect(0,h*(.82+r()*.1),w,u*.03);
+  } else if(style===2){ // Canadian modernist landscape
+    const sky=['#F7E21B','#2B97AA','#1C8FDE','#D80036'][Math.floor(r()*4)];
+    g.fillStyle=sky; g.fillRect(0,0,w,h*.55);
+    g.fillStyle=r()<.5?'#C81627':'#FEF4C3'; g.beginPath(); g.arc(w*(.25+r()*.5), h*(.22+r()*.12), u*(.09+r()*.08), 0, 7); g.fill();
+    for(let k=0;k<4;k++){
+      g.fillStyle=['#111','#2B97AA','#1C8FDE','#3b2a20'][k]; g.beginPath(); g.moveTo(0,h);
+      let px=0; const base=h*(.38+k*.09); g.lineTo(0,base+r()*h*.06);
+      while(px<w){ px+=w*(.08+r()*.18); g.lineTo(px, base-r()*h*.14); }
+      g.lineTo(w,h); g.closePath(); g.fill();
+    }
+    g.fillStyle='rgba(254,244,195,.85)'; for(let k=0;k<6;k++) g.fillRect(w*r(), h*(.84+k*.025), w*(.1+r()*.3), u*.008);
+  } else if(style===3){ // Bauhaus shapes
+    g.fillStyle=pick(); g.fillRect(0,h*(.5+r()*.25),w,h);
+    g.fillStyle='#C81627'; g.beginPath(); g.arc(w*(.2+r()*.25), h*(.3+r()*.2), u*.17, 0, 7); g.fill();
+    g.fillStyle='#1C8FDE'; g.beginPath(); const tx=w*(.45+r()*.2), ty=h*(.25+r()*.2); g.moveTo(tx,ty); g.lineTo(tx+u*.2,ty+u*.34); g.lineTo(tx-u*.2,ty+u*.34); g.closePath(); g.fill();
+    g.fillStyle='#F7E21B'; g.fillRect(w*(.62+r()*.12), h*(.18+r()*.3), u*.22, u*.22);
+    g.fillStyle='#111'; g.save(); g.translate(w/2,h*.75); g.rotate(-.35+r()*.2); g.fillRect(-w*.45,-u*.015,w*.9,u*.03); g.restore();
+  } else if(style===4){ // quarter-circle arcs grid
+    const cols=2+Math.floor(r()*3), cs=w/cols, rows=Math.ceil(h/cs);
+    for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
+      g.fillStyle=pick(); g.fillRect(i*cs,j*cs,cs,cs);
+      g.fillStyle=pick(); const q=Math.floor(r()*4), ox=i*cs+(q%2)*cs, oy=j*cs+Math.floor(q/2)*cs;
+      g.beginPath(); g.moveTo(ox,oy); g.arc(ox,oy,cs,0,7); g.save(); g.beginPath(); g.rect(i*cs,j*cs,cs,cs); g.clip(); g.beginPath(); g.arc(ox,oy,cs,0,7); g.fill(); g.restore();
+    }
+  } else { // stripes + disc
+    const bands=6+Math.floor(r()*6); for(let i=0;i<bands;i++){ g.fillStyle=pick(); g.fillRect(0,h*i/bands,w,h/bands+1); }
+    g.fillStyle='#111'; g.beginPath(); g.arc(w*(.3+r()*.4),h*(.3+r()*.4),u*(.16+r()*.12),0,7); g.fill();
+    g.fillStyle='#FEF4C3'; g.beginPath(); g.arc(w*(.3+r()*.4),h*(.3+r()*.4),u*(.06+r()*.06),0,7); g.fill();
+  }
+  return c;
+}
+
+function placardTexture(lines){
+  const c=document.createElement('canvas'); c.width=512; c.height=256; const g=c.getContext('2d');
+  g.fillStyle='#efe9dc'; g.fillRect(0,0,512,256);
+  g.fillStyle='#111'; g.textBaseline='top';
+  let y=30; const fit=(txt,font,max)=>{ g.font=font; let t=txt; while(g.measureText(t).width>max && t.length>1) t=t.slice(0,-2)+'…'; return t; };
+  g.font='800 42px Archivo, Arial, sans-serif'; g.fillText(fit(lines[0]||'Untitled','800 42px Archivo, Arial, sans-serif',452),30,y); y+=60;
+  g.fillStyle='#444'; for(const l of lines.slice(1)){ if(!l) continue; g.fillText(fit(l,'500 28px Archivo, Arial, sans-serif',452),30,y); y+=40; }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t;
+}
+
+const FRAME_W = .05, FRAME_D = .045;
+for(const s of slots){
+  s.art = assigned[s.n-1];
+  s.empty = !s.art && !SHOW_PLACEHOLDERS && !SLOT_MODE;
+  s.yaw = Math.atan2(s.nx, s.nz);
+  s.aspect = s.art ? (s.art.aspect || .8) : placeholderAspect(s.n);
+  s.state = 'none';
+  s.group = new THREE.Group(); s.group.position.set(s.x+s.nx*.002, 0, s.z+s.nz*.002); s.group.rotation.y = s.yaw; scene.add(s.group);
+  s.matArt = new THREE.MeshStandardMaterial({ color:0x1b1a1c, roughness:.62, envMapIntensity:0 });
+  const fk = s.art ? (s.art.frame||'black') : (SLOT_MODE ? 'white' : ['black','oak','white','black'][s.n%4]);
+  s.frameKind = M.frame[fk] ? fk : 'black';
+  s.frame = new THREE.Mesh(unitBox, M.frame[s.frameKind]);
+  s.artMesh = new THREE.Mesh(unitPlane, s.matArt);
+  s.placard = new THREE.Mesh(new THREE.PlaneGeometry(.26,.13), new THREE.MeshStandardMaterial({ color:0xffffff, roughness:.8, envMapIntensity:0, emissive:0xffffff, emissiveIntensity:.0 }));
+  s.frame.userData.slot = s.artMesh.userData.slot = s.placard.userData.slot = s;
+  s.group.add(s.frame, s.artMesh, s.placard);
+  hitList.push(s.frame, s.artMesh, s.placard);
+  if(s.empty){ s.group.visible=false; }
+  layoutSlot(s);
+}
+function layoutSlot(s){
+  const sc = s.art && s.art.scale ? +s.art.scale : 1;
+  let h = Math.min(s.maxH*sc, s.maxW*sc/s.aspect), w = h*s.aspect;
+  const f = s.frameKind==='none' ? 0 : FRAME_W;
+  s.w=w; s.h=h;
+  s.cy = Math.max(1.55, .6 + h/2);
+  const depth = s.frameKind==='none' ? .035 : FRAME_D;
+  s.frame.scale.set(w+2*f, h+2*f, depth); s.frame.position.set(0, s.cy, depth/2);
+  s.artMesh.scale.set(w, h, 1); s.artMesh.position.set(0, s.cy, depth+.0015);
+  s.placard.position.set(w/2+f+.24, 1.36, .006);
+  // fixture + light glows
+  const out = s.kind==='fs' ? 1.6 : 1.9;
+  s.fix = new THREE.Vector3(s.x+s.nx*out, H-.32, s.z+s.nz*out);
+  s.target = new THREE.Vector3(s.x, s.cy, s.z);
+  const i = s.n-1;
+  dummy.position.copy(s.fix); dummy.scale.set(1,1,1); dummy.lookAt(s.target); dummy.updateMatrix();
+  fixIM.setMatrixAt(i, dummy.matrix); lensIM.setMatrixAt(i, dummy.matrix);
+  const on = s.empty ? 0 : 1;
+  dummy.rotation.set(0, s.yaw, 0); dummy.position.set(s.x+s.nx*.006, s.cy+h*.14, s.z+s.nz*.006);
+  dummy.scale.set((w*1.7+1.1)*on, (h*1.9+1.5)*on, 1); dummy.updateMatrix(); washIM.setMatrixAt(i, dummy.matrix);
+  dummy.rotation.set(-Math.PI/2, 0, 0); dummy.rotateOnWorldAxis(new THREE.Vector3(0,1,0), s.yaw);
+  dummy.position.set(s.x+s.nx*1.05, .004, s.z+s.nz*1.05); dummy.scale.set((w*1.3+1.2)*on, 2.1*on, 1); dummy.updateMatrix(); poolIM.setMatrixAt(i, dummy.matrix);
+  for(const im of [fixIM,lensIM,washIM,poolIM]) im.instanceMatrix.needsUpdate=true;
+}
+
+/* ---------------- texture streaming ---------------- */
+const LOAD_R = 24, UNLOAD_R = 38;
+let loadingNow = 0, reported = new Set();
+function applyTexture(s, canvasOrNull){
+  if(!canvasOrNull){ s.matArt.map=null; s.matArt.emissiveMap=null; s.matArt.color.set(0x1b1a1c); s.matArt.emissive.set(0x000000); s.matArt.needsUpdate=true; return; }
+  const t=new THREE.CanvasTexture(canvasOrNull); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=Math.min(8,MAX_ANISO);
+  s.tex=t; s.matArt.map=t; s.matArt.emissiveMap=t; s.matArt.color.set(0xffffff); s.matArt.emissive.set(0xffffff); s.matArt.emissiveIntensity=.42; s.matArt.needsUpdate=true;
+}
+function placardLines(s){
+  if(SLOT_MODE) return [`Spot ${s.n}`, s.art ? (s.art.title||s.art.src) : 'Free', ''];
+  if(!s.art) return ['Placeholder', `Spot ${s.n} — art coming soon`];
+  return [s.art.title||'Untitled', [s.art.year, s.art.medium].filter(Boolean).join(' · '), s.art.size||''];
+}
+function loadSlot(s){
+  if(s.empty || s.state!=='none') return;
+  s.state='loading';
+  s.placard.material.map = placardTexture(placardLines(s)); s.placard.material.emissiveMap = s.placard.material.map; s.placard.material.emissiveIntensity=.35; s.placard.material.needsUpdate=true;
+  if(!s.art || SLOT_MODE){ applyTexture(s, paintPlaceholder(s.n, 512)); s.state='ready'; return; }
+  loadingNow++;
+  const img=new Image(); img.crossOrigin='anonymous'; img.decoding='async';
+  img.onload=()=>{
+    loadingNow--;
+    if(s.state!=='loading'){ return; }
+    const a=img.naturalWidth/img.naturalHeight, k=Math.min(1, TEX_MAX/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas'); c.width=Math.max(1,Math.round(img.naturalWidth*k)); c.height=Math.max(1,Math.round(img.naturalHeight*k));
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    if(Math.abs(a-s.aspect)>.01){ s.aspect=a; s.art.aspect=a; layoutSlot(s); }
+    applyTexture(s, c); s.state='ready';
+  };
+  img.onerror=()=>{
+    loadingNow--; s.state='error';
+    const c=document.createElement('canvas'); c.width=512; c.height=640; const g=c.getContext('2d');
+    g.fillStyle='#2a2a2a'; g.fillRect(0,0,512,640); g.fillStyle='#FEF4C3'; g.font='800 40px Archivo, Arial'; g.textAlign='center';
+    g.fillText('Image not found',256,300); g.font='500 26px Archivo, Arial'; g.fillText(s.art.src.slice(-34),256,350);
+    applyTexture(s,c);
+    if(!reported.has(s.n)){ reported.add(s.n); toast(`Couldn't load ${s.art.src} (spot ${s.n}). Check the file name in art/.`, 5000); }
+  };
+  img.src=s.art.src;
+}
+function unloadSlot(s){
+  if(s.state==='none') return;
+  if(s.tex){ s.tex.dispose(); s.tex=null; }
+  if(s.placard.material.map){ s.placard.material.map.dispose(); s.placard.material.map=null; s.placard.material.emissiveMap=null; s.placard.material.emissiveIntensity=0; s.placard.material.needsUpdate=true; }
+  applyTexture(s,null); s.state='none';
+}
+function stream(){
+  const px=camera.position.x, pz=camera.position.z;
+  const byDist = slots.map(s=>[Math.hypot(s.x-px,s.z-pz), s]).sort((a,b)=>a[0]-b[0]);
+  for(const [d,s] of byDist){
+    if(d<LOAD_R && s.state==='none' && loadingNow<4) loadSlot(s);
+    else if(d>UNLOAD_R) unloadSlot(s);
+  }
+  // spotlights follow the closest pieces (with a little stickiness so they don't flicker)
+  const near = byDist.filter(([,s])=>!s.empty).slice(0,8).map(([,s])=>s);
+  const want = near.slice(0,SPOTS.length);
+  for(const sp of SPOTS){ if(sp.userData.slot!==-1 && !near.includes(sp.userData.slot)) sp.userData.slot=-1; }
+  for(const s of want){
+    if(SPOTS.some(sp=>sp.userData.slot===s)) continue;
+    const free=SPOTS.find(sp=>sp.userData.slot===-1); if(!free) break;
+    free.userData.slot=s; free.userData.cur=0; free.intensity=0;
+    free.position.copy(s.fix); free.target.position.copy(s.target); free.target.updateMatrixWorld();
+  }
+}
+
+/* ---------------- player + movement ---------------- */
+const player = { x:0, z:HALL.z1-2.2, yaw:0, pitch:-.02, vx:0, vz:0 };
+function blocked(x,z){
+  if(x<HALL.x0+RAD || x>HALL.x1-RAD || z<HALL.z0+RAD || z>HALL.z1-RAD) return true;
+  for(const c of colliders) if(x>c.x0-RAD && x<c.x1+RAD && z>c.z0-RAD && z<c.z1+RAD) return true;
+  return false;
+}
+function tryMove(dx,dz){
+  if(!blocked(player.x+dx, player.z)) player.x+=dx; else player.vx=0;
+  if(!blocked(player.x, player.z+dz)) player.z+=dz; else player.vz=0;
+}
+function segBlocked(x0,z0,x1,z1){
+  const n=Math.ceil(Math.hypot(x1-x0,z1-z0)/.25);
+  for(let i=1;i<=n;i++){ const t=i/n; if(blocked(x0+(x1-x0)*t, z0+(z1-z0)*t)) return true; }
+  return false;
+}
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+let auto = null;   // scripted camera move (glide or fade-teleport)
+function travel(x, z, yaw, pitch, viaFade){
+  if(blocked(x,z)){ toast("Can't stand there."); return; }
+  const fade = viaFade || segBlocked(player.x,player.z,x,z) || RM;
+  auto = { fx:player.x, fz:player.z, fy:player.yaw, fp:player.pitch, x, z,
+           yaw: yaw==null ? player.yaw : player.yaw + wrapA(yaw-player.yaw), pitch: pitch==null ? player.pitch : pitch,
+           t:0, dur: fade ? .5 : Math.min(2.2, .5 + Math.hypot(x-player.x,z-player.z)/4.5), fade, swapped:false };
+  if(fade) $('#fade').classList.add('on');
+}
+function stepAuto(dt){
+  const a=auto; a.t+=dt;
+  const k=Math.min(1, a.t/a.dur);
+  if(a.fade){
+    if(k>=.5 && !a.swapped){ a.swapped=true; player.x=a.x; player.z=a.z; player.yaw=a.yaw; player.pitch=a.pitch; $('#fade').classList.remove('on'); }
+  } else {
+    const e = k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+    player.x=a.fx+(a.x-a.fx)*e; player.z=a.fz+(a.z-a.fz)*e;
+    player.yaw=a.fy+(a.yaw-a.fy)*e; player.pitch=a.fp+(a.pitch-a.fp)*e;
+  }
+  if(k>=1){ auto=null; }
+}
+function viewSpot(s){
+  const dist = Math.max(2.3, s.h*1.35+.7);
+  return { x:s.x+s.nx*dist, z:s.z+s.nz*dist, yaw:Math.atan2(s.nx, s.nz), pitch:Math.atan2(s.cy-EYE, dist)*.8 };
+}
+const shown = () => slots.filter(s=>!s.empty);
+let cur = -1;
+function goTo(s){
+  if(!s) return; const v=viewSpot(s); cur=s.n;
+  travel(v.x, v.z, v.yaw, v.pitch);
+  updateCounter(s);
+}
+function step(dir){
+  const list=shown(); if(!list.length){ toast('No artworks hung yet.'); return; }
+  let i = list.findIndex(s=>s.n===cur);
+  if(i<0){ // start from the closest piece in view
+    const f=fwd(); let best=0, bs=-1e9;
+    list.forEach((s,j)=>{ const dx=s.x-player.x, dz=s.z-player.z, d=Math.hypot(dx,dz); const sc=(dx*f.x+dz*f.z)/d*4 - d*.15; if(sc>bs){bs=sc;best=j;} });
+    i = dir>0 ? best-1 : best+1;
+  }
+  goTo(list[(i+dir+list.length)%list.length]);
+}
+function fwd(){ return { x:-Math.sin(player.yaw), z:-Math.cos(player.yaw) }; }
+function updateCounter(s){
+  const list=shown();
+  $('#counter').textContent = s ? `${s.art ? (s.art.title||'Untitled') : (SLOT_MODE?'Spot':'Spot')} · ${s.n} / ${NSLOTS}` : `${list.filter(x=>x.art).length} artworks · ${NSLOTS} spots`;
+}
+
+/* ---------------- input ---------------- */
+const keys = new Set();
+const pad = { lx:0, ly:0, rx:0, ry:0, run:false };
+const stick = { id:null, ox:0, oy:0, x:0, y:0 };
+const look = { id:null, x:0, y:0 };
+let pointerStart=null, dragging=false;
+let mouse = { x:0, y:0, has:false };
+const canvas = renderer.domElement;
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let exitArm=0;
+
+function setKb(on){ document.body.classList.toggle('kb', on); }
+function anyOverlay(){ return viewerOpen || introOpen; }
+function pick(clientX, clientY){
+  ndc.set(clientX/innerWidth*2-1, -(clientY/innerHeight)*2+1);
+  ray.setFromCamera(ndc, camera); ray.far = 40;
+  const hits = ray.intersectObjects([...hitList.filter(m=>m.parent.visible), floor, doorHit, vest], false);
+  return hits[0] || null;
+}
+function handleTap(cx, cy){
+  const h = pick(cx, cy); if(!h) return;
+  const o=h.object;
+  if(o.userData.slot){ const s=o.userData.slot; if(h.distance>7){ goTo(s); } else openViewer(s); return; }
+  if(o.userData.door){ armExit('Tap the doorway again to return to the Art Channel.'); return; }
+  if(o===floor){
+    const p=h.point; const dx=p.x-player.x, dz=p.z-player.z, d=Math.hypot(dx,dz);
+    let tx=p.x, tz=p.z; if(d>.6){ tx=p.x-dx/d*.4; tz=p.z-dz/d*.4; }
+    if(blocked(tx,tz)){ toast("Can't walk there."); return; }
+    travel(tx, tz, null, null);
+  }
+}
+function armExit(msg){
+  const now=performance.now();
+  if(now-exitArm<2500){ location.href=EXIT_URL; return; }
+  exitArm=now; toast(msg);
+}
+
+canvas.addEventListener('pointerdown', e=>{
+  if(anyOverlay()) return;
+  canvas.setPointerCapture(e.pointerId);
+  if(e.pointerType!=='mouse') setKb(false);
+  pointerStart={ x:e.clientX, y:e.clientY, t:performance.now(), id:e.pointerId };
+  const inStickZone = e.pointerType!=='mouse' && e.clientX < innerWidth*.42 && e.clientY > innerHeight*.45;
+  if(inStickZone && stick.id===null){
+    stick.id=e.pointerId; stick.ox=e.clientX; stick.oy=e.clientY; stick.x=stick.y=0;
+    const el=$('#stick'); el.style.display='block'; el.style.left=e.clientX+'px'; el.style.top=e.clientY+'px'; el.firstElementChild.style.transform='';
+  } else if(look.id===null){ look.id=e.pointerId; look.x=e.clientX; look.y=e.clientY; dragging=false; }
+});
+canvas.addEventListener('pointermove', e=>{
+  if(e.pointerType==='mouse'){ mouse.x=e.clientX; mouse.y=e.clientY; mouse.has=true; }
+  if(e.pointerId===stick.id){
+    let dx=e.clientX-stick.ox, dy=e.clientY-stick.oy; const L=Math.hypot(dx,dy), M_=48;
+    if(L>M_){ dx*=M_/L; dy*=M_/L; }
+    stick.x=dx/M_; stick.y=dy/M_; $('#stick').firstElementChild.style.transform=`translate(${dx}px,${dy}px)`;
+    if(L>8 && auto && !auto.fade) auto=null;
+  } else if(e.pointerId===look.id){
+    const dx=e.clientX-look.x, dy=e.clientY-look.y; look.x=e.clientX; look.y=e.clientY;
+    if(pointerStart && Math.hypot(e.clientX-pointerStart.x, e.clientY-pointerStart.y)>8) dragging=true;
+    if(dragging){
+      const k = e.pointerType==='mouse' ? .0042 : .0062;
+      player.yaw -= dx*k; player.pitch = Math.max(-1.1, Math.min(1.1, player.pitch - dy*k*.85));
+      if(auto && !auto.fade) auto=null;
+    }
+  }
+});
+function endPointer(e){
+  const wasTap = pointerStart && pointerStart.id===e.pointerId && Math.hypot(e.clientX-pointerStart.x, e.clientY-pointerStart.y)<10 && performance.now()-pointerStart.t<500;
+  if(e.pointerId===stick.id){ stick.id=null; stick.x=stick.y=0; $('#stick').style.display='none'; }
+  if(e.pointerId===look.id){ look.id=null; dragging=false; }
+  if(wasTap && e.type==='pointerup' && !anyOverlay()) handleTap(e.clientX, e.clientY);
+  pointerStart=null;
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); if(anyOverlay()) return; const f=fwd(), d=-Math.sign(e.deltaY)*.6; auto=null; tryMove(f.x*d, f.z*d); }, { passive:false });
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+addEventListener('keydown', e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  const k=e.key.toLowerCase();
+  if(k==='tab'){ setKb(true); return; }
+  if(viewerOpen){
+    if(['escape','enter',' ','backspace'].includes(k)){ e.preventDefault(); closeViewer(); }
+    return;
+  }
+  if(introOpen){ if(k==='escape' && !$('#enter').disabled){ e.preventDefault(); closeIntro(); } return; }
+  const onUI = document.activeElement && document.activeElement!==document.body && document.activeElement!==canvas;
+  if((k==='enter'||k===' ') && onUI) return;
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift'].includes(k)){ keys.add(k); if(auto && !auto.fade) auto=null; e.preventDefault(); return; }
+  if(k==='q'||k==='['||k==='pageup'){ step(-1); return; }
+  if(k==='e'||k===']'||k==='pagedown'){ step(1); return; }
+  if(k==='enter'||k===' '){ e.preventDefault(); inspectCentre(); return; }
+  if(k==='m'){ toggleMap(); return; }
+  if(k==='h'||k==='?'){ openIntro(); return; }
+  if(k==='escape'||k==='backspace'){ e.preventDefault(); armExit('Press Esc again to return to the Art Channel.'); }
+});
+addEventListener('keyup', e=>keys.delete(e.key.toLowerCase()));
+addEventListener('blur', ()=>keys.clear());
+
+/* gamepad */
+const held={};
+const dz = v => Math.abs(v)<.16 ? 0 : (v-Math.sign(v)*.16)/(1-.16);
+function btn(name,on,fn){ if(on && !held[name]){ held[name]=true; fn(); } else if(!on) held[name]=false; }
+function pollPad(){
+  const gp=[...(navigator.getGamepads?navigator.getGamepads():[])].find(g=>g&&g.connected);
+  if(!gp){ pad.lx=pad.ly=pad.rx=pad.ry=0; pad.run=false; return; }
+  const b=i=>!!(gp.buttons[i]&&gp.buttons[i].pressed), a=gp.axes;
+  const any = b(0)||b(1)||b(3)||b(4)||b(5)||b(9)||Math.abs(a[0]||0)>.3||Math.abs(a[1]||0)>.3||Math.abs(a[2]||0)>.3||Math.abs(a[3]||0)>.3||b(12)||b(13)||b(14)||b(15);
+  if(any) setKb(true);
+  if(introOpen){
+    btn('a', b(0)||b(9), ()=>{ if(!$('#enter').disabled) closeIntro(); });
+    pad.lx=pad.ly=pad.rx=pad.ry=0; return;
+  }
+  if(viewerOpen){
+    btn('a', b(0), closeViewer); btn('b', b(1), closeViewer);
+    pad.lx=pad.ly=pad.rx=pad.ry=0; return;
+  }
+  pad.lx=dz(a[0]||0) + (b(15)?0:0); pad.ly=dz(a[1]||0) + (b(13)?1:0) - (b(12)?1:0);
+  pad.rx=dz(a[2]||0) + (b(15)?.7:0) - (b(14)?.7:0); pad.ry=dz(a[3]||0);
+  pad.run = b(7) || b(10);
+  if((Math.abs(pad.lx)+Math.abs(pad.ly))>.2 && auto && !auto.fade) auto=null;
+  btn('a', b(0), inspectCentre);
+  btn('b', b(1), ()=>armExit('Press Ⓑ again to return to the Art Channel.'));
+  btn('lb', b(4), ()=>step(-1));
+  btn('rb', b(5), ()=>step(1));
+  btn('y', b(3), toggleMap);
+  btn('start', b(9), openIntro);
+}
+addEventListener('gamepadconnected', ()=>toast('Controller connected — left stick walk, right stick look, Ⓐ view.'));
+addEventListener('gamepaddisconnected', ()=>toast('Controller disconnected.'));
+
+/* what's in the middle of the screen */
+let centreSlot=null;
+function centreTarget(){
+  ndc.set(0,0); ray.setFromCamera(ndc, camera); ray.far=11;
+  const h=ray.intersectObjects([...hitList.filter(m=>m.parent.visible), ...colliderMeshes], false)[0];
+  return h && h.object.userData.slot ? h.object.userData.slot : null;
+}
+const colliderMeshes = [];
+scene.traverse(o=>{ if(o.isMesh && o.material===M.wall) colliderMeshes.push(o); });
+function inspectCentre(){
+  const s = centreSlot || centreTarget();
+  if(s) openViewer(s); else toast('Face a piece to view it — or use Q / E (LB / RB) to jump between pieces.');
+}
+
+/* ---------------- viewer ---------------- */
+let lastFocus=null;
+function openViewer(s){
+  if(s.empty) return;
+  viewerOpen=true; openedAt=performance.now(); lastFocus=document.activeElement; cur=s.n; updateCounter(s);
+  keys.clear(); stick.id=null; $('#stick').style.display='none';
+  const real = s.art && !SLOT_MODE;
+  const img=$('#vImg');
+  img.onerror=()=>{ toast(`Couldn't load the full image for spot ${s.n}.`); };
+  img.src = real ? s.art.src : paintPlaceholder(s.n, 1200).toDataURL('image/png');
+  img.alt = real ? (s.art.title||'Artwork') : `Placeholder for spot ${s.n}`;
+  $('#vSlot').textContent = `Spot ${s.n} of ${NSLOTS}`;
+  if(real){
+    $('#vTitle').textContent = s.art.title || 'Untitled';
+    $('#vMeta').innerHTML = [s.art.year, s.art.medium, s.art.size].filter(Boolean).map(x=>String(x).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))).join('<br>');
+    $('#vDesc').textContent = s.art.description || '';
+    const more=$('#vMore'); if(s.art.link){ more.href=s.art.link; $('#vMoreWrap').hidden=false; } else $('#vMoreWrap').hidden=true;
+  } else {
+    $('#vTitle').textContent = SLOT_MODE ? (s.art ? `Spot ${s.n}: ${s.art.title||s.art.src}` : `Spot ${s.n} is free`) : 'Placeholder';
+    $('#vMeta').textContent = SLOT_MODE ? `${s.kind==='fs'?'Freestanding wall':'Outer wall'} · up to ${s.maxW} m wide, ${s.maxH} m tall` : 'Art coming soon';
+    $('#vDesc').textContent = SLOT_MODE ? `To hang a piece here, add  slot: ${s.n}  to its entry in gallery.html.` : 'A new piece will hang here soon. Subscribe to Steve\'s Art Channel to see it first.';
+    $('#vMore').href='https://www.youtube.com/@stevesartc?sub_confirmation=1'; $('#vMore').textContent='Subscribe to the Art Channel →'; $('#vMoreWrap').hidden = SLOT_MODE;
+  }
+  if(real) $('#vMore').textContent='More about this piece →';
+  $('#vClose').textContent = IS_TOUCH ? 'Tap anywhere to close' : 'Click anywhere to close · Esc';
+  $('#viewer').hidden=false;
+  $('#viewer').focus?.();
+}
+function closeViewer(){
+  if(performance.now()-openedAt<220) return;
+  viewerOpen=false; $('#viewer').hidden=true; $('#vImg').removeAttribute('src');
+  if(lastFocus && lastFocus.focus) lastFocus.focus({preventScroll:true});
+}
+$('#viewer').tabIndex=-1;
+$('#viewer').addEventListener('click', e=>{ if(e.target.closest('#vMore')) return; closeViewer(); });
+
+/* ---------------- intro / help ---------------- */
+function openIntro(){ introOpen=true; $('#intro').hidden=false; keys.clear(); $('#enter').textContent='Back to the gallery'; $('#enter').focus({preventScroll:true}); }
+function closeIntro(){ introOpen=false; $('#intro').hidden=true; if(toastQueue.length){ const [m,ms]=toastQueue.shift(); setTimeout(()=>toast(m,ms),400); toastQueue=[]; } canvas.focus({preventScroll:true}); try{ localStorage.setItem('gallery-seen','1'); }catch(e){} }
+$('#enter').addEventListener('click', closeIntro);
+$('#helpBtn').addEventListener('click', openIntro);
+$('#prev').addEventListener('click', ()=>step(-1));
+$('#next').addEventListener('click', ()=>step(1));
+$('#mapBtn').addEventListener('click', toggleMap);
+
+/* ---------------- floor plan ---------------- */
+const mapEl=$('#map'), mc=$('#mapc'), mg=mc.getContext('2d');
+const MS = mc.width/(W+2);   // px per metre
+const mx = x => (x-HALL.x0+1)*MS, mz = z => (z-HALL.z0+1)*MS;
+function toggleMap(){ mapEl.hidden=!mapEl.hidden; $('#mapBtn').setAttribute('aria-pressed', String(!mapEl.hidden)); try{ localStorage.setItem('gallery-map', mapEl.hidden?'0':'1'); }catch(e){} }
+function drawMap(){
+  if(mapEl.hidden) return;
+  mg.clearRect(0,0,mc.width,mc.height);
+  mg.fillStyle='#2a1a10'; mg.fillRect(mx(HALL.x0),mz(HALL.z0),W*MS,D*MS);
+  mg.strokeStyle='#FEF4C3'; mg.lineWidth=4; mg.strokeRect(mx(HALL.x0),mz(HALL.z0),W*MS,D*MS);
+  mg.fillStyle='#000'; mg.fillRect(mx(-DOOR_W/2), mz(HALL.z1)-4, DOOR_W*MS, 8);
+  mg.fillStyle='#FEF4C3'; for(const c of colliders) mg.fillRect(mx(c.x0), mz(c.z0), (c.x1-c.x0)*MS, Math.max(3,(c.z1-c.z0)*MS));
+  for(const s of slots){
+    if(s.empty) continue;
+    mg.fillStyle = s.art ? '#F7E21B' : (s.n===cur ? '#00BFF3' : 'rgba(254,244,195,.45)');
+    const ax=mx(s.x+s.nx*.35), az=mz(s.z+s.nz*.35);
+    mg.fillRect(ax-3, az-3, 6, 6);
+    if(SLOT_MODE){ mg.fillStyle='#fff'; mg.font='bold 11px Archivo, Arial'; mg.textAlign='center'; mg.textBaseline='middle'; mg.fillText(String(s.n), mx(s.x+s.nx*1.3), mz(s.z+s.nz*1.3)); }
+  }
+  // player
+  mg.save(); mg.translate(mx(player.x), mz(player.z)); mg.rotate(-player.yaw);
+  mg.fillStyle='rgba(28,143,222,.25)'; mg.beginPath(); mg.moveTo(0,0); mg.arc(0,0,40,-Math.PI/2-.55,-Math.PI/2+.55); mg.fill();
+  mg.fillStyle='#D80036'; mg.strokeStyle='#000'; mg.lineWidth=2; mg.beginPath(); mg.moveTo(0,-11); mg.lineTo(8,8); mg.lineTo(0,4); mg.lineTo(-8,8); mg.closePath(); mg.fill(); mg.stroke();
+  mg.restore();
+}
+mc.addEventListener('pointerup', e=>{
+  const r=mc.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width*mc.width/MS+HALL.x0-1, z=(e.clientY-r.top)/r.height*mc.height/MS+HALL.z0-1;
+  if(blocked(x,z)){ toast("Can't stand there — pick open floor."); return; }
+  travel(x, z, null, null, true);
+});
+try{ if(localStorage.getItem('gallery-map')==='1' || (localStorage.getItem('gallery-map')===null && !IS_TOUCH && innerWidth>900)) toggleMap(); }catch(e){}
+
+if(SLOT_MODE){
+  const d=document.createElement('div'); d.className='curator';
+  d.innerHTML=`Spot-number view: every spot shows its number. Add <b>slot: N</b> to an artwork in gallery.html to hang it there. Remove <b>?slots</b> from the address for the normal gallery.`;
+  document.body.appendChild(d);
+}
+
+/* ---------------- resize ---------------- */
+function resize(){
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect=innerWidth/innerHeight;
+  camera.fov = camera.aspect<1 ? 78 : (camera.aspect<1.4 ? 70 : 62);
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+/* ---------------- main loop ---------------- */
+const clock = new THREE.Clock();
+let streamT=0, hintT=0, lastHint='';
+function frame(){
+  const dt=Math.min(.1, clock.getDelta());
+  pollPad();
+  if(!anyOverlay()){
+    if(auto) stepAuto(dt);
+    // walking
+    let mvF=0, mvS=0, turn=0;
+    if(keys.has('w')||keys.has('arrowup')) mvF+=1;
+    if(keys.has('s')||keys.has('arrowdown')) mvF-=1;
+    if(keys.has('d')) mvS+=1; if(keys.has('a')) mvS-=1;
+    if(keys.has('arrowright')) turn-=1; if(keys.has('arrowleft')) turn+=1;
+    mvF += -stick.y - pad.ly; mvS += stick.x + pad.lx;
+    const L=Math.hypot(mvF,mvS); if(L>1){ mvF/=L; mvS/=L; }
+    const speed = (keys.has('shift')||pad.run) ? 4.6 : 2.6;
+    const f=fwd(), rgt={ x:-f.z, z:f.x };
+    const tvx=(f.x*mvF+rgt.x*mvS)*speed, tvz=(f.z*mvF+rgt.z*mvS)*speed;
+    const acc = 1-Math.exp(-dt*10);
+    player.vx += (tvx-player.vx)*acc; player.vz += (tvz-player.vz)*acc;
+    if(!auto && (Math.abs(player.vx)>.001 || Math.abs(player.vz)>.001)) tryMove(player.vx*dt, player.vz*dt);
+    // looking (keys + right stick)
+    player.yaw += turn*1.9*dt - pad.rx*Math.abs(pad.rx)*2.6*dt;
+    player.pitch = Math.max(-1.1, Math.min(1.1, player.pitch - pad.ry*Math.abs(pad.ry)*1.8*dt));
+  }
+  // gentle walking bob
+  const spd=Math.hypot(player.vx,player.vz); const bob = RM ? 0 : Math.sin(performance.now()/170)*.018*Math.min(1,spd/2.6);
+  camera.position.set(player.x, EYE+bob, player.z);
+  camera.rotation.set(player.pitch, player.yaw, 0);
+
+  // spotlights fade in/out
+  for(const sp of SPOTS){
+    const s=sp.userData.slot, target = s===-1 ? 0 : 32*Math.max(0, 1 - Math.hypot(s.x-player.x, s.z-player.z)/26);
+    sp.userData.cur += (target-sp.userData.cur)*Math.min(1, dt*4); sp.intensity=sp.userData.cur;
+  }
+  streamT-=dt; if(streamT<=0){ streamT=.35; stream(); }
+  hintT-=dt;
+  if(hintT<=0){
+    hintT=.12;
+    centreSlot = anyOverlay() ? null : centreTarget();
+    $('#reticle').classList.toggle('on', !!centreSlot);
+    let txt='';
+    if(centreSlot){
+      const name = centreSlot.art && !SLOT_MODE ? (centreSlot.art.title||'Untitled') : (SLOT_MODE ? `Spot ${centreSlot.n}` : 'Placeholder');
+      const how = IS_TOUCH ? 'tap it' : 'click or <b>Enter</b>';
+      txt = `${name} — ${how} to view`;
+    }
+    if(txt!==lastHint){ lastHint=txt; $('#hint').innerHTML=txt; $('#hint').classList.toggle('on', !!txt); }
+    if(mouse.has && !anyOverlay() && !dragging){ const h=pick(mouse.x, mouse.y); canvas.style.cursor = h && (h.object.userData.slot||h.object.userData.door) ? 'pointer' : (h && h.object===floor ? 'crosshair' : 'grab'); }
+    drawMap();
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- start ---------------- */
+camera.position.set(player.x, EYE, player.z);
+updateCounter(null);
+(async ()=>{
+  $('#bar').style.width='35%';
+  try{ await Promise.race([document.fonts.ready, new Promise(r=>setTimeout(r,2500))]); }catch(e){}
+  $('#bar').style.width='70%';
+  stream();
+  renderer.compile(scene, camera);
+  $('#bar').style.width='100%';
+  const real = slots.filter(s=>s.art).length;
+  $('#status').textContent = real ? `${real} artwork${real===1?'':'s'} on the walls · ${NSLOTS} spots` : (SLOT_MODE ? `Spot-number view · ${NSLOTS} spots` : `${NSLOTS} spots · placeholder pieces until the art arrives`);
+  const en=$('#enter'); en.disabled=false; en.textContent='Enter the gallery'; en.focus({preventScroll:true});
+  requestAnimationFrame(frame);
+  if(warnings.length) setTimeout(()=>toast(warnings[0] + (warnings.length>1?` (+${warnings.length-1} more — see console)`:''), 6000), 600);
+  warnings.forEach(w=>console.warn('[gallery]', w));
+})();
+</script>
+</body>
+</html>
