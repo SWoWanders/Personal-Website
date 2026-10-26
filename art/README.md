@@ -1,18 +1,23 @@
 # Gallery artwork
 
-Put the image files for the virtual gallery (`gallery.html`) in this folder.
+There are two virtual galleries in the same 3D building:
+
+| Gallery | Address | Image folder | List in `gallery.html` |
+|---|---|---|---|
+| AI Art Gallery | `gallery.html` | `art/ai/` | `AI_ART` |
+| Traditional Art Gallery | `gallery.html?hall=traditional` | `art/traditional/` | `TRADITIONAL_ART` |
 
 ## Adding a piece
 
-1. **Upload the image here.** On GitHub, open this `art` folder, choose **Add file → Upload files**, and drag the image in. JPG, PNG or WebP all work. Around 2000–3000 px on the long side is plenty. Use simple file names with no spaces, like `harbour-at-dusk.jpg`.
-2. **List it in `gallery.html`.** Open `gallery.html` and click the pencil to edit. Near the top is the `ARTWORKS` list. Add one block per piece:
+1. **Upload the image.** On GitHub, open `art/ai` or `art/traditional`, choose **Add file → Upload files**, and drag the image in. JPG, PNG or WebP all work. Around 2000–3000 px on the long side is plenty. Use simple file names with no spaces, like `harbour-at-dusk.jpg`.
+2. **List it in `gallery.html`.** Click the pencil to edit `gallery.html`. Near the top are the two lists. Add a block to the right one:
 
    ```js
    {
-     src: 'art/harbour-at-dusk.jpg',
+     src: 'art/traditional/harbour-at-dusk.jpg',
      title: 'Harbour at Dusk',
      year: '2026',
-     medium: 'AI image, hand-finished',
+     medium: 'Acrylic on canvas',
      size: '60 × 90 cm',
      description: 'A few sentences about the piece.',
      link: 'https://www.youtube.com/@stevesartc',
@@ -29,6 +34,10 @@ Put the image files for the virtual gallery (`gallery.html`) in this folder.
 
 ## Choosing where a piece hangs
 
-Open **`gallery.html?slots`** (add `?slots` to the end of the gallery's address). Every one of the 123 spots shows its number on the wall and on the floor plan. Put that number in the piece's `slot:` field.
+Add `slots` to the gallery's address:
+- AI gallery: `gallery.html?slots`
+- Traditional gallery: `gallery.html?hall=traditional&slots`
 
-Pieces without a `slot` fill the free spots in order: 1, 2, 3 and so on. Spot 1 is on the first wall you face when you walk in.
+Every one of the 123 spots then shows its number on the wall and on the floor plan. Put that number in the piece's `slot:` field.
+
+Pieces without a `slot` fill the free spots in order: 1, 2, 3 and so on. Spot 1 is at the left end of the first wall you face when you walk in.

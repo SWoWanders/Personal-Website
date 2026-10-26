@@ -148,7 +148,7 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
       <div><h3>Controller</h3>Left stick walk · right stick look<br>Ⓐ view / close · Ⓑ back<br>LB / RB previous / next piece<br>Y map · RT run</div>
     </div>
     <button class="btn go" id="enter" disabled>Loading…</button>
-    <a class="btn" href="index.html#/art" style="margin-left:10px">← Back</a>
+    <a class="btn" id="introBack" href="index.html#/art" style="margin-left:10px">← Back</a>
     <div class="load" aria-hidden="true"><i id="bar"></i></div>
     <div class="status" id="status">Building the gallery…</div>
   </div>
@@ -186,29 +186,53 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /* =====================================================================
-   YOUR ARTWORKS
+   YOUR ARTWORKS — two galleries, same building
    ---------------------------------------------------------------------
-   1. Upload your image files to the  art/  folder of this repository.
-   2. Add one { ... } block per piece below. Only `src` is required.
-   3. Pieces fill the wall spots in order (1, 2, 3 …). To hang a piece
-      on a particular spot, give it a `slot` number. Open
-      gallery.html?slots  to see every spot's number on the walls
-      and on the map. There are 123 spots.
+   AI_ART           → gallery.html                    (the AI Art Gallery)
+   TRADITIONAL_ART  → gallery.html?hall=traditional   (the Traditional Art Gallery)
+
+   1. Upload image files to  art/ai/  or  art/traditional/  in this repository.
+   2. Add one { ... } block per piece to the matching list. Only `src` is required.
+   3. Pieces fill the wall spots in order (1, 2, 3 …). To hang a piece on a
+      particular spot, give it a `slot` number. Add  ?slots  to the address
+      (gallery.html?slots  or  gallery.html?hall=traditional&slots) to see
+      every spot's number. Each gallery has 123 spots.
+
+   Template:
+   {
+     src: 'art/ai/harbour-at-dusk.jpg',    // file in this repository, or a full https:// link
+     title: 'Harbour at Dusk',
+     year: '2026',
+     medium: 'AI-generated image',
+     size: '60 × 90 cm',
+     description: 'A few sentences about the piece.',
+     link: 'https://www.youtube.com/@stevesartc',  // optional "More about this piece" button
+     slot: 1,                              // optional: which wall spot
+     frame: 'black',                       // 'black', 'white', 'oak' or 'none'
+     scale: 1                              // optional: 1.2 = 20% bigger on the wall
+   },
    ===================================================================== */
-const ARTWORKS = [
-  // {
-  //   src: 'art/harbour-at-dusk.jpg',       // file in art/, or a full https:// link
-  //   title: 'Harbour at Dusk',
-  //   year: '2026',
-  //   medium: 'AI image, hand-finished',
-  //   size: '60 × 90 cm',
-  //   description: 'A few sentences about the piece.',
-  //   link: 'https://www.youtube.com/@stevesartc',  // optional "More about this piece" button
-  //   slot: 1,                              // optional: which wall spot
-  //   frame: 'black',                       // 'black', 'white', 'oak' or 'none'
-  //   scale: 1                              // optional: 1.2 = 20% bigger on the wall
-  // },
+const AI_ART = [
+  {
+    src: 'art/ai/boardwalk-reverie.jpg',
+    title: 'Boardwalk Reverie',
+    medium: 'AI-generated image',
+    description: 'A giant sculpted head with red lips gazes up into the blue-hour sky over a quiet seaside boardwalk, between a glowing carousel and a Ferris wheel.',
+    slot: 1,
+    frame: 'black'
+  },
 ];
+
+const TRADITIONAL_ART = [
+];
+
+const HALLS = {
+  ai:          { name: 'AI Art Gallery',          art: AI_ART,          other: 'traditional' },
+  traditional: { name: 'Traditional Art Gallery', art: TRADITIONAL_ART, other: 'ai' },
+};
+const HALL_KEY = new URLSearchParams(location.search).get('hall')==='traditional' ? 'traditional' : 'ai';
+const GALLERY = HALLS[HALL_KEY];
+const ARTWORKS = GALLERY.art;
 
 /* Fill empty spots with labelled placeholder pieces until real art arrives.
    Set to false to leave empty spots bare. */
@@ -221,6 +245,14 @@ const SLOT_MODE = new URLSearchParams(location.search).has('slots');
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const EXIT_URL = $('#exit').getAttribute('href');
+{ // label everything for the gallery we're in, and offer the other one
+  document.title = `${GALLERY.name} — Steve's Art Channel`;
+  $('.title-chip').textContent = GALLERY.name;
+  $('#introTitle').textContent = 'The ' + GALLERY.name;
+  const o = HALLS[GALLERY.other], url = GALLERY.other==='ai' ? 'gallery.html' : 'gallery.html?hall=traditional';
+  const a = document.createElement('a'); a.className='btn'; a.href=url; a.style.marginLeft='10px'; a.textContent = `${o.name} →`;
+  $('#introBack').after(a);
+}
 if(IS_TOUCH) document.body.classList.add('touch');
 
 let toastT, toastQueue=[];
@@ -660,7 +692,7 @@ function step(dir){
 function fwd(){ return { x:-Math.sin(player.yaw), z:-Math.cos(player.yaw) }; }
 function updateCounter(s){
   const list=shown();
-  $('#counter').textContent = s ? `${s.art ? (s.art.title||'Untitled') : (SLOT_MODE?'Spot':'Spot')} · ${s.n} / ${NSLOTS}` : `${list.filter(x=>x.art).length} artworks · ${NSLOTS} spots`;
+  $('#counter').textContent = s ? `${s.art ? (s.art.title||'Untitled') : (SLOT_MODE?'Spot':'Spot')} · ${s.n} / ${NSLOTS}` : `${list.filter(x=>x.art).length} artwork${list.filter(x=>x.art).length===1?'':'s'} · ${NSLOTS} spots`;
 }
 
 /* ---------------- input ---------------- */
@@ -828,7 +860,7 @@ function openViewer(s){
   } else {
     $('#vTitle').textContent = SLOT_MODE ? (s.art ? `Spot ${s.n}: ${s.art.title||s.art.src}` : `Spot ${s.n} is free`) : 'Placeholder';
     $('#vMeta').textContent = SLOT_MODE ? `${s.kind==='fs'?'Freestanding wall':'Outer wall'} · up to ${s.maxW} m wide, ${s.maxH} m tall` : 'Art coming soon';
-    $('#vDesc').textContent = SLOT_MODE ? `To hang a piece here, add  slot: ${s.n}  to its entry in gallery.html.` : 'A new piece will hang here soon. Subscribe to Steve\'s Art Channel to see it first.';
+    $('#vDesc').textContent = SLOT_MODE ? `To hang a piece here, add  slot: ${s.n}  to its entry in the ${HALL_KEY==='ai'?'AI_ART':'TRADITIONAL_ART'} list in gallery.html.` : 'A new piece will hang here soon. Subscribe to Steve\'s Art Channel to see it first.';
     $('#vMore').href='https://www.youtube.com/@stevesartc?sub_confirmation=1'; $('#vMore').textContent='Subscribe to the Art Channel →'; $('#vMoreWrap').hidden = SLOT_MODE;
   }
   if(real) $('#vMore').textContent='More about this piece →';
@@ -887,7 +919,7 @@ try{ if(localStorage.getItem('gallery-map')==='1' || (localStorage.getItem('gall
 
 if(SLOT_MODE){
   const d=document.createElement('div'); d.className='curator';
-  d.innerHTML=`Spot-number view: every spot shows its number. Add <b>slot: N</b> to an artwork in gallery.html to hang it there. Remove <b>?slots</b> from the address for the normal gallery.`;
+  d.innerHTML=`Spot-number view: every spot shows its number. Add <b>slot: N</b> to an artwork in gallery.html to hang it there. Remove <b>slots</b> from the address for the normal view.`;
   document.body.appendChild(d);
 }
 
