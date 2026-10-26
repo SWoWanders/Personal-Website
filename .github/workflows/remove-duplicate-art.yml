@@ -23,16 +23,16 @@ jobs:
           python-version: '3.12'
       - run: pip install pillow
       - name: Find and remove duplicates
-        run: python tools/dedupe_art.py | tee dedupe.log
+        run: python tools/dedupe_art.py | tee "$RUNNER_TEMP/dedupe.log"
       - name: Commit any removals
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
+          if [ -n "$(git status --porcelain -- art gallery.html)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A art gallery.html
-            git commit -m "Remove duplicate art" -m "$(cat dedupe.log)"
+            git commit -m "Remove duplicate art" -m "$(cat "$RUNNER_TEMP/dedupe.log")"
             git push
-            { echo '### Duplicates removed'; echo '```'; cat dedupe.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo '### Duplicates removed'; echo '```'; cat "$RUNNER_TEMP/dedupe.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           else
             echo 'No duplicates found.' >> "$GITHUB_STEP_SUMMARY"
           fi
