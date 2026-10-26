@@ -52,7 +52,7 @@ button{font:inherit; color:inherit}
 
 /* ---------- focus: keyboard + gamepad ---------- */
 :focus{outline:none}
-:focus-visible, .nav-mode :focus{outline:4px solid #000; outline-offset:4px; box-shadow:0 0 0 8px var(--yellow)}
+.nav-mode :focus{outline:4px solid #000; outline-offset:4px; box-shadow:0 0 0 8px var(--yellow)}
 
 /* =========================================================
    MULTIPLANE — painted glass planes, separated in depth
@@ -125,7 +125,7 @@ body[data-room="hub"] .s-half{background:var(--p2)}   /* keeps the teal SWoW bad
   .hub-wrap{gap:8px}
 }
 .badge{display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.6vmin,14px); text-decoration:none; color:#000; border-radius:12px; outline-offset:8px}
-.badge:focus-visible, .nav-mode .badge:focus{outline:none; box-shadow:none}
+.nav-mode .badge:focus{outline:none; box-shadow:none}
 .disc{
   position:relative; width:var(--b); aspect-ratio:1; border-radius:50%; display:block;
   box-shadow:1.2vmin 1.6vmin 0 rgba(0,0,0,.24);
@@ -133,9 +133,9 @@ body[data-room="hub"] .s-half{background:var(--p2)}   /* keeps the teal SWoW bad
 }
 .disc svg{width:100%; height:100%; display:block; overflow:visible}
 svg use{overflow:visible}
-.badge:hover .disc, .badge:focus .disc{transform:translate(-.7vmin,-.9vmin) scale(1.06); box-shadow:2.6vmin 3.2vmin 0 rgba(0,0,0,.26)}
+.badge:hover .disc, .nav-mode .badge:focus .disc{transform:translate(-.7vmin,-.9vmin) scale(1.06); box-shadow:2.6vmin 3.2vmin 0 rgba(0,0,0,.26)}
 .badge:active .disc{transform:scale(.97)}
-.badge:focus-visible .disc, .nav-mode .badge:focus .disc{box-shadow:0 0 0 6px #000, 0 0 0 13px var(--yellow), 2.6vmin 3.2vmin 0 rgba(0,0,0,.26)}
+.nav-mode .badge:focus .disc{box-shadow:0 0 0 6px #000, 0 0 0 13px var(--yellow), 2.6vmin 3.2vmin 0 rgba(0,0,0,.26)}
 .new{position:absolute; top:2%; right:2%; background:var(--yellow); color:#000; border:3px solid #000; border-radius:50%;
   width:28%; aspect-ratio:1; display:grid; place-items:center; font-weight:900; font-size:clamp(10px,1.8vmin,15px); text-transform:uppercase; transform:rotate(12deg)}
 .new[hidden]{display:none}
@@ -180,7 +180,7 @@ svg use{overflow:visible}
   font-weight:900; font-stretch:90%; font-size:clamp(22px,2.8vw,30px); text-transform:uppercase; line-height:1; transition:filter .2s, transform .2s}
 .tile small{font-weight:600; font-stretch:100%; font-size:13px; letter-spacing:.08em; text-transform:none; opacity:.85}
 .tile:hover{filter:brightness(1.08)}
-.tile:focus-visible, .nav-mode .tile:focus{outline:5px solid #000; outline-offset:-12px; box-shadow:inset 0 0 0 12px var(--yellow)}
+.nav-mode .tile:focus{outline:5px solid #000; outline-offset:-12px; box-shadow:inset 0 0 0 12px var(--yellow)}
 .t-red{background:var(--wred); color:#fff} .t-cyan{background:var(--cyan); color:#000} .t-blue{background:var(--blue); color:#000}
 .t-yellow{background:var(--yellow); color:#000} .t-cream{background:var(--cream); color:#000} .t-black{background:#000; color:var(--cream)}
 .t-teal{background:var(--teal); color:#000} .t-mred{background:var(--red); color:#fff}
@@ -201,9 +201,9 @@ svg use{overflow:visible}
 .app h3{margin:8px 0 6px; font-size:18px; font-weight:800; line-height:1.2; padding-right:20px}
 .app p{margin:0; font-size:14px; line-height:1.5; flex:1; opacity:.85}
 .app .go{margin-top:12px; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase}
-.app:hover, .app:focus{background:#000; color:var(--cream)}
-.app:hover::before, .app:focus::before{width:44px; height:44px}
-.app:focus-visible, .nav-mode .app:focus{outline:5px solid var(--yellow); outline-offset:-10px; box-shadow:none}
+.app:hover, .nav-mode .app:focus{background:#000; color:var(--cream)}
+.app:hover::before, .nav-mode .app:focus::before{width:44px; height:44px}
+.nav-mode .app:focus{outline:5px solid var(--yellow); outline-offset:-10px; box-shadow:none}
 .app[hidden]{display:none}
 
 .frames{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:5px; background:#000; border:5px solid #000}
