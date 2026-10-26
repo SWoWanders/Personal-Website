@@ -222,6 +222,26 @@ svg use{overflow:visible}
 .mini:hover{background:var(--yellow)}
 
 /* ---------- toast ---------- */
+.modal{position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background:rgba(0,0,0,.55); overflow:auto}
+.modal[hidden]{display:none}
+.modal .card{width:min(560px,100%); position:relative}
+.modal h2{margin:0 0 6px}
+.modal p.sub{margin:0 0 16px; font-size:15px; line-height:1.5; padding-right:48px}
+.modal h2{padding-right:48px}
+.field{display:grid; gap:6px; margin-bottom:14px}
+.field label{font-weight:800; font-size:13px; letter-spacing:.1em; text-transform:uppercase}
+.field input, .field textarea{font:500 16px var(--font); color:#000; background:#fff; border:3px solid #000; padding:10px 12px; width:100%; border-radius:0}
+.field textarea{min-height:140px; resize:vertical}
+.field input:focus, .field textarea:focus{outline:4px solid var(--blue); outline-offset:2px}
+.hp{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden}
+.row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.send{min-height:48px; padding:0 22px; background:var(--red); color:#fff; border:3px solid #000; font-weight:800; font-size:16px; cursor:pointer; box-shadow:5px 5px 0 #000}
+.send:hover{background:#000; color:var(--yellow)}
+.send[disabled]{opacity:.6; cursor:wait}
+.x{position:absolute; top:10px; right:10px; width:44px; height:44px; border:3px solid #000; background:var(--cream); font-size:22px; font-weight:900; cursor:pointer; line-height:1}
+.x:hover{background:var(--yellow)}
+.formmsg{font-weight:700; font-size:14px; min-height:1.4em}
+@media (orientation:landscape) and (max-height:520px){ .field textarea{min-height:80px} .modal p.sub{display:none} }
 .toast{position:fixed; left:50%; bottom:max(20px, env(safe-area-inset-bottom)); transform:translate(-50%,140%); z-index:60;
   background:#000; color:var(--cream); border:3px solid var(--yellow); padding:12px 18px; font-weight:700; font-size:14px;
   max-width:min(92vw,520px); text-align:center; visibility:hidden; transition:transform .35s cubic-bezier(.2,.9,.3,1.2), visibility 0s linear .35s}
@@ -296,7 +316,7 @@ svg use{overflow:visible}
     <footer class="hub-foot">
       <div class="links">
         <a class="pill dark" data-link="support" data-name="Support">Support the work</a>
-        <a class="pill" data-link="email" data-name="Email">Contact</a>
+        <button class="pill" type="button" id="contactBtn">Contact</button>
       </div>
       <span class="hint">Tap · click · arrow keys · game controller</span>
     </footer>
@@ -401,6 +421,18 @@ svg use{overflow:visible}
   </div>
 </section>
 
+<div class="modal" id="contact" hidden role="dialog" aria-modal="true" aria-labelledby="contactTitle">
+  <form class="card" id="contactForm" novalidate>
+    <button class="x" type="button" id="contactClose" aria-label="Close">×</button>
+    <h2 id="contactTitle">Get in touch</h2>
+    <p class="sub">Questions, collaborations or just saying hi — send Steve a message.</p>
+    <div class="field"><label for="cfName">Name</label><input id="cfName" name="name" autocomplete="name" maxlength="120" required></div>
+    <div class="field"><label for="cfEmail">Your email</label><input id="cfEmail" name="email" type="email" autocomplete="email" maxlength="200" required></div>
+    <div class="field"><label for="cfMsg">Message</label><textarea id="cfMsg" name="message" maxlength="5000" required></textarea></div>
+    <div class="hp" aria-hidden="true"><label>Leave this empty <input name="botcheck" tabindex="-1" autocomplete="off"></label></div>
+    <div class="row"><button class="send" type="submit" id="cfSend">Send message</button><span class="formmsg" id="cfStatus" role="status" aria-live="polite"></span></div>
+  </form>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -414,7 +446,9 @@ const CONFIG = {
   mind:    { github:'https://github.com/swowanders', updated:'' },
   swow:    { youtube:'', spotify:'', bandcamp:'', updated:'' },
   support: '',   // Ko-fi / Patreon / Buy Me a Coffee URL
-  email:   'swowanders@gmail.com'
+  // Contact form: get a free access key at https://web3forms.com (enter your email, the key arrives by email)
+  // and paste it here. Messages then arrive in your inbox and your address never appears on the site.
+  contactKey: ''
 };
 // `updated`: ISO date (e.g. '2026-11-02'). A "New" sticker shows on that badge for visitors who last came before then.
 
@@ -556,11 +590,46 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-back]')) goHub();
 });
 
+/* ---------- contact form ---------- */
+// Fallback only (used until CONFIG.contactKey is set): the address is assembled when someone presses Send,
+// so it never appears as text in the page for scrapers to find.
+const _cc=[115,119,111,119,97,110,100,101,114,115,64,103,109,97,105,108,46,99,111,109];
+let contactReturn=null;
+function contactOpen(){ return !$('#contact').hidden; }
+function openContact(){ contactReturn=document.activeElement; $('#contact').hidden=false; $('#cfStatus').textContent=''; setTimeout(()=>$('#cfName').focus(),30); }
+function closeContact(){ $('#contact').hidden=true; if(contactReturn && contactReturn.focus) contactReturn.focus({preventScroll:true}); }
+$('#contactBtn').addEventListener('click', openContact);
+$('#contactClose').addEventListener('click', closeContact);
+$('#contact').addEventListener('click', e=>{ if(e.target.id==='contact') closeContact(); });
+$('#contactForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const f=e.target, st=$('#cfStatus'), btn=$('#cfSend');
+  const name=f.name.value.trim(), email=f.email.value.trim(), message=f.message.value.trim();
+  if(f.botcheck.value) return;
+  if(!name || !email || !message){ st.textContent='Please fill in all three boxes.'; (!name?f.name:!email?f.email:f.message).focus(); return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ st.textContent='That email address doesn\'t look right.'; f.email.focus(); return; }
+  if(!CONFIG.contactKey){
+    const to=String.fromCharCode(..._cc);
+    location.href='mailto:'+to+'?subject='+encodeURIComponent('Website message from '+name)+'&body='+encodeURIComponent(message+'\n\n— '+name+' ('+email+')');
+    st.textContent='Opening your email app…'; return;
+  }
+  btn.disabled=true; st.textContent='Sending…';
+  try{
+    const r=await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({access_key:CONFIG.contactKey, subject:'Website message from '+name, from_name:"Steve's website", name, email, message, botcheck:''})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok && j.success!==false){ st.textContent=''; f.reset(); closeContact(); toast('Thanks! Your message is on its way.'); }
+    else st.textContent='Sorry, that didn\'t send ('+(j.message||r.status)+'). Please try again.';
+  }catch(err){ st.textContent='Couldn\'t reach the mail service. Check your connection and try again.'; }
+  btn.disabled=false;
+});
+
 /* =========================================================
    INPUT — spatial navigation shared by keyboard + gamepad
    ========================================================= */
 const FOCUSABLE='a[href], button:not([disabled]), [data-soon]';
-function focusables(){ return $$(FOCUSABLE, activeView()).filter(el=>el.offsetParent!==null || getComputedStyle(el).position==='fixed'); }
+function scope(){ return contactOpen() ? $('#contact') : activeView(); }
+function focusables(){ return $$(FOCUSABLE+', input, textarea', scope()).filter(el=>el.offsetParent!==null || getComputedStyle(el).position==='fixed'); }
 function setNav(on=true){ document.body.classList.toggle('nav-mode', on); }
 function move(dx,dy){
   const list=focusables(); if(!list.length) return;
@@ -581,7 +650,7 @@ function move(dx,dy){
 }
 function activate(){
   const el=document.activeElement;
-  if(!el || el===document.body || !activeView().contains(el)){ const f=focusables()[0]; if(f) f.focus(); return; }
+  if(!el || el===document.body || !scope().contains(el)){ const f=focusables()[0]; if(f) f.focus(); return; }
   if(el.tagName==='A' && el.target==='_blank' && el.href){
     const w=window.open(el.href,'_blank');
     if(w){ try{ w.opener=null; }catch(e){} } else { toast('Opening in this tab…'); location.href=el.href; }
@@ -594,6 +663,9 @@ function activate(){
 addEventListener('keydown',e=>{
   if(e.altKey||e.ctrlKey||e.metaKey) return;
   const k=e.key, dirs={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+  const typing = /^(INPUT|TEXTAREA)$/.test((document.activeElement||{}).tagName||'');
+  if(contactOpen() && k==='Escape'){ e.preventDefault(); closeContact(); return; }
+  if(typing){ if(k==='Tab') setNav(); return; }
   if(dirs[k]){ e.preventDefault(); setNav(); move(...dirs[k]); return; }
   if(k==='Escape' || k==='Backspace'){ if(current!=='hub'){ e.preventDefault(); goHub(); } return; }
   if(k===' ' || (k==='Enter' && document.activeElement?.dataset.soon!==undefined)){
@@ -601,6 +673,7 @@ addEventListener('keydown',e=>{
     if(el && (el.tagName==='A' || el.getAttribute('role')==='button')){ e.preventDefault(); activate(); }
     return;
   }
+  if(contactOpen()) return;
   if(/^[1-4]$/.test(k)){ location.hash='#/'+ROUTES[+k-1]; return; }
   if(k==='Tab') setNav();
 });
@@ -624,8 +697,8 @@ function pollPad(t){
   dir('left', b(14)||a[0]<-.5, t, ()=>move(-1,0));
   dir('right',b(15)||a[0]> .5, t, ()=>move( 1,0));
   press('a', b(0), activate);
-  press('b', b(1), goHub);
-  press('start', b(9), goHub);
+  press('b', b(1), ()=> contactOpen() ? closeContact() : goHub());
+  press('start', b(9), ()=> contactOpen() ? closeContact() : goHub());
   press('lb', b(4), ()=>cycle(-1));
   press('rb', b(5), ()=>cycle(1));
   const rx=dead(a[2]||0), ry=dead(a[3]||0);
