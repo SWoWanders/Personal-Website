@@ -122,6 +122,7 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
     <span class="title-chip">Virtual Gallery</span>
   </div>
   <div class="grp">
+    <button class="btn" id="sndBtn" aria-pressed="true" aria-label="Sound on" title="Sound (N)">🔊</button>
     <button class="btn" id="mapBtn" aria-pressed="false" title="Floor plan (M)">Map</button>
     <button class="btn" id="helpBtn" title="Controls (H)" aria-label="Controls">?</button>
   </div>
@@ -145,9 +146,9 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
     <h1 id="introTitle">The Virtual Gallery</h1>
     <p>Walk the hall and step up to any piece to see it full size, with its story.</p>
     <div class="ctl">
-      <div><h3>Touch</h3>Drag bottom-left to walk<br>Drag anywhere else to look<br>Tap a piece to view it<br>Tap the floor to walk there</div>
-      <div><h3>Mouse &amp; keyboard</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to move<br>Drag to look · click a piece<br><kbd>Q</kbd> <kbd>E</kbd> previous / next piece<br><kbd>Enter</kbd> view · <kbd>M</kbd> map · <kbd>Esc</kbd> close</div>
-      <div><h3>Controller</h3>Left stick walk · right stick look<br>Ⓐ view / close · Ⓑ back<br>LB / RB previous / next piece<br>Y map · RT run</div>
+      <div><h3>Touch</h3>Drag bottom-left to walk<br>Drag anywhere else to look<br>Tap a piece to view it<br>Tap the floor to walk there<br>🔊 button for sound</div>
+      <div><h3>Mouse &amp; keyboard</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to move<br>Drag to look · click a piece<br><kbd>Q</kbd> <kbd>E</kbd> previous / next piece<br><kbd>Enter</kbd> view · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>Esc</kbd> close</div>
+      <div><h3>Controller</h3>Left stick walk · right stick look<br>Ⓐ view / close · Ⓑ back<br>LB / RB previous / next piece<br>Y map · X sound · RT run</div>
     </div>
     <button class="btn go" id="enter" disabled>Loading…</button>
     <a class="btn" id="introBack" href="index.html#/art" style="margin-left:10px">← Back</a>
@@ -801,6 +802,7 @@ addEventListener('keydown', e=>{
   if(k==='e'||k===']'||k==='pagedown'){ step(1); return; }
   if(k==='enter'||k===' '){ e.preventDefault(); inspectCentre(); return; }
   if(k==='m'){ toggleMap(); return; }
+  if(k==='n'){ setSound(!SND.on); return; }
   if(k==='h'||k==='?'){ openIntro(); return; }
   if(k==='escape'||k==='backspace'){ e.preventDefault(); armExit('Press Esc again to return to the Art Channel.'); }
 });
@@ -835,6 +837,7 @@ function pollPad(){
   btn('rb', b(5), ()=>step(1));
   btn('y', b(3), toggleMap);
   btn('start', b(9), openIntro);
+  btn('x', b(2), ()=>setSound(!SND.on));
 }
 addEventListener('gamepadconnected', ()=>toast('Controller connected — left stick walk, right stick look, Ⓐ view.'));
 addEventListener('gamepaddisconnected', ()=>toast('Controller disconnected.'));
@@ -914,12 +917,13 @@ $('#viewer').addEventListener('click', e=>{ if(e.target.closest('#vMore')) retur
 
 /* ---------------- intro / help ---------------- */
 function openIntro(){ introOpen=true; $('#intro').hidden=false; keys.clear(); $('#enter').textContent='Back to the gallery'; $('#enter').focus({preventScroll:true}); }
-function closeIntro(){ introOpen=false; $('#intro').hidden=true; if(toastQueue.length){ const [m,ms]=toastQueue.shift(); setTimeout(()=>toast(m,ms),400); toastQueue=[]; } canvas.focus({preventScroll:true}); try{ localStorage.setItem('gallery-seen','1'); }catch(e){} }
+function closeIntro(){ introOpen=false; $('#intro').hidden=true; if(SND.on) audioStart(); if(toastQueue.length){ const [m,ms]=toastQueue.shift(); setTimeout(()=>toast(m,ms),400); toastQueue=[]; } canvas.focus({preventScroll:true}); try{ localStorage.setItem('gallery-seen','1'); }catch(e){} }
 $('#enter').addEventListener('click', closeIntro);
 $('#helpBtn').addEventListener('click', openIntro);
 $('#prev').addEventListener('click', ()=>step(-1));
 $('#next').addEventListener('click', ()=>step(1));
 $('#mapBtn').addEventListener('click', toggleMap);
+$('#sndBtn').addEventListener('click', ()=>setSound(!SND.on));
 
 /* ---------------- floor plan ---------------- */
 const mapEl=$('#map'), mc=$('#mapc'), mg=mc.getContext('2d');
@@ -968,6 +972,119 @@ function resize(){
 }
 addEventListener('resize', resize); resize();
 
+/* ---------------- sound: room tone + footsteps (all synthesised, no files) ---------------- */
+const SND = { ctx:null, on:true, master:null, dry:null, wet:null, noise:null, stepAcc:0, side:1, lastX:null, lastZ:null };
+try{ SND.on = localStorage.getItem('gallery-sound')!=='0'; }catch(e){}
+function noiseBuffer(ctx, secs, kind){
+  const n=Math.floor(ctx.sampleRate*secs), b=ctx.createBuffer(2,n,ctx.sampleRate);
+  for(let ch=0; ch<2; ch++){
+    const d=b.getChannelData(ch); let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0,last=0;
+    for(let i=0;i<n;i++){
+      const w=Math.random()*2-1;
+      if(kind==='pink'){ b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.969*b2+w*.153852; b3=.8665*b3+w*.3104856; b4=.55*b4+w*.5329522; b5=-.7616*b5-w*.016898; d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6=w*.115926; }
+      else if(kind==='brown'){ last=(last+.02*w)/1.02; d[i]=last*3.5; }
+      else d[i]=w;
+    }
+  }
+  return b;
+}
+function impulse(ctx, secs){
+  // a big room with hard walls and a wood floor: early reflections, then a decay that darkens over time
+  const n=Math.floor(ctx.sampleRate*secs), b=ctx.createBuffer(2,n,ctx.sampleRate), sr=ctx.sampleRate;
+  for(let ch=0; ch<2; ch++){
+    const d=b.getChannelData(ch); let lp=0;
+    for(let i=0;i<n;i++){
+      const t=i/sr, k=Math.min(.94, .25+t*.38);
+      lp = lp*k + (Math.random()*2-1)*(1-k);
+      d[i] = lp*Math.exp(-t/0.34)*2.2;
+    }
+    for(const [ms,g] of [[11,.5],[19,.35],[27,.3],[38,.22],[53,.16]]){ const j=Math.floor((ms+(ch?3:0))*sr/1000); if(j<n) d[j]+=g*(Math.random()<.5?-1:1); }
+  }
+  return b;
+}
+function audioStart(){
+  if(SND.ctx){ if(SND.on && SND.ctx.state!=='running') SND.ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+  let ctx; try{ ctx=new AC(); }catch(e){ return; }
+  SND.ctx=ctx;
+  const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=4; comp.connect(ctx.destination);
+  SND.master=ctx.createGain(); SND.master.gain.value = SND.on ? .9 : 0; SND.master.connect(comp);
+  const verb=ctx.createConvolver(); verb.buffer=impulse(ctx, 2.6);
+  SND.wet=ctx.createGain(); SND.wet.gain.value=.55; SND.wet.connect(verb); verb.connect(SND.master);
+  SND.dry=ctx.createGain(); SND.dry.connect(SND.master);
+  SND.noise = noiseBuffer(ctx, 1, 'white');
+  const room=ctx.createGain(); room.gain.value=1.6; room.connect(SND.master);
+  const loop=(buf, filt, f, q, gain, dest)=>{ const s=ctx.createBufferSource(); s.buffer=buf; s.loop=true; const fl=ctx.createBiquadFilter(); fl.type=filt; fl.frequency.value=f; if(q) fl.Q.value=q; const g=ctx.createGain(); g.gain.value=gain; s.connect(fl).connect(g).connect(dest); s.start(); return g; };
+  // air handling: low rumble + soft hiss
+  loop(noiseBuffer(ctx, 6, 'brown'), 'lowpass', 140, 0, .09, room);
+  loop(noiseBuffer(ctx, 6, 'pink'),  'lowpass', 520, 0, .035, room);
+  loop(noiseBuffer(ctx, 4, 'white'), 'highpass', 5200, 0, .0035, room);
+  // faint hum from the track lights (60 Hz mains + harmonic)
+  for(const [f,g] of [[60,.006],[120,.004],[180,.0015]]){ const o=ctx.createOscillator(); o.frequency.value=f; const gg=ctx.createGain(); gg.gain.value=g; o.connect(gg).connect(room); o.start(); }
+  // slow "breathing" of the ventilation
+  const lfo=ctx.createOscillator(), lg=ctx.createGain(); lfo.frequency.value=.05; lg.gain.value=.12; lfo.connect(lg).connect(room.gain); lfo.start();
+  scheduleDistant();
+  document.addEventListener('visibilitychange', ()=>{ if(!SND.ctx) return; if(document.hidden) SND.ctx.suspend(); else if(SND.on) SND.ctx.resume(); });
+}
+function burst(t, dur, type, freq, q, gain, pan, wet){
+  const ctx=SND.ctx, s=ctx.createBufferSource(); s.buffer=SND.noise; s.playbackRate.value=.8+Math.random()*.4;
+  const f=ctx.createBiquadFilter(); f.type=type; f.frequency.value=freq; f.Q.value=q;
+  const g=ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain,t+.002); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  const p=ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  let node=s.connect(f).connect(g); if(p){ p.pan.value=pan; node=node.connect(p); }
+  node.connect(SND.dry); const w=ctx.createGain(); w.gain.value=wet; node.connect(w).connect(SND.wet);
+  s.start(t, Math.random()*.5, dur+.05);
+}
+function footstep(run){
+  if(!SND.ctx || !SND.on || SND.ctx.state!=='running') return;
+  const ctx=SND.ctx, t=ctx.currentTime+.005, v=(run?1.15:1)*(.75+Math.random()*.3), pan=SND.side*.12; SND.side*=-1;
+  // heel click
+  burst(t, .045, 'bandpass', 2300+Math.random()*900, 1.1, .5*v, pan, .5);
+  // woody knock of the floorboard
+  burst(t+.004, .11, 'bandpass', 380+Math.random()*160, 2.2, .7*v, pan, .45);
+  const o=ctx.createOscillator(), og=ctx.createGain(); o.frequency.setValueAtTime(115+Math.random()*25,t); o.frequency.exponentialRampToValueAtTime(70,t+.09);
+  og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.35*v,t+.004); og.gain.exponentialRampToValueAtTime(.0001,t+.12);
+  o.connect(og); og.connect(SND.dry); const w=ctx.createGain(); w.gain.value=.3; og.connect(w).connect(SND.wet); o.start(t); o.stop(t+.15);
+  // toe roll a moment later
+  burst(t+.07+Math.random()*.02, .05, 'bandpass', 1500+Math.random()*500, 1.4, .16*v, pan, .4);
+  if(Math.random()<.05) creak(t+.05, .05);
+}
+function creak(t, gain, wetOnly){
+  const ctx=SND.ctx, o=ctx.createOscillator(), f=ctx.createBiquadFilter(), g=ctx.createGain();
+  o.type='sawtooth'; const f0=180+Math.random()*160; o.frequency.setValueAtTime(f0,t); o.frequency.linearRampToValueAtTime(f0*(1.15+Math.random()*.3),t+.25+Math.random()*.25);
+  f.type='bandpass'; f.frequency.value=900+Math.random()*700; f.Q.value=7;
+  const d=.35+Math.random()*.3; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain,t+.06); g.gain.linearRampToValueAtTime(0,t+d);
+  o.connect(f).connect(g); if(!wetOnly) g.connect(SND.dry); g.connect(SND.wet); o.start(t); o.stop(t+d+.05);
+}
+function scheduleDistant(){
+  setTimeout(()=>{
+    if(SND.ctx && SND.on && SND.ctx.state==='running'){
+      const t=SND.ctx.currentTime+.05, r=Math.random();
+      if(r<.45) creak(t, .02, true);                                    // the building settling
+      else if(r<.8) burst(t, .25, 'lowpass', 220, .7, .12, (Math.random()-.5)*1.4, 1.6);  // a distant soft thud
+      else { for(let i=0;i<3+Math.floor(Math.random()*4);i++) burst(t+i*.55, .06, 'bandpass', 900, 1, .035, .6, 2); }   // far-off footsteps
+    }
+    scheduleDistant();
+  }, 14000+Math.random()*22000);
+}
+function setSound(on){
+  SND.on=on; try{ localStorage.setItem('gallery-sound', on?'1':'0'); }catch(e){}
+  const b=$('#sndBtn'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔊' : '🔇'; b.setAttribute('aria-label', on?'Sound on':'Sound off');
+  if(on) audioStart();
+  if(SND.ctx){ SND.master.gain.setTargetAtTime(on?.9:0, SND.ctx.currentTime, .08); if(on) SND.ctx.resume(); else setTimeout(()=>{ if(!SND.on) SND.ctx.suspend(); }, 400); }
+  toast(on ? 'Sound on' : 'Sound off', 1200);
+}
+if(!SND.on){ $('#sndBtn').textContent='🔇'; $('#sndBtn').setAttribute('aria-pressed','false'); $('#sndBtn').setAttribute('aria-label','Sound off'); }
+function stepSounds(run){
+  if(SND.lastX===null){ SND.lastX=player.x; SND.lastZ=player.z; return; }
+  const d=Math.hypot(player.x-SND.lastX, player.z-SND.lastZ); SND.lastX=player.x; SND.lastZ=player.z;
+  if(d>1 || (auto && auto.fade)){ SND.stepAcc=0; return; }   // teleports make no footsteps
+  if(d<.0005){ if(SND.stepAcc>.25) { SND.stepAcc=0; } return; }
+  SND.stepAcc+=d;
+  const stride = run ? .95 : .72;
+  if(SND.stepAcc>=stride){ SND.stepAcc-=stride; footstep(run); }
+}
+
 /* ---------------- main loop ---------------- */
 const clock = new THREE.Clock();
 let streamT=0, hintT=0, lastHint='';
@@ -994,6 +1111,7 @@ function frame(){
     player.yaw += turn*1.9*dt - pad.rx*Math.abs(pad.rx)*2.6*dt;
     player.pitch = Math.max(-1.1, Math.min(1.1, player.pitch - pad.ry*Math.abs(pad.ry)*1.8*dt));
   }
+  if(!anyOverlay()) stepSounds(keys.has('shift')||pad.run);
   // gentle walking bob
   const spd=Math.hypot(player.vx,player.vz); const bob = RM ? 0 : Math.sin(performance.now()/170)*.018*Math.min(1,spd/2.6);
   camera.position.set(player.x, EYE+bob, player.z);
