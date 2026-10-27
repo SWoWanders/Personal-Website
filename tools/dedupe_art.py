@@ -9,7 +9,8 @@ For each set of duplicates it keeps ONE copy:
   1. the copy gallery.html lists first, otherwise
   2. the copy that has been in the repository longest,
 and removes the rest: the extra image files, and any gallery.html entries
-that point at a removed file or repeat the same file.
+that point at a removed file or repeat the same file. (Entries for removed
+files in art/*/collection.json are cleaned up by tools/sync_collection.py.)
 
 Usage:  python tools/dedupe_art.py            (makes the changes)
         python tools/dedupe_art.py --check    (only reports)
@@ -100,6 +101,13 @@ def main():
     order = {}
     for i, (_, _, src) in enumerate(entries):
         order.setdefault(src, i)
+    # then the rotating collections (art/*/collection.json), in their own order
+    import json
+    for coll in sorted(ART.glob('*/collection.json')):
+        try: listed = json.loads(coll.read_text(encoding='utf-8'))
+        except Exception: listed = []
+        for e in listed if isinstance(listed, list) else []:
+            if isinstance(e, dict) and e.get('src'): order.setdefault(e['src'], len(order) + 10**6)
 
     remove_files, notes = [], []
     for grp in groups(files):

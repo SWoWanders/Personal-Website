@@ -201,6 +201,15 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
       particular spot, give it a `slot` number. Add  ?slots  to the address
       (gallery.html?slots  or  gallery.html?hall=traditional&slots) to see
       every spot's number. Each gallery has 123 spots.
+   4. THE ROTATING COLLECTION. Each gallery also has a reserve:
+      art/ai/collection.json and art/traditional/collection.json. Every
+      week (see ROTATE_DAYS below) the walls are re-hung with the next set
+      of pieces, cycling through this list AND the list below, so the
+      gallery keeps changing. Week 0 (this week) shows this list exactly as
+      written. Add  pin: true  to a piece to keep it on its spot every week.
+      Images uploaded straight into art/ai or art/traditional are added to
+      collection.json automatically (titled from the file name).
+      Preview a future hang with  gallery.html?week=3 .
 
    Template:
    {
@@ -585,6 +594,614 @@ const AI_ART = [
     slot: 46,
     frame: 'black'
   },
+  {
+    src: 'art/ai/the-tripods-come-to-the-boardwalk.jpg',
+    title: "The Tripods Come to the Boardwalk",
+    medium: 'AI-generated image',
+    description: "Spherical walking machines trailing long tendrils stride over a seaside boardwalk of clapboard hotels, as smoke drifts across the sunset.",
+    slot: 47,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/keyhole-seance.jpg',
+    title: "Keyhole Séance",
+    medium: 'AI-generated image',
+    description: "In a quiet panelled room, a dark keyhole-shaped figure on a table crackles with blue lightning that spreads across the walls.",
+    slot: 48,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-gauntlet.jpg',
+    title: "The Gauntlet",
+    medium: 'AI-generated image',
+    description: "A tiled tunnel lined on both sides by a crowd of grinning skulls and ghouls, leading to a cold blue light at the far end.",
+    slot: 49,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/observatory-at-the-edge-of-the-nebula.jpg',
+    title: "Observatory at the Edge of the Nebula",
+    medium: 'AI-generated image',
+    description: "A domed observatory glows pink on a dark hilltop beneath a ribbon of fiery nebula and a pale moon.",
+    slot: 50,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-eye-room.jpg',
+    title: "The Eye Room",
+    medium: 'AI-generated image',
+    description: "A long red hall patterned with lattice shadows, with an enormous eye projected on the wall.",
+    slot: 51,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/colossus-of-crates.jpg',
+    title: "Colossus of Crates",
+    medium: 'AI-generated image',
+    description: "A giant head built from stacked boxes and collage scraps rises from a rocky shore, a mottled globe resting on top.",
+    slot: 52,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/express-through-the-kaleidoscope.jpg',
+    title: "Express Through the Kaleidoscope",
+    medium: 'AI-generated image',
+    description: "A black steam locomotive bursts out of a symmetrical kaleidoscope of silver and smoke.",
+    slot: 53,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/valley-of-the-rose-cloud.jpg',
+    title: "Valley of the Rose Cloud",
+    medium: 'AI-generated image',
+    description: "A pink and coral cloud billows over a canyon at sunset, framed by dark trees under a ringed night sky.",
+    slot: 54,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/drums-of-the-island.jpg',
+    title: "Drums of the Island",
+    medium: 'AI-generated image',
+    description: "Bold flat panels of blue, purple, red and green hold two hand drums, tropical flowers and a glimpse of the sea.",
+    slot: 55,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-sunken-labyrinth.jpg',
+    title: "The Sunken Labyrinth",
+    medium: 'AI-generated image',
+    description: "A circular cutaway reveals arcaded ruins spiralling down beneath a glowing pink sun.",
+    slot: 56,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/cloud-engine.jpg',
+    title: "Cloud Engine",
+    medium: 'AI-generated image',
+    description: "A brick factory chimney pours white smoke that blooms into a towering, intricate cloudscape above a field.",
+    slot: 57,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-tinkerer-s-parlour.jpg',
+    title: "The Tinkerer's Parlour",
+    medium: 'AI-generated image',
+    description: "A mountain of brass contraptions, clocks, pipes and gadgets fills a cluttered Victorian study.",
+    slot: 58,
+    frame: 'oak'
+  },
+  {
+    src: 'art/ai/the-little-diver.jpg',
+    title: "The Little Diver",
+    medium: 'AI-generated image',
+    description: "A smiling child peers out from a spiked, riveted diving helmet with round eyes, in black and white.",
+    slot: 59,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-ferryman-s-daughter.jpg',
+    title: "The Ferryman's Daughter",
+    medium: 'AI-generated image',
+    description: "A skeletal figure with long pale hair and an orange sweater sits in a rowboat on a still, misty river.",
+    slot: 60,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/corps-de-ballet.jpg',
+    title: "Corps de Ballet",
+    medium: 'AI-generated image',
+    description: "A sea of identical ballerinas in full skirts, drawn in soft grey pencil, fills the frame from edge to edge.",
+    slot: 61,
+    frame: 'white'
+  },
+  {
+    src: 'art/ai/luna-park-after-dark.jpg',
+    title: "Luna Park After Dark",
+    medium: 'AI-generated image',
+    description: "A neon Luna Park sign blazes over glowing towers and crowds under a burning orange sky.",
+    slot: 62,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-man-in-the-mirror-field.jpg',
+    title: "The Man in the Mirror Field",
+    medium: 'AI-generated image',
+    description: "Two men in hats and long coats face each other across a mirrored seam in a bare winter landscape.",
+    slot: 63,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/corridor-of-light.jpg',
+    title: "Corridor of Light",
+    medium: 'AI-generated image',
+    description: "A shadowed figure moves through a black corridor ruled by thin white lines of light.",
+    slot: 64,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/reliquary-of-the-ten-pins.jpg',
+    title: "Reliquary of the Ten Pins",
+    medium: 'AI-generated image',
+    description: "Weathered bowling pins stand inside an ornate carved display cabinet flanked by jewel-coloured glass.",
+    slot: 65,
+    frame: 'oak'
+  },
+  {
+    src: 'art/ai/via-stretta.jpg',
+    title: "Via Stretta",
+    medium: 'AI-generated image',
+    description: "An etched Italian street of shuttered stone houses, stairways and arches, with a bell tower beyond.",
+    slot: 66,
+    frame: 'white'
+  },
+  {
+    src: 'art/ai/the-eclipse-gate.jpg',
+    title: "The Eclipse Gate",
+    medium: 'AI-generated image',
+    description: "A huge dark disc ringed in fiery colour hangs over a valley of purple hills and glowing towns.",
+    slot: 67,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/night-shift.jpg',
+    title: "Night Shift",
+    medium: 'AI-generated image',
+    description: "A lone figure in a long coat stands in a fluorescent-lit corridor of windows that runs to a vanishing point.",
+    slot: 68,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/deep-window.jpg',
+    title: "Deep Window",
+    medium: 'AI-generated image',
+    description: "X-ray-white jellyfish, coiling tentacles and a skeletal dancer drift across a dark shop window.",
+    slot: 69,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-hollow-oak.jpg',
+    title: "The Hollow Oak",
+    medium: 'AI-generated image',
+    description: "In a woodcut style, an old man peers out from behind a gnarled purple tree under a yellow moon.",
+    slot: 70,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/cabinet-of-curiosities.jpg',
+    title: "Cabinet of Curiosities",
+    medium: 'AI-generated image',
+    description: "A porcelain-faced bust studded with glass cabochons sits in a wooden cabinet crowded with bottles and painted pins.",
+    slot: 71,
+    frame: 'oak'
+  },
+  {
+    src: 'art/ai/departure-under-iron-clouds.jpg',
+    title: "Departure Under Iron Clouds",
+    medium: 'AI-generated image',
+    description: "Two locomotives puff smoke that hardens into dark spheres, while a man in a bowler hat waits on the platform.",
+    slot: 72,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/tower-at-the-eye-of-the-sky.jpg',
+    title: "Tower at the Eye of the Sky",
+    medium: 'AI-generated image',
+    description: "A slender spire rises from a dark hill into the pupil of a vast, glittering cosmic iris.",
+    slot: 73,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-conductor-of-currents.jpg',
+    title: "The Conductor of Currents",
+    medium: 'AI-generated image',
+    description: "A man in a long black coat stands with arms outstretched between tall rods tangled in loops of red electric light.",
+    slot: 74,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-psychedelic-arcade.jpg',
+    title: "The Psychedelic Arcade",
+    medium: 'AI-generated image',
+    description: "A checkerboard shopping arcade of storefronts and café tables beneath a ceiling of swirling, eye-like colour.",
+    slot: 75,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-clockwork-bride.jpg',
+    title: "The Clockwork Bride",
+    medium: 'AI-generated image',
+    description: "A sepia portrait of a woman in long braids, with brass gears and fittings worked into her hair and collar.",
+    slot: 77,
+    frame: 'oak'
+  },
+  {
+    src: 'art/ai/hall-of-orbs.jpg',
+    title: "Hall of Orbs",
+    medium: 'AI-generated image',
+    description: "A chequered gallery hall lit by yellow globes, its walls covered in spinning planetary circles.",
+    slot: 78,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/lacquer-and-grain.jpg',
+    title: "Lacquer and Grain",
+    medium: 'AI-generated image',
+    description: "A carved wooden bust of a woman with a painted white face, red lips and a pink blush on her cheek.",
+    slot: 79,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-well-beneath-the-world.jpg',
+    title: "The Well Beneath the World",
+    medium: 'AI-generated image',
+    description: "A round cutaway of layered cavern cliffs and a stone bridge, with a deep blue well at the bottom.",
+    slot: 80,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/when-the-jellyfish-came-to-town.jpg',
+    title: "When the Jellyfish Came to Town",
+    medium: 'AI-generated image',
+    description: "Tentacled flying jellyfish drift over a wooden boardwalk town where people stroll beneath the flags.",
+    slot: 81,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/two-faces-of-the-moon.jpg',
+    title: "Two Faces of the Moon",
+    medium: 'AI-generated image',
+    description: "A woman's face split down the middle: one half x-ray skull, the other painted with white skull markings.",
+    slot: 82,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/amphitheatre-of-the-coral-moon.jpg',
+    title: "Amphitheatre of the Coral Moon",
+    medium: 'AI-generated image',
+    description: "A ruined amphitheatre in hot pinks and oranges, a twisting column rising from a spiral on its floor.",
+    slot: 83,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/composition-with-red-blue-and-yellow.jpg',
+    title: "Composition with Red, Blue and Yellow",
+    medium: 'AI-generated image',
+    description: "A face and shoulders painted with a Mondrian grid of black lines and primary colours, framed by red and blue hair.",
+    slot: 84,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/gilded-memory.jpg',
+    title: "Gilded Memory",
+    medium: 'AI-generated image',
+    description: "A pale young woman with long dark hair, set among collaged gold and blue circles and squares.",
+    slot: 85,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/glass-muse.jpg',
+    title: "Glass Muse",
+    medium: 'AI-generated image',
+    description: "A clear glass bust of a woman with sculpted waves of hair, its base flushed with magenta.",
+    slot: 86,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-red-ring.jpg',
+    title: "The Red Ring",
+    medium: 'AI-generated image',
+    description: "A man in a Victorian drawing room stands beside a glowing red neon ring hung among the portraits.",
+    slot: 87,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-dragonfly-machine.jpg',
+    title: "The Dragonfly Machine",
+    medium: 'AI-generated image',
+    description: "A pencil-drawn skull with a mechanical dragonfly-helicopter perched on its crown.",
+    slot: 88,
+    frame: 'white'
+  },
+  {
+    src: 'art/ai/tree-of-lamps.jpg',
+    title: "Tree of Lamps",
+    medium: 'AI-generated image',
+    description: "An Art Deco lounge where a stylised tree of round glowing bulbs spreads above a checkered floor.",
+    slot: 89,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/op-art-cathedral.jpg',
+    title: "Op-Art Cathedral",
+    medium: 'AI-generated image',
+    description: "A dizzying hall of black-and-white chevrons and stripes converging on a glowing centre.",
+    slot: 90,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-glass-block-arcade.jpg',
+    title: "The Glass Block Arcade",
+    medium: 'AI-generated image',
+    description: "An old wooden arcade cabinet ringed by walls of glowing coloured glass blocks, its screen showing a spiralling checkerboard.",
+    slot: 91,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/procession.jpg',
+    title: "Procession",
+    medium: 'AI-generated image',
+    description: "Silhouetted riders and figures file along a high ledge while a row of men in dark suits stands below.",
+    slot: 92,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/medusa-in-glass.jpg',
+    title: "Medusa in Glass",
+    medium: 'AI-generated image',
+    description: "A stained-glass-style woman with a cloud of curls, pink tentacles coiling around her.",
+    slot: 93,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/rings-of-light.jpg',
+    title: "Rings of Light",
+    medium: 'AI-generated image',
+    description: "Concentric rings of white light hang over a long dark corridor where figures walk in silhouette.",
+    slot: 94,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/lantern-of-the-deep.jpg',
+    title: "Lantern of the Deep",
+    medium: 'AI-generated image',
+    description: "A luminous jellyfish with a skull-like heart trails its tentacles across a dark, ornamented ground.",
+    slot: 95,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/hill-town.jpg',
+    title: "Hill Town",
+    medium: 'AI-generated image',
+    description: "An etched hilltop village of stacked stone houses and tile roofs tumbles down toward the valley.",
+    slot: 96,
+    frame: 'white'
+  },
+  {
+    src: 'art/ai/neo-plastic.jpg',
+    title: "Neo-Plastic",
+    medium: 'AI-generated image',
+    description: "A woman with blue hair, her face and body painted in a red, yellow and blue grid, before a matching backdrop.",
+    slot: 97,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-parasol-ferry.jpg',
+    title: "The Parasol Ferry",
+    medium: 'AI-generated image',
+    description: "A skeletal woman in a grey dress sits in a rowboat on misty water, under a coral-coloured parasol hood.",
+    slot: 98,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-impossible-room.jpg',
+    title: "The Impossible Room",
+    medium: 'AI-generated image',
+    description: "A coral and blue chamber of arches and a sunken round pool, beneath a ceiling that opens onto a glowing vortex.",
+    slot: 99,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/ember-tree.jpg',
+    title: "Ember Tree",
+    medium: 'AI-generated image',
+    description: "A great tree glows copper-red against a blue dusk forest, its last orange leaves scattered on the ground.",
+    slot: 100,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-laser-aviary.jpg',
+    title: "The Laser Aviary",
+    medium: 'AI-generated image',
+    description: "A crested parrot in a greenhouse traces green laser beams between glowing pods and a striped caterpillar.",
+    slot: 101,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/cathedral-cave.jpg',
+    title: "Cathedral Cave",
+    medium: 'AI-generated image',
+    description: "A cavern of pale rock spires, where a tiny red-robed figure stands near a small fire and a stone stair.",
+    slot: 102,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-iron-suitor.jpg',
+    title: "The Iron Suitor",
+    medium: 'AI-generated image',
+    description: "A brass-armoured robot with a spiked crown kisses a braided blonde woman in a gilded breastplate.",
+    slot: 103,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/cargo-of-the-tropics.jpg',
+    title: "Cargo of the Tropics",
+    medium: 'AI-generated image',
+    description: "Wooden barrels sit among palm fronds on a shore where a steamship lies at anchor.",
+    slot: 104,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/painted-forest.jpg',
+    title: "Painted Forest",
+    medium: 'AI-generated image',
+    description: "A stylised forest of curving trees in teal, rust and gold, like a stage set for a fairy tale.",
+    slot: 105,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-amethyst-cabin.jpg',
+    title: "The Amethyst Cabin",
+    medium: 'AI-generated image',
+    description: "A small wooden cabin with a balcony is built into a huge boulder split open to show purple crystals.",
+    slot: 106,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/geode-nook.jpg',
+    title: "Geode Nook",
+    medium: 'AI-generated image',
+    description: "A cosy wooden cabin interior with a sofa and windows, one wall glowing with blue and violet crystals.",
+    slot: 107,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-gramophone-fair.jpg',
+    title: "The Gramophone Fair",
+    medium: 'AI-generated image',
+    description: "A collage of black-and-white crowds around a giant gramophone horn, cut through with red and green arcs.",
+    slot: 108,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-hungry-thing.jpg',
+    title: "The Hungry Thing",
+    medium: 'AI-generated image',
+    description: "A long-limbed creature with a gaping, toothy mouth rears up in a misty pine forest.",
+    slot: 109,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/parlour-phenomena.jpg',
+    title: "Parlour Phenomena",
+    medium: 'AI-generated image',
+    description: "In a Victorian parlour, a seated woman is caught between a pink curtain of light and a fan of green streaks.",
+    slot: 110,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-haunted-looking-glass.jpg',
+    title: "The Haunted Looking-Glass",
+    medium: 'AI-generated image',
+    description: "A pale, dark-haired woman gazes out of an ornate black frame decorated with small doll faces.",
+    slot: 111,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-moon-has-eyes.jpg',
+    title: "The Moon Has Eyes",
+    medium: 'AI-generated image',
+    description: "On a bare wooden stage, a woman in a long gown stands before a giant moon covered in staring eyes.",
+    slot: 112,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/rust-mountain.jpg',
+    title: "Rust Mountain",
+    medium: 'AI-generated image',
+    description: "A towering heap of rusted cars and scrap fills a sunny junkyard.",
+    slot: 113,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-errant-knight.jpg',
+    title: "The Errant Knight",
+    medium: 'AI-generated image',
+    description: "A skeletal rider with a long lance on a scrawny horse, rendered in rough texture on a weathered wall.",
+    slot: 114,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/his-majesty-the-cicada.jpg',
+    title: "His Majesty the Cicada",
+    medium: 'AI-generated image',
+    description: "A cicada in green and gold armour wearing a jewelled blue crown, against black.",
+    slot: 115,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/king-of-the-bog.jpg',
+    title: "King of the Bog",
+    medium: 'AI-generated image',
+    description: "A big green frog sits in a mossy swamp beneath a drooping arch of moss, with dragonflies darting around it.",
+    slot: 116,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/specimen-plate.jpg',
+    title: "Specimen Plate",
+    medium: 'AI-generated image',
+    description: "Beetles and leafhoppers in gold, orange and green, laid out like an entomologist's chart on black.",
+    slot: 117,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/small-astronaut.jpg',
+    title: "Small Astronaut",
+    medium: 'AI-generated image',
+    description: "A little toy-like astronaut in an orange suit floats with eyes closed among ringed planets.",
+    slot: 118,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-golden-door.jpg',
+    title: "The Golden Door",
+    medium: 'AI-generated image',
+    description: "A gilded arched doorway with figures inside, surrounded by flowers, planets and a pale skull.",
+    slot: 119,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/city-in-our-hands.jpg',
+    title: "City in Our Hands",
+    medium: 'AI-generated image',
+    description: "Two cupped hands frame the Toronto skyline and the CN Tower in shades of blue.",
+    slot: 120,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/flight-past-the-window.jpg',
+    title: "Flight Past the Window",
+    medium: 'AI-generated image',
+    description: "A skein of pale geese glides past tall office windows.",
+    slot: 121,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/the-grain-of-the-river.jpg',
+    title: "The Grain of the River",
+    medium: 'AI-generated image',
+    description: "A calm river at dawn, glimpsed through a gap in tall walls of flowing, wood-grain-like trees.",
+    slot: 122,
+    frame: 'black'
+  },
+  {
+    src: 'art/ai/moon-falls.jpg',
+    title: "Moon Falls",
+    medium: 'AI-generated image',
+    description: "A moonlit waterfall pours into a still blue pool, framed by dark palms and glowing red leaves.",
+    slot: 123,
+    frame: 'black'
+  },
 ];
 
 const TRADITIONAL_ART = [
@@ -596,11 +1213,19 @@ const HALLS = {
 };
 const HALL_KEY = new URLSearchParams(location.search).get('hall')==='traditional' ? 'traditional' : 'ai';
 const GALLERY = HALLS[HALL_KEY];
-const ARTWORKS = GALLERY.art;
-
 /* Fill empty spots with labelled placeholder pieces until real art arrives.
    Set to false to leave empty spots bare. */
 const SHOW_PLACEHOLDERS = true;
+
+/* How often the walls are re-hung from the collection, in days (0 = never).
+   Weeks are counted from ROTATE_FROM, a Monday, so the change happens
+   overnight into each Monday (visitor's local time). */
+const ROTATE_DAYS = 7;
+const ROTATE_FROM = new Date(2026, 9, 26);   // Monday 26 October 2026
+
+const COLLECTION = await fetch(`art/${HALL_KEY}/collection.json`, { cache: 'no-cache' })
+  .then(r => r.ok ? r.json() : []).catch(() => []);
+const ARTWORKS = GALLERY.art;
 
 /* ===================================================================== */
 
@@ -883,11 +1508,33 @@ const dummy = new THREE.Object3D();
 const unitBox = new THREE.BoxGeometry(1,1,1), unitPlane = new THREE.PlaneGeometry(1,1);
 const hitList = [];
 
+/* this week's hang: week 0 is the list as written; later weeks cycle through
+   the list plus the collection, keeping pinned pieces in place */
+const WEEK = (()=>{
+  if(SLOT_MODE) return 0;
+  const q = new URLSearchParams(location.search).get('week');
+  if(q!=null && /^\d+$/.test(q)) return +q;
+  if(!(ROTATE_DAYS>0)) return 0;
+  return Math.max(0, Math.floor((Date.now() - ROTATE_FROM.getTime()) / (ROTATE_DAYS*864e5)));
+})();
+function shuffled(list, seed){ const r=prng(seed), a=list.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const HANG = (()=>{
+  const listed = ARTWORKS.filter(a=>a && a.src), srcs = new Set(listed.map(a=>a.src));
+  const extra = (Array.isArray(COLLECTION) ? COLLECTION : []).filter(c=>c && c.src && !srcs.has(c.src) && (srcs.add(c.src), true));
+  const pinned = listed.filter(a=>a.pin), loose = listed.filter(a=>!a.pin);
+  const free = NAVAIL - pinned.length, order = [...loose, ...shuffled(extra, 7919)];
+  if(WEEK===0 || order.length<=free || free<=0) return ARTWORKS;
+  const start = (WEEK*free) % order.length;
+  const pick = Array.from({length:free}, (_,i)=>order[(start+i) % order.length]);
+  return [...pinned, ...shuffled(pick, WEEK+1).map(a=>({...a, slot:undefined}))];
+})();
+const ROTATING = HANG!==ARTWORKS || (WEEK===0 && ROTATE_DAYS>0 && COLLECTION.length>0);
+
 /* assign artworks to slots */
 const assigned = new Array(NSLOTS).fill(null);
 const warnings = [];
 const seenSrc = new Set();
-ARTWORKS.forEach((a,i)=>{ if(!a || !a.src){ warnings.push(`Artwork #${i+1} has no image (src).`); return; }
+HANG.forEach((a,i)=>{ if(!a || !a.src){ warnings.push(`Artwork #${i+1} has no image (src).`); return; }
   if(seenSrc.has(a.src)){ console.warn('[gallery] skipped duplicate entry for', a.src); a.__placed=true; return; } seenSrc.add(a.src);
   if(a.slot!=null){
     const n=+a.slot;
@@ -897,7 +1544,7 @@ ARTWORKS.forEach((a,i)=>{ if(!a || !a.src){ warnings.push(`Artwork #${i+1} has n
     else { assigned[n-1]=a; a.__placed=true; }
   }
 });
-ARTWORKS.forEach(a=>{ if(!a || !a.src || a.__placed) return; const i=assigned.findIndex((v,k)=>v===null && !slots[k].retired); if(i<0){ warnings.push(`No free spot left for "${a.title||a.src}".`); return; } assigned[i]=a; a.__placed=true; });
+HANG.forEach(a=>{ if(!a || !a.src || a.__placed) return; const i=assigned.findIndex((v,k)=>v===null && !slots[k].retired); if(i<0){ warnings.push(`No free spot left for "${a.title||a.src}".`); return; } assigned[i]=a; a.__placed=true; });
 
 /* placeholder art, in the site's Bauhaus / Mondrian / Canadian-modern style */
 const PAL = ['#1C8FDE','#C81627','#F7E21B','#2B97AA','#FEF4C3','#111111','#D80036','#00BFF3','#E8E1CF'];
@@ -1598,7 +2245,7 @@ updateCounter(null);
   renderer.compile(scene, camera);
   $('#bar').style.width='100%';
   const real = slots.filter(s=>s.art && !s.room).length;
-  $('#status').textContent = (real ? `${real} artwork${real===1?'':'s'} on the walls · ${NAVAIL} spots` : (SLOT_MODE ? `Spot-number view · ${NAVAIL} spots` : `${NAVAIL} spots · placeholder pieces until the art arrives`)) + (ROOM ? ` · plus ${ROOM.name}` : '');
+  $('#status').textContent = (real ? `${real} artwork${real===1?'':'s'} on the walls · ${NAVAIL} spots` : (SLOT_MODE ? `Spot-number view · ${NAVAIL} spots` : `${NAVAIL} spots · placeholder pieces until the art arrives`)) + (ROOM ? ` · plus ${ROOM.name}` : '') + (ROTATING ? ' · a new hang every week' : '');
   const en=$('#enter'); en.disabled=false; en.textContent='Enter the gallery'; en.focus({preventScroll:true});
   requestAnimationFrame(frame);
   if(warnings.length) setTimeout(()=>toast(warnings[0] + (warnings.length>1?` (+${warnings.length-1} more — see console)`:''), 6000), 600);

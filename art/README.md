@@ -10,6 +10,7 @@ There are two virtual galleries in the same 3D building:
 ## Adding a piece
 
 1. **Upload the image.** On GitHub, open `art/ai` or `art/traditional`, choose **Add file → Upload files**, and drag the image in. JPG, PNG or WebP all work. Upload a web-sized copy, about 1600–2000 px on the long side, and keep your full-resolution originals off GitHub (see "Protecting your art" below). Use simple file names with no spaces, like `harbour-at-dusk.jpg`.
+   That's enough on its own: the image joins the gallery's rotating collection (see below) and appears on the walls in a future week. To hang it right away, on a spot you choose, also do step 2.
 2. **List it in `gallery.html`.** Click the pencil to edit `gallery.html`. Near the top are the two lists. Add a block to the right one:
 
    ```js
@@ -42,6 +43,29 @@ Every spot then shows its number on the wall and on the floor plan. The Traditio
 
 Pieces without a `slot` fill the free spots in order: 1, 2, 3 and so on. Spot 1 is at the left end of the first wall you face when you walk in.
 
+## The rotating collection: a new hang every week
+
+Each gallery has a reserve of pieces besides the ones listed in `gallery.html`:
+
+| Gallery | Reserve list |
+|---|---|
+| AI Art Gallery | `art/ai/collection.json` |
+| Traditional Art Gallery | `art/traditional/collection.json` |
+
+Every Monday the walls are re-hung with the next set of pieces. The gallery works through the `gallery.html` list and the reserve list together, so over the weeks every image in the folder takes its turn on the walls. Everyone visiting in the same week sees the same hang.
+
+- **This week (week 0)** shows the `gallery.html` list exactly as written, on the spots you chose.
+- **Keep a piece up every week:** add `pin: true` to its block in `gallery.html`. It stays on its spot and the rotation works around it.
+- **Preview a future week:** add `?week=` to the address, for example `gallery.html?week=3`.
+- **Change how often it rotates:** edit `ROTATE_DAYS` near the top of `gallery.html` (`7` = weekly, `0` = never rotate).
+- **Add to the reserve:** just upload images to `art/ai` or `art/traditional`. A check on GitHub adds each new image to `collection.json` automatically, titled from its file name (`harbour-at-dusk.jpg` becomes "Harbour at Dusk"). To give it a better title or a description, edit its line in `collection.json`:
+
+  ```json
+  {"src": "art/ai/harbour-at-dusk.jpg", "title": "Harbour at Dusk", "medium": "AI-generated image", "description": "A few sentences."}
+  ```
+
+- **Remove a piece:** delete the image file. Its `collection.json` line is removed automatically.
+
 ## Protecting your art
 
 The galleries make your art hard to save:
@@ -53,7 +77,7 @@ No website can make art completely uncopyable. Anyone can take a screenshot, and
 
 ## Duplicates are removed automatically
 
-Every time art or `gallery.html` changes on GitHub, the **Remove duplicate art** check runs (see the repository's **Actions** tab). It spots the same image uploaded twice, even if one copy was resized or saved in a different format (JPG, PNG, WebP…). It keeps the copy the gallery lists first, or failing that the oldest one. Then it deletes the extra file and any gallery entry pointing to it.
+Every time art or `gallery.html` changes on GitHub, the **Tidy art** check runs (see the repository's **Actions** tab). It spots the same image uploaded twice, even if one copy was resized or saved in a different format (JPG, PNG, WebP…). It keeps the copy the gallery lists first, or failing that the oldest one. Then it deletes the extra file and any gallery entry pointing to it.
 
 Removed files stay in the repository's history, so nothing is lost for good. If the check ever removes something it shouldn't have, two very similar but different pieces might have been mistaken for one. Ask Claude to restore it.
 

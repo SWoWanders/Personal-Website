@@ -1,7 +1,8 @@
-name: Remove duplicate art
+name: Tidy art (duplicates + rotating collection)
 
 # Runs whenever art or the gallery list changes. Finds the same image uploaded
-# more than once (even resized or re-saved) and removes the extra copies.
+# more than once (even resized or re-saved) and removes the extra copies, then
+# adds any new images to the rotating collection (art/*/collection.json).
 on:
   push:
     branches: [main]
@@ -24,15 +25,17 @@ jobs:
       - run: pip install pillow
       - name: Find and remove duplicates
         run: python tools/dedupe_art.py | tee "$RUNNER_TEMP/dedupe.log"
-      - name: Commit any removals
+      - name: Add new images to the rotating collection
+        run: python tools/sync_collection.py | tee -a "$RUNNER_TEMP/dedupe.log"
+      - name: Commit any changes
         run: |
           if [ -n "$(git status --porcelain -- art gallery.html)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A art gallery.html
-            git commit -m "Remove duplicate art" -m "$(cat "$RUNNER_TEMP/dedupe.log")"
+            git commit -m "Tidy art: duplicates and collection" -m "$(cat "$RUNNER_TEMP/dedupe.log")"
             git push
-            { echo '### Duplicates removed'; echo '```'; cat "$RUNNER_TEMP/dedupe.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo '### Art tidied'; echo '```'; cat "$RUNNER_TEMP/dedupe.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo 'No duplicates found.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Nothing to tidy.' >> "$GITHUB_STEP_SUMMARY"
           fi
