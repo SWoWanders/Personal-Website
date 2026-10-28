@@ -21,7 +21,7 @@ There are two virtual galleries in the same 3D building:
      medium: 'Acrylic on canvas',
      size: '60 × 90 cm',
      description: 'A few sentences about the piece.',
-     link: 'https://www.youtube.com/@stevesartc',
+     link: 'https://www.youtube.com/@stevesartchannel',
      slot: 12,
      frame: 'black'
    },

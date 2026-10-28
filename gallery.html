@@ -219,7 +219,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
      medium: 'AI-generated image',
      size: '60 × 90 cm',
      description: 'A few sentences about the piece.',
-     link: 'https://www.youtube.com/@stevesartc',  // optional "More about this piece" button
+     link: 'https://www.youtube.com/@stevesartchannel',  // optional "More about this piece" button
      slot: 1,                              // optional: which wall spot
      frame: 'black',                       // 'black', 'white', 'oak' or 'none'
      scale: 1                              // optional: 1.2 = 20% bigger on the wall
@@ -1983,7 +1983,7 @@ function openViewer(s){
     $('#vTitle').textContent = SLOT_MODE ? (s.art ? `Spot ${s.n}: ${s.art.title||s.art.src}` : `Spot ${s.n} is free`) : 'Placeholder';
     $('#vMeta').textContent = SLOT_MODE ? `${s.kind==='fs'?'Freestanding wall':'Outer wall'} · up to ${s.maxW} m wide, ${s.maxH} m tall` : 'Art coming soon';
     $('#vDesc').textContent = SLOT_MODE ? `To hang a piece here, add  slot: ${s.n}  to its entry in the ${HALL_KEY==='ai'?'AI_ART':'TRADITIONAL_ART'} list in gallery.html.` : 'A new piece will hang here soon. Subscribe to Steve\'s Art Channel to see it first.';
-    $('#vMore').href='https://www.youtube.com/@stevesartc?sub_confirmation=1'; $('#vMore').textContent='Subscribe to the Art Channel →'; $('#vMoreWrap').hidden = SLOT_MODE;
+    $('#vMore').href='https://www.youtube.com/@stevesartchannel?sub_confirmation=1'; $('#vMore').textContent='Subscribe to the Art Channel →'; $('#vMoreWrap').hidden = SLOT_MODE;
   }
   if(real) $('#vMore').textContent='More about this piece →';
   $('#vClose').textContent = IS_TOUCH ? 'Tap anywhere to close' : 'Click anywhere to close · Esc';
