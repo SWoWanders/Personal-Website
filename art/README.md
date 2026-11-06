@@ -66,6 +66,12 @@ Every Monday the walls are re-hung with the next set of pieces. The gallery work
 
 - **Remove a piece:** delete the image file. Its `collection.json` line is removed automatically.
 
+## Star ratings
+
+Visitors can rate any piece one to five stars in its pop-up, by tapping or clicking a star, pressing 1–5, or using ◀ ▶ then Ⓐ on a controller. Each Monday, better-rated pieces stay on the walls longer: 4 weeks for 4.5 or more, 3 weeks for 4 or more, 2 weeks for 3 or more, and 1 week otherwise. A piece with a perfect 5.0 average stays up for as long as it keeps it.
+
+The ratings are stored by a small Cloudflare Worker. See [`ratings-worker/README.md`](../ratings-worker/README.md) for the one-time setup and for how to change the rules.
+
 ## Protecting your art
 
 The galleries make your art hard to save:

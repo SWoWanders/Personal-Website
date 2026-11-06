@@ -91,6 +91,15 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
 .vcap .meta{font-size:13px; font-weight:700; line-height:1.6; margin-bottom:10px}
 .vcap .desc{font-size:15px; line-height:1.55; margin:0 0 12px; white-space:pre-line}
 .vcap .more{margin:2px 0 12px}
+.rate{margin:0 0 12px; padding:10px 0 0; border-top:3px solid #000}
+.rate-avg{font-size:13px; font-weight:800; margin-bottom:4px}
+.stars{display:flex; gap:2px}
+.star{appearance:none; background:none; border:0; padding:0; width:46px; height:46px; font-size:34px; line-height:46px; cursor:pointer; color:transparent;
+  -webkit-text-stroke:2px #000; text-stroke:2px #000; transition:transform .12s, color .12s}
+.star.on{color:var(--yellow)}
+.star.pick{transform:scale(1.18)}
+@media (hover:hover){ .stars:hover .star{color:var(--yellow)} .stars .star:hover ~ .star{color:transparent} }
+.rate-note{font-size:12px; font-weight:700; opacity:.7; margin-top:2px}
 .vcap .close-hint{font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; opacity:.6}
 @media (orientation:portrait), (max-width:760px){
   .vwrap{grid-template-columns:1fr; align-content:start}
@@ -145,10 +154,11 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
     <span class="kicker">Steve's Art Channel</span>
     <h1 id="introTitle">The Virtual Gallery</h1>
     <p>Walk the hall and step up to any piece to see it full size, with its story.</p>
+    <p id="rateIntro" hidden><b>Rate the art.</b> Give any piece one to five stars. The best-loved pieces stay on the walls longer, and a piece with a perfect five-star average stays up for as long as it keeps it.</p>
     <div class="ctl">
-      <div><h3>Touch</h3>Drag bottom-left to walk<br>Drag anywhere else to look<br>Tap a piece to view it<br>Tap the floor to walk there<br>🔊 button for sound</div>
-      <div><h3>Mouse &amp; keyboard</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to move<br>Drag to look · click a piece<br><kbd>Q</kbd> <kbd>E</kbd> previous / next piece<br><kbd>Enter</kbd> view · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>Esc</kbd> close</div>
-      <div><h3>Controller</h3>Left stick walk · right stick look<br>Ⓐ view / close · Ⓑ back<br>LB / RB previous / next piece<br>Y map · X sound · RT run</div>
+      <div><h3>Touch</h3>Drag bottom-left to walk<br>Drag anywhere else to look<br>Tap a piece to view it<br>Tap the stars to rate it<br>Tap the floor to walk there<br>🔊 button for sound</div>
+      <div><h3>Mouse &amp; keyboard</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to move<br>Drag to look · click a piece<br><kbd>Q</kbd> <kbd>E</kbd> previous / next piece<br><kbd>Enter</kbd> view · <kbd>1</kbd>–<kbd>5</kbd> rate · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>Esc</kbd> close</div>
+      <div><h3>Controller</h3>Left stick walk · right stick look<br>Ⓐ view / close · Ⓑ back<br>◀ ▶ then Ⓐ to rate a piece<br>LB / RB previous / next piece<br>Y map · X sound · RT run</div>
     </div>
     <button class="btn go" id="enter" disabled>Loading…</button>
     <a class="btn" id="introBack" href="index.html#/art" style="margin-left:10px">← Back</a>
@@ -165,6 +175,13 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
       <h2 id="vTitle"></h2>
       <div class="meta" id="vMeta"></div>
       <p class="desc" id="vDesc"></p>
+      <div class="rate" id="vRate" hidden>
+        <div class="rate-avg" id="vAvg"></div>
+        <div class="stars" id="vStars" role="radiogroup" aria-label="Your rating">
+          <button type="button" class="star" data-v="1" role="radio" aria-label="1 star">★</button><button type="button" class="star" data-v="2" role="radio" aria-label="2 stars">★</button><button type="button" class="star" data-v="3" role="radio" aria-label="3 stars">★</button><button type="button" class="star" data-v="4" role="radio" aria-label="4 stars">★</button><button type="button" class="star" data-v="5" role="radio" aria-label="5 stars">★</button>
+        </div>
+        <div class="rate-note" id="vRateNote"></div>
+      </div>
       <p class="copy" id="vCopy"></p>
       <div class="more" id="vMoreWrap"><a class="btn" id="vMore" target="_blank" rel="noopener">More about this piece →</a></div>
       <div class="close-hint" id="vClose">Tap anywhere to close</div>
@@ -210,6 +227,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
       Images uploaded straight into art/ai or art/traditional are added to
       collection.json automatically (titled from the file name).
       Preview a future hang with  gallery.html?week=3 .
+   5. STAR RATINGS. Visitors rate pieces out of five stars, and better-rated
+      pieces stay up longer; a perfect 5.0 stays up while it keeps it (see
+      STAY_WEEKS and RATINGS_URL below, and ratings-worker/README.md).
 
    Template:
    {
@@ -1223,8 +1243,34 @@ const SHOW_PLACEHOLDERS = true;
 const ROTATE_DAYS = 7;
 const ROTATE_FROM = new Date(2026, 9, 26);   // Monday 26 October 2026
 
-const COLLECTION = await fetch(`art/${HALL_KEY}/collection.json`, { cache: 'no-cache' })
-  .then(r => r.ok ? r.json() : []).catch(() => []);
+/* STAR RATINGS. Visitors rate pieces out of five stars, and the ratings decide
+   how long each piece stays up when the walls are re-hung. Paste the address
+   of your ratings Worker here (see ratings-worker/README.md); leave it empty
+   to switch ratings off. */
+const RATINGS_URL = '';
+/* Weeks a piece stays on the wall, by its average rating at the start of each
+   week: [at least this average, weeks]. Unrated pieces get one week. A perfect
+   5.0 average stays up for as long as it keeps a 5.0. */
+const STAY_WEEKS = [ [4.5, 4], [4, 3], [3, 2], [0, 1] ];
+
+const [COLLECTION, RATINGS] = await Promise.all([
+  fetch(`art/${HALL_KEY}/collection.json`, { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).catch(() => []),
+  (async () => {
+    if (!RATINGS_URL) return null;
+    const key = 'gallery-ratings-' + HALL_KEY, empty = { live: {}, snaps: {}, offline: true };
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(`${RATINGS_URL.replace(/\/+$/, '')}/ratings?hall=${HALL_KEY}`, { signal: ctl.signal, cache: 'no-store' });
+      clearTimeout(t);
+      if (!r.ok) throw new Error(r.status);
+      const j = await r.json();
+      try { localStorage.setItem(key, JSON.stringify(j)); } catch (e) {}
+      return j;
+    } catch (e) {   // offline or the Worker is down: use the last ratings this browser saw
+      try { return JSON.parse(localStorage.getItem(key)) || empty; } catch (_) { return empty; }
+    }
+  })(),
+]);
 const ARTWORKS = GALLERY.art;
 
 /* ===================================================================== */
@@ -1508,8 +1554,11 @@ const dummy = new THREE.Object3D();
 const unitBox = new THREE.BoxGeometry(1,1,1), unitPlane = new THREE.PlaneGeometry(1,1);
 const hitList = [];
 
-/* this week's hang: week 0 is the list as written; later weeks cycle through
-   the list plus the collection, keeping pinned pieces in place */
+/* this week's hang. Week 0 is the list as written. Each week after that,
+   every piece whose time is up comes down and the next pieces in line go up
+   in its place. A piece's time on the wall depends on its star rating (see
+   STAY_WEEKS); pinned pieces never come down. The ratings used for week N
+   are the ones frozen at the start of week N, so everyone sees the same hang. */
 const WEEK = (()=>{
   if(SLOT_MODE) return 0;
   const q = new URLSearchParams(location.search).get('week');
@@ -1518,15 +1567,44 @@ const WEEK = (()=>{
   return Math.max(0, Math.floor((Date.now() - ROTATE_FROM.getTime()) / (ROTATE_DAYS*864e5)));
 })();
 function shuffled(list, seed){ const r=prng(seed), a=list.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function ratingsAt(week){   // the snapshot in force that week: the latest one taken on or before it
+  const snaps = RATINGS && RATINGS.snaps || {}; let best=-1;
+  for(const k in snaps){ const n=+k; if(n<=week && n>best) best=n; }
+  return best<0 ? {} : snaps[best];
+}
+function isPerfect(r){ return !!(r && r[1]>0 && r[0]===5*r[1]); }
+function stayWeeks(r){
+  if(!r || !(r[1]>0)) return 1;
+  if(isPerfect(r)) return Infinity;
+  const avg=r[0]/r[1];
+  for(const [min,weeks] of STAY_WEEKS) if(avg>=min) return weeks;
+  return 1;
+}
 const HANG = (()=>{
   const listed = ARTWORKS.filter(a=>a && a.src), srcs = new Set(listed.map(a=>a.src));
   const extra = (Array.isArray(COLLECTION) ? COLLECTION : []).filter(c=>c && c.src && !srcs.has(c.src) && (srcs.add(c.src), true));
   const pinned = listed.filter(a=>a.pin), loose = listed.filter(a=>!a.pin);
   const free = NAVAIL - pinned.length, order = [...loose, ...shuffled(extra, 7919)];
   if(WEEK===0 || order.length<=free || free<=0) return ARTWORKS;
-  const start = (WEEK*free) % order.length;
-  const pick = Array.from({length:free}, (_,i)=>order[(start+i) % order.length]);
-  return [...pinned, ...shuffled(pick, WEEK+1).map(a=>({...a, slot:undefined}))];
+  // week 0: the list as written, placed exactly as the gallery places it
+  const wall = new Array(NSLOTS).fill(null), seen = new Set(), rest = [];
+  for(const a of listed){
+    if(seen.has(a.src)) continue; seen.add(a.src);
+    const n = +a.slot;
+    if(a.slot!=null && n>=1 && n<=NSLOTS && !slots[n-1].retired && !wall[n-1]) wall[n-1] = { a, since:0 };
+    else rest.push(a);
+  }
+  for(const a of rest){ const k = wall.findIndex((v,i)=>!v && !slots[i].retired); if(k<0) break; wall[k] = { a, since:0 }; }
+  const up = new Set(wall.filter(Boolean).map(x=>x.a.src));
+  const queue = order.filter(a=>!up.has(a.src));
+  // then replay each week since
+  for(let w=1; w<=WEEK; w++){
+    const snap = ratingsAt(w), gaps = [], leaving = [];
+    wall.forEach((x,k)=>{ if(x && !x.a.pin && w - x.since >= stayWeeks(snap[x.a.src])){ leaving.push(x.a); wall[k]=null; gaps.push(k); } });
+    queue.push(...leaving);
+    shuffled(queue.splice(0, gaps.length), w+1).forEach((a,i)=>{ wall[gaps[i]] = { a, since:w }; });
+  }
+  return wall.map((x,k)=> x && { ...x.a, slot:k+1 }).filter(Boolean);
 })();
 const ROTATING = HANG!==ARTWORKS || (WEEK===0 && ROTATE_DAYS>0 && COLLECTION.length>0);
 
@@ -1875,6 +1953,10 @@ addEventListener('keydown', e=>{
   const k=e.key.toLowerCase();
   if(k==='tab'){ setKb(true); return; }
   if(viewerOpen){
+    if(rateArt && /^[1-5]$/.test(k)){ e.preventDefault(); sendRating(+k); return; }
+    if(rateArt && (k==='arrowleft'||k==='arrowright')){ e.preventDefault(); pickStar(k==='arrowleft'?-1:1); return; }
+    if(rateArt && ratePick && k==='enter'){ e.preventDefault(); sendRating(ratePick); return; }
+    if((k==='enter'||k===' ') && document.activeElement && document.activeElement.closest && document.activeElement.closest('#vRate, #vMore')) return;
     if(['escape','enter',' ','backspace'].includes(k)){ e.preventDefault(); closeViewer(); }
     return;
   }
@@ -1908,7 +1990,12 @@ function pollPad(){
     pad.lx=pad.ly=pad.rx=pad.ry=0; return;
   }
   if(viewerOpen){
-    btn('a', b(0), closeViewer); btn('b', b(1), closeViewer);
+    if(rateArt){
+      btn('dl', b(14) || (a[0]||0)<-.6, ()=>pickStar(-1));
+      btn('dr', b(15) || (a[0]||0)>.6, ()=>pickStar(1));
+      btn('a', b(0), ()=> ratePick ? sendRating(ratePick) : closeViewer());
+    } else btn('a', b(0), closeViewer);
+    btn('b', b(1), closeViewer);
     pad.lx=pad.ly=pad.rx=pad.ry=0; return;
   }
   pad.lx=dz(a[0]||0) + (b(15)?0:0); pad.ly=dz(a[1]||0) + (b(13)?1:0) - (b(12)?1:0);
@@ -1986,6 +2073,8 @@ function openViewer(s){
     $('#vMore').href='https://www.youtube.com/@stevesartchannel?sub_confirmation=1'; $('#vMore').textContent='Subscribe to the Art Channel →'; $('#vMoreWrap').hidden = SLOT_MODE;
   }
   if(real) $('#vMore').textContent='More about this piece →';
+  rateArt = (RATE_ON && real && !s.room && !s.art.gen && s.art.src) ? s.art : null; ratePick = 0;
+  $('#vRate').hidden = !rateArt; drawRating();
   $('#vClose').textContent = IS_TOUCH ? 'Tap anywhere to close' : 'Click anywhere to close · Esc';
   $('#viewer').hidden=false;
   $('#viewer').focus?.();
@@ -1998,7 +2087,58 @@ function closeViewer(){
 $('#viewer').tabIndex=-1;
 $('#viewer').addEventListener('contextmenu', e=>e.preventDefault());
 $('#viewer').addEventListener('dragstart', e=>e.preventDefault());
-$('#viewer').addEventListener('click', e=>{ if(e.target.closest('#vMore')) return; closeViewer(); });
+$('#viewer').addEventListener('click', e=>{ if(e.target.closest('#vMore, #vRate')) return; closeViewer(); });
+
+/* ---------------- star ratings ---------------- */
+const RATE_ON = !!RATINGS_URL && !SLOT_MODE;
+const LIVE = RATINGS && RATINGS.live ? { ...RATINGS.live } : {};
+const VOTER = (()=>{
+  const fresh = () => [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,'0')).join('');
+  try{ let v=localStorage.getItem('gallery-voter'); if(!/^[A-Za-z0-9_-]{12,64}$/.test(v||'')){ v=fresh(); localStorage.setItem('gallery-voter', v); } return v; }
+  catch(e){ return fresh(); }
+})();
+let MINE = {}; try{ MINE = JSON.parse(localStorage.getItem('gallery-my-ratings')) || {}; }catch(e){}
+const saveMine = () => { try{ localStorage.setItem('gallery-my-ratings', JSON.stringify(MINE)); }catch(e){} };
+let rateArt=null, ratePick=0, rateBusy=false;
+const starBtns = [...document.querySelectorAll('#vStars .star')];
+function drawRating(){
+  if(!rateArt) return;
+  const r = LIVE[rateArt.src], mine = MINE[rateArt.src]||0, show = ratePick||mine;
+  $('#vAvg').textContent = r && r[1] ? `★ ${(r[0]/r[1]).toFixed(1)} average · ${r[1]} rating${r[1]===1?'':'s'}${isPerfect(r)?' · stays up while it keeps 5 stars':''}` : 'Not rated yet. Be the first.';
+  starBtns.forEach(b=>{ const v=+b.dataset.v; b.classList.toggle('on', v<=show); b.classList.toggle('pick', !!ratePick && v===ratePick); b.setAttribute('aria-checked', String(v===mine)); b.tabIndex = v===(mine||1) ? 0 : -1; });
+  $('#vRateNote').textContent = ratePick ? `Press Enter or Ⓐ to give it ${ratePick} star${ratePick===1?'':'s'}.`
+    : mine ? `You gave it ${mine} star${mine===1?'':'s'}. Change it any time.`
+    : IS_TOUCH ? 'Tap a star to rate it. Higher-rated pieces stay up longer.' : 'Click a star, press 1–5, or use ◀ ▶ on a controller. Higher-rated pieces stay up longer.';
+}
+function pickStar(d){   // arrow keys / d-pad choose, Enter / Ⓐ confirms
+  const base = ratePick || MINE[rateArt.src] || (d>0 ? 0 : 6);
+  ratePick = Math.min(5, Math.max(1, base+d)); drawRating();
+}
+async function sendRating(v){
+  if(!rateArt || rateBusy) return;
+  const art = rateArt, prev = MINE[art.src]||0, before = LIVE[art.src] ? LIVE[art.src].slice() : null;
+  ratePick = 0;
+  if(prev===v){ drawRating(); toast(`You already gave “${art.title||'this piece'}” ${v} star${v===1?'':'s'}.`); return; }
+  // show it straight away, then confirm with the server
+  const r = before ? before.slice() : [0,0]; r[0] += v - prev; if(!prev) r[1] += 1;
+  LIVE[art.src] = r; MINE[art.src] = v; saveMine(); drawRating();
+  rateBusy = true;
+  try{
+    const res = await fetch(`${RATINGS_URL.replace(/\/+$/, '')}/rate`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ src:art.src, stars:v, voter:VOTER }) });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j.error || 'The rating didn’t go through.');
+    LIVE[art.src] = j.rating; toast(`Thanks! You gave “${art.title||'this piece'}” ${v} star${v===1?'':'s'}.`);
+  }catch(err){
+    if(before) LIVE[art.src] = before; else delete LIVE[art.src];
+    if(prev) MINE[art.src] = prev; else delete MINE[art.src];
+    saveMine(); toast(err.message && !/fetch|network/i.test(err.message) ? err.message : 'Couldn’t save your rating. Check your connection and try again.');
+  }finally{ rateBusy = false; if(rateArt===art) drawRating(); }
+}
+starBtns.forEach(b=>{
+  b.addEventListener('click', e=>{ e.stopPropagation(); sendRating(+b.dataset.v); });
+  b.addEventListener('focus', ()=>{ ratePick=0; });
+});
+if(RATE_ON) $('#rateIntro').hidden = false;
 
 /* ---------------- intro / help ---------------- */
 function openIntro(){ introOpen=true; $('#intro').hidden=false; keys.clear(); $('#enter').textContent='Back to the gallery'; $('#enter').focus({preventScroll:true}); }
