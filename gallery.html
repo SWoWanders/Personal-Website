@@ -96,10 +96,12 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
 .stars{display:flex; gap:2px}
 .star{appearance:none; background:none; border:0; padding:0; width:46px; height:46px; font-size:34px; line-height:46px; cursor:pointer; color:transparent;
   -webkit-text-stroke:2px #000; text-stroke:2px #000; transition:transform .12s, color .12s}
-.star.on{color:var(--yellow)}
+.star.on{color:#E39B00}
 .star.pick{transform:scale(1.18)}
-@media (hover:hover){ .stars:hover .star{color:var(--yellow)} .stars .star:hover ~ .star{color:transparent} }
+@media (hover:hover){ .stars:hover .star{color:#E39B00} .stars .star:hover ~ .star{color:transparent} }
 .rate-note{font-size:12px; font-weight:700; opacity:.7; margin-top:2px}
+.vmsg{display:none; margin:6px 0 4px; padding:8px 10px; background:#000; color:var(--cream); font-size:13px; font-weight:800; border-left:6px solid #E39B00}
+.vmsg.show{display:block}
 .vcap .close-hint{font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; opacity:.6}
 @media (orientation:portrait), (max-width:760px){
   .vwrap{grid-template-columns:1fr; align-content:start}
@@ -180,6 +182,7 @@ kbd{display:inline-block; min-width:1.6em; text-align:center; font:700 12px var(
         <div class="stars" id="vStars" role="radiogroup" aria-label="Your rating">
           <button type="button" class="star" data-v="1" role="radio" aria-label="1 star">★</button><button type="button" class="star" data-v="2" role="radio" aria-label="2 stars">★</button><button type="button" class="star" data-v="3" role="radio" aria-label="3 stars">★</button><button type="button" class="star" data-v="4" role="radio" aria-label="4 stars">★</button><button type="button" class="star" data-v="5" role="radio" aria-label="5 stars">★</button>
         </div>
+        <div class="vmsg" id="vMsg" role="status" aria-live="polite"></div>
         <div class="rate-note" id="vRateNote"></div>
       </div>
       <p class="copy" id="vCopy"></p>
@@ -1293,6 +1296,8 @@ if(IS_TOUCH) document.body.classList.add('touch');
 let toastT, toastQueue=[];
 let viewerOpen=false, introOpen=true, openedAt=0;
 function toast(msg, ms=2800){
+  // while a piece is open, show messages in its caption, never over the art
+  if(viewerOpen){ const m=$('#vMsg'); ($('#vRate').hidden ? $('#vClose') : $('#vRateNote')).before(m); m.textContent=msg; m.classList.add('show'); requestAnimationFrame(()=>m.scrollIntoView({block:'nearest', behavior:'smooth'})); clearTimeout(toastT); toastT=setTimeout(()=>m.classList.remove('show'), ms+600); return; }
   if(introOpen){ toastQueue.push([msg,ms]); return; } const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), ms); }
 function fatal(msg){ const d=document.createElement('div'); d.className='fatal'; d.innerHTML=`<div class="panel"><span class="kicker">Virtual Gallery</span><h1>Can't open the gallery</h1><p>${msg}</p><a class="btn" href="${EXIT_URL}">← Back to the Art Channel</a></div>`; document.body.appendChild(d); window.__galleryReady=true; }
 
@@ -2081,7 +2086,7 @@ function openViewer(s){
 }
 function closeViewer(){
   if(performance.now()-openedAt<220) return;
-  viewerOpen=false; $('#viewer').hidden=true; viewToken++; const cv=$('#vCan'); cv.width=cv.height=1;
+  viewerOpen=false; $('#viewer').hidden=true; $('#vMsg').classList.remove('show'); viewToken++; const cv=$('#vCan'); cv.width=cv.height=1;
   if(lastFocus && lastFocus.focus) lastFocus.focus({preventScroll:true});
 }
 $('#viewer').tabIndex=-1;
