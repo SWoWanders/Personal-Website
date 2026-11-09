@@ -1827,7 +1827,7 @@ let playMat, playLbl, knobs = {}, muteMats = [], clearMat, rhyDispL, playheadArm
     const notch = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.012, 0.1), new THREE.MeshBasicMaterial({ color: '#f6f2ea', toneMapped: false })); notch.position.set(0, 0.118, -0.07); g.add(notch);
     cap.userData = { t: 'knob', key }; rhyCtrls.push(cap);
     const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 16), hitMat); hit.position.y = 0.06; g.add(hit); hit.userData = { t: 'knob', key }; rhyCtrls.push(hit);
-    const lb = flatLabel(0.4, 0.07, 256, 46, wheelT, -1.42, 0.005, z + 0.3);
+    const lb = flatLabel(0.56, 0.11, 384, 76, wheelT, -1.42, 0.005, z + 0.31);
     knobs[key] = { g, mat, dial, lb, label };
   });
   // buttons (right of the wheel): a mute for each ring, then clear
@@ -1960,12 +1960,12 @@ function drawDial(key) {
   g.strokeStyle = key === 'tempo' ? RINGS[3].col : RINGS[1].col; g.beginPath(); g.arc(cx, cx, 104, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * c01(v))); g.stroke();
   t.needsUpdate = true;
   K.g.rotation.y = -(-0.75 * Math.PI + 1.5 * Math.PI * c01(v));
-  printText(K.lb, [[`${K.label} ${key === 'tempo' ? rhy.bpm : Math.round(rhy.swing * 100) + '%'}`, 26, '#5a554d']]);
+  printText(K.lb, [[`${K.label} ${key === 'tempo' ? rhy.bpm : Math.round(rhy.swing * 100) + '%'}`, 50, '#3a3630']]);
 }
 function drawRhyAll() {
   printText(playLbl, [[rhy.run ? '■' : '▶', 120, '#f6f2ea']]);
-  muteMats.forEach(({ L, R }, k) => printText(L, [[R.name, 30, rhy.mute[k] ? '#ffffff' : '#1d1b18'], [rhy.mute[k] ? 'MUTED' : 'ON', 22, rhy.mute[k] ? '#ffffff' : '#1d1b18', 'normal']], rhy.mute[k] ? { bg: '#1d1b18' } : {}));
-  printText(clearMat.L, [[rhy.clearArm > 0 ? 'SURE?' : 'CLEAR', 32, '#1d1b18']]);
+  muteMats.forEach(({ L, R }, k) => printText(L, [[R.name, R.name.length > 5 ? 46 : 54, rhy.mute[k] ? '#ffffff' : '#1d1b18'], [rhy.mute[k] ? 'MUTED' : 'ON', 34, rhy.mute[k] ? '#ffffff' : '#1d1b18', 'normal']], rhy.mute[k] ? { bg: '#1d1b18' } : {}));
+  printText(clearMat.L, [[rhy.clearArm > 0 ? 'SURE?' : 'CLEAR', 54, '#1d1b18']]);
   drawDial('tempo'); drawDial('swing'); drawRhyDisplay();
 }
 
@@ -2045,7 +2045,7 @@ drawRhyAll();
 /* ---------- every frame: playhead, lit pads, pulsing speakers */
 const PAD_OFF = new THREE.Color('#efe8dc'), _pc = new THREE.Color();
 function updateRhythm(dt) {
-  if (rhy.clearArm > 0) { rhy.clearArm -= dt; if (rhy.clearArm <= 0) { rhy.clearArm = 0; printText(clearMat.L, [['CLEAR', 32, '#1d1b18']]); } }
+  if (rhy.clearArm > 0) { rhy.clearArm -= dt; if (rhy.clearArm <= 0) { rhy.clearArm = 0; printText(clearMat.L, [['CLEAR', 54, '#1d1b18']]); } }
   const now = ac ? ac.currentTime : 0;
   while (rhy.queue.length && rhy.queue[0].t <= now) {
     const q = rhy.queue.shift();
