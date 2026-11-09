@@ -144,7 +144,7 @@ const FONT = 'Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", Arial, sa
 
 /* ------------------------------------------------------------------ renderer */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.25 : 1.5));   // lighter on phones, leaving room for the audio
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -717,12 +717,15 @@ function walkable(x, z) {
 function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15) || inCorridor(x, z, 0.15, true); }
 
 /* ------------------------------------------------------------------ audio */
+const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 let ac = null, reverbIn = null, hallBus = null, master, roomFilter, analyser, freqData, muted = false, level = 0, roomOut = null;
 function initAudio() {
-  ac = new (window.AudioContext || window.webkitAudioContext)();
+  // a larger audio buffer on phones and tablets: a hair more delay, but no crackle when the device is busy drawing 3D
+  const AC = window.AudioContext || window.webkitAudioContext;
+  try { ac = new AC({ latencyHint: isTouch ? 'playback' : 'balanced' }); } catch (e) { ac = new AC(); }
   master = ac.createGain(); master.gain.value = 0.9;
   const comp = ac.createDynamicsCompressor();
-  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 12; comp.attack.value = 0.003; comp.release.value = 0.25;
+  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 8; comp.attack.value = 0.02; comp.release.value = 0.3;   // slow enough not to crunch the organ's low notes
   analyser = ac.createAnalyser(); analyser.fftSize = 512; freqData = new Uint8Array(analyser.frequencyBinCount);
   master.connect(comp); comp.connect(ac.destination); comp.connect(analyser);
   // room tone: soft brown-noise air plus a low drone, heard muffled from the corridor
@@ -774,7 +777,7 @@ function initMic(revWet) {
   const comp = ac.createDynamicsCompressor();                           // gentle levelling, then a safety limiter
   comp.threshold.value = -18; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.3;
   const lim = ac.createDynamicsCompressor();
-  lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.1;
+  lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.006; lim.release.value = 0.2;
   const makeup = ac.createGain(); makeup.gain.value = 1.6;
   micBus.connect(comp); comp.connect(makeup); makeup.connect(lim);
   micAn = ac.createAnalyser(); micAn.fftSize = 1024; micData = new Float32Array(micAn.fftSize); lim.connect(micAn);
@@ -868,7 +871,7 @@ const SCALE = [0, 261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 
 function chime(i) {
   if (!ac) return;
   const a = alcoves[i], t = ac.currentTime, f = SCALE[i];
-  const pan = ac.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 2; pan.rolloffFactor = 1.1;
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 2; pan.rolloffFactor = 1.1;
   setPannerPos(pan, a.pos);
   const out = ac.createGain();
   out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.55, t + 0.006); out.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
@@ -1328,7 +1331,7 @@ function initOrganAudio() {
   const amp = ac.createGain(); amp.gain.value = 1;
   const out = ac.createGain(); out.gain.value = 1;
   filt.connect(amp); amp.connect(out);
-  const pan = ac.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 5; pan.rolloffFactor = 0.7;
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 5; pan.rolloffFactor = 0.7;
   setPannerPos(pan, organPos);
   out.connect(pan); pan.connect(hallBus);
   const send = ac.createGain(); send.gain.value = 0.45; out.connect(send); send.connect(reverbIn);
