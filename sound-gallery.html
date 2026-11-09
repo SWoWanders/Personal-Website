@@ -56,6 +56,11 @@
   #playBar{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:12;display:flex;gap:10px;pointer-events:auto}
   #playBar button{font-family:var(--font);font-weight:700;font-size:20px;border:0;border-radius:999px;padding:12px 20px;background:rgba(250,246,238,.92);color:var(--ink);box-shadow:0 4px 18px rgba(0,0,0,.2);cursor:pointer}
   #playBar #pbLeave{background:var(--ink);color:var(--paper)}
+  /* phones on their side: Leave moves up beside the timer, so the machine can fill the screen's height */
+  @media (orientation:landscape) and (max-height:540px){
+    #playBar{top:max(12px,env(safe-area-inset-top));bottom:auto}
+    #playBar button{font-size:16px;padding:9px 16px}
+  }
   #flash{position:fixed;inset:0;background:#fffaf0;opacity:0;pointer-events:none;z-index:15;transition:opacity .2s}
   .rule{height:10px;border-radius:5px;margin:16px 0;background:repeating-linear-gradient(90deg,#1d1b18 0 10px,transparent 10px 20px)}
   #end .card{max-height:calc(100% - 8px);overflow:auto}
@@ -107,7 +112,7 @@
 
 <div id="hud" class="hidden">
   <div id="rec" class="hidden"><span class="dot"></span><span id="recTime">5:00</span><span class="meter"><i id="recLvl"></i></span><small id="recSub">centre mic</small></div>
-  <div id="btns"><button id="viewBtn">👁 View</button><button id="muteBtn">🔊</button></div>
+  <div id="btns"><button id="fsBtn" class="hidden" aria-label="Full screen">⛶</button><button id="viewBtn">👁 View</button><button id="muteBtn">🔊</button></div>
   <div id="center"><div id="big"></div><div id="line"></div></div>
   <div id="caption" class="hidden"></div>
   <div id="toast"></div>
@@ -1146,6 +1151,15 @@ $('enterBtn').onclick = () => {
 };
 $('againBtn').onclick = () => location.reload();
 $('pbLeave').onclick = () => exitPlay();
+// full screen, offered on touch screens that allow it: hides the browser's address bar, which matters most on its side
+if (document.fullscreenEnabled && matchMedia('(pointer: coarse)').matches) {
+  const fsBtn = $('fsBtn'); fsBtn.classList.remove('hidden');
+  fsBtn.onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  };
+  document.addEventListener('fullscreenchange', () => { fsBtn.textContent = document.fullscreenElement ? '✕' : '⛶'; });
+}
 $('pbLeft').onclick = () => { panX = Math.max(-1, panX - 0.6); };
 $('pbRight').onclick = () => { panX = Math.min(1, panX + 0.6); };
 $('viewBtn').onclick = () => toggleView();
@@ -2538,8 +2552,11 @@ function makeMelodyMachine() {
   const fit = [];
   for (const x of [-1.2, 1.2]) { fit.push([melG, new THREE.Vector3(x, 0.84, 0.26)]); fit.push([melG, new THREE.Vector3(x, 1.17, -0.62)]); }
   for (const x of [-1.0, 1.0]) for (const y of [1.48, 2.55]) fit.push([melG, new THREE.Vector3(x, y, -0.96)]);
+  // landscape: only the strum plate, the Optigan and the chord buttons; the glass above may crop
+  const fitL = [];
+  for (const x of [-1.2, 1.2]) { fitL.push([melG, new THREE.Vector3(x, 0.84, 0.25)]); fitL.push([melG, new THREE.Vector3(x * 0.85, 1.49, -0.75)]); }
   return {
-    al: MEL_I, base: melG, fit, elev: [0.95, 0.72], stand: 1.0,
+    al: MEL_I, base: melG, fit, fitL, elev: [0.95, 0.72], stand: 1.0,
     down: melDown, move: melMove, up: melUp, step: melStep, adjust: melAdjust, press: melPress,
     enter() { mFocus = -1; melHelp = MEL_HELP.start; melValue = ''; drawMelButtons(); drawMelDisplay(); },
     exit() { for (const id of [...mel.held.keys()]) noteOff(id); melPtr.clear(); chordUp(); mFocus = -1; },
@@ -2677,15 +2694,22 @@ for (const x of [-1.62, 1.62]) for (const z of [-0.54, 0.54]) FIT_PTS.push([tilt
 for (const x of [-0.7, 0.7]) for (const y of [1.24, 1.72]) FIT_PTS.push([deskG, new THREE.Vector3(x, y, -0.6)]);
 const fitPos = new THREE.Vector3(), fitQ = new THREE.Quaternion(); let fitKey = '';
 function fitPlayCamera() {
-  const key = innerWidth + 'x' + innerHeight; if (key === fitKey) return; fitKey = key;
-  const pts = curM.fit.map(([g, p]) => g.localToWorld(p.clone()));
-  const look = pts.reduce((m, v) => m.add(v), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+  const key = innerWidth + 'x' + innerHeight + $('rec').className; if (key === fitKey) return; fitKey = key;
   const portrait = innerWidth < innerHeight, el = curM.elev[portrait ? 0 : 1];     // how steeply you look down at it
+  const pts = ((!portrait && innerHeight < 600 && curM.fitL) || curM.fit).map(([g, p]) => g.localToWorld(p.clone()));
+  const look = pts.reduce((m, v) => m.add(v), new THREE.Vector3()).multiplyScalar(1 / pts.length);
   const base = curM.base;
   const dir = base.localToWorld(new THREE.Vector3(0, Math.sin(el), Math.cos(el))).sub(base.getWorldPosition(new THREE.Vector3())).normalize();
   playCam.fov = camera.fov; playCam.aspect = innerWidth / innerHeight; playCam.near = 0.05; playCam.far = 200; playCam.updateProjectionMatrix();
   // keep clear of the timer at the top and the Leave button at the bottom
-  const top = 1 - 2 * 84 / innerHeight, bot = -1 + 2 * 100 / innerHeight, side = 1 - 2 * 12 / innerWidth;
+  // measured from the buttons actually on screen, so it still works when they move
+  let topPx = 12, botPx = 12;
+  for (const id of ['rec', 'btns', 'playBar']) {
+    const elm = $(id); if (!elm || elm.classList.contains('hidden')) continue;
+    const r = elm.getBoundingClientRect(); if (!r.height) continue;
+    if (r.top + r.bottom < innerHeight) topPx = Math.max(topPx, r.bottom + 8); else botPx = Math.max(botPx, innerHeight - r.top + 8);
+  }
+  const top = 1 - 2 * topPx / innerHeight, bot = -1 + 2 * botPx / innerHeight, side = 1 - 2 * 10 / innerWidth;
   let d = 3;
   const measure = () => {
     playCam.position.copy(look).addScaledVector(dir, d); playCam.lookAt(look); playCam.updateMatrixWorld(true);
