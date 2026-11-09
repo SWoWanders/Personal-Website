@@ -1631,6 +1631,7 @@ function fitPlayCamera() {
 }
 
 // the first-person arm: a sleeve, a hand and a pointing finger
+const SHOW_HAND = false;                               // first-person arm at the machines: switched off
 const mSleeve = new THREE.MeshStandardMaterial({ color: SHIRTS[0][1], roughness: 0.95 });
 const handRig = new THREE.Group(); handRig.visible = false; scene.add(handRig);
 const rigSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.056, 1, 12), mSleeve); handRig.add(rigSleeve);
@@ -1681,7 +1682,7 @@ function enterPlay() {
   $('pbLeft').classList.add('hidden'); $('pbRight').classList.add('hidden'); $('viewBtn').classList.add('hidden');
   dispHelp = ORG_HELP.start; dispValue = ''; drawDisplay();
   mSleeve.color.set(SHIRTS[shirtIdx][1]);
-  player.av.g.visible = false; handRig.visible = true;
+  player.av.g.visible = false; handRig.visible = SHOW_HAND;
   fitKey = ''; fitPlayCamera(); updatePlayAvatar(0);
   toast(isTouch ? 'Touch and drag the controls' : '← → choose · ↑ ↓ adjust · Enter press · Esc leave');
 }
@@ -1704,7 +1705,7 @@ function updatePlayAvatar(dt) {
   const spot = playSpot();                           // your (unseen) body stands at the console, for the sound's point of view
   player.pos.set(spot.x, 0, spot.z); player.av.g.visible = false;
   playPad(dt);
-  updateHand(dt || 0.016);
+  if (SHOW_HAND) updateHand(dt || 0.016);
 }
 function updatePlayCamera(dt) {
   fitPlayCamera();
