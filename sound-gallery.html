@@ -2132,8 +2132,11 @@ const SP_VOICES = [['PLAIN', '#00b8a0'], ['WAVY', '#e8262b'], ['BLEND', '#8a4bff
 const SP_SUS = [['SHORT', 0.13], ['MEDIUM', 0.42], ['LONG', 1.1]];                       // decay time constant, seconds
 const SP_N = 13, SP_LO = 42, SP_HI = 101;                 // thirteen zones; their pitch windows run F♯2 to F7
 const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD'];
+// the Optigan's discs: each gives the keyboard its own voice (the chord buttons and rhythm stay the same)
+const OPT_DISCS = [['ORGAN', '#e8262b'], ['HAMMOND', '#8a4bff'], ['HARPSICHORD', '#c08a2b'], ['VIBES', '#00b8a0'],
+  ['ACCORDION', '#2b8fd8'], ['E.PIANO', '#e8902b'], ['THEATRE', '#ff1f8f']];
 const KB_LO = 48, KB_HI = 72;                            // C3 to C5, two octaves
-const mel = { voice: 2, sus: 1, plateChord: 0, plates: Array.from({ length: SP_N }, () => ({ h: null, m: 0, t0: -9, tau: 1 })),
+const mel = { voice: 2, sus: 1, disc: 0, plateChord: 0, plates: Array.from({ length: SP_N }, () => ({ h: null, m: 0, t0: -9, tau: 1 })),
   style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null };
 function galleryScale() { const root = NOTE_SEMI[org.root]; return SCALES[org.mood].map((x) => (root + x) % 12); }
 function triad(d) {                                     // the chord on scale degree d, as semitones above the home note
@@ -2239,10 +2242,10 @@ function buildKeys(kb, parent, y, z) {
   // the Optigan's spinning disc, right cheek
   optDisc = new THREE.Group(); optDisc.position.set(0.84, 1.16, -0.4); melG.add(optDisc);
   { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 48), new THREE.MeshPhysicalMaterial({ color: '#d8e4ea', roughness: 0.1, transmission: 0.5, thickness: 0.01, transparent: true, opacity: 0.85 }));
-    optDisc.add(d);
+    optDisc.add(d); d.userData = { t: 'disc' }; melCtrls.push(d);
     // printed like a real Optigan disc: rings of optical sound tracks, each broken into a different
     // pattern of dashes, around a coloured label, so you can see it turn
-    { const L = canvasTex(512, 512), { g, c } = L, cx = 256;
+    { const L = canvasTex(512, 512), { g, c } = L, cx = 256; mel.discFace = L;
       g.clearRect(0, 0, 512, 512);
       for (let r = 0; r < 9; r++) {
         const rad = 92 + r * 18, n = 24 + ((r * 7) % 5) * 12;
@@ -2252,14 +2255,11 @@ function buildKeys(kb, parent, y, z) {
           g.beginPath(); g.arc(cx, cx, rad, a0, a0 + len); g.stroke();
         }
       }
-      g.fillStyle = '#e8262b'; g.beginPath(); g.arc(cx, cx, 74, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#f6f2ea'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 74, -0.5, 0.5); g.fill();
-      g.fillStyle = '#ffd000'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 74, 2.6, 3.4); g.fill();
-      L.t.needsUpdate = true;
+      mel.discTracks = g.getImageData(0, 0, 512, 512);
       const face = new THREE.Mesh(new THREE.CircleGeometry(0.148, 64), new THREE.MeshBasicMaterial({ map: L.t, transparent: true, toneMapped: false }));
-      face.rotation.x = -Math.PI / 2; face.position.y = 0.0075; optDisc.add(face); }
+      face.rotation.x = -Math.PI / 2; face.position.y = 0.0075; optDisc.add(face); face.userData = { t: 'disc' }; melCtrls.push(face); }
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 16), mChrome); optDisc.add(hub);
-    const L = flatLabel(0.32, 0.06, 320, 60, melG, 0.84, 1.153, -0.2); printText(L, [['OPTIGAN', 40, '#5a554d']]); }
+    mel.discL = flatLabel(0.4, 0.06, 400, 60, melG, 0.84, 1.153, -0.2); }
   // the chord panel: a row of seven buttons, leaning back toward you
   const chordG = new THREE.Group(); chordG.position.set(0, 1.36, -0.66); chordG.rotation.x = 0.95; melG.add(chordG);
   melHits.push(box(2.0, 0.04, 0.3, mWalnut, 0, -0.03, 0, chordG));
@@ -2307,7 +2307,16 @@ function initMelodyAudio() {
   spLP2.connect(spSat); spSat.connect(spVol); spVol.connect(out);
   const vib = ac.createOscillator(); vib.frequency.value = 5.6; const vibG = ac.createGain(); vibG.gain.value = 16; vib.connect(vibG); vib.start();
   const opt = ac.createGain(); volRegister('optigan', opt, 1.6); opt.connect(out);   // the Optigan sat low next to the plate
-  melAudio = { out, opt, noise: nb, spIn, vibG };
+  // shared effects for the disc voices: a Leslie for the Hammond, the vibraphone's fan tremolo,
+  // the theatre organ's tremulant
+  const lfoBus = (rate, depth, cents) => {
+    const bus = ac.createGain(); bus.gain.value = 1; bus.connect(opt);
+    const l = ac.createOscillator(); l.frequency.value = rate; const lg = ac.createGain(); lg.gain.value = depth; l.connect(lg); lg.connect(bus.gain);
+    const det = ac.createGain(); det.gain.value = cents; l.connect(det); l.start();
+    return [bus, det];
+  };
+  const [leslie, lesDet] = lfoBus(6.7, 0.14, 9), [vibBus] = lfoBus(4.8, 0.32, 0), [tremBus, tremDet] = lfoBus(6.9, 0.2, 14);
+  melAudio = { out, opt, noise: nb, spIn, vibG, leslie, lesDet, vibBus, tremBus, tremDet };
 }
 function softClipCurve() {                                  // gentle tanh rounding, like the analogue output stage
   const n = 1024, c = new Float32Array(n);
@@ -2346,6 +2355,115 @@ function strumRun(dir) {
 }
 function plateLevel(i, now) { const z = mel.plates[i]; return now < z.t0 ? 0 : Math.exp(-(now - z.t0) / z.tau); }
 // an Optigan note: a reedy chord-organ tone
+// the keyboard voice set by the disc. The chord buttons' own chords stay on the reed organ.
+function keyNote(m) {
+  switch (OPT_DISCS[mel.disc][0]) {
+    case 'HAMMOND': return hammondNote(m);
+    case 'HARPSICHORD': return harpsiNote(m);
+    case 'VIBES': return vibesNote(m);
+    case 'ACCORDION': return accordionNote(m);
+    case 'E.PIANO': return epianoNote(m);
+    case 'THEATRE': return theatreNote(m);
+    default: return reedNote(m);
+  }
+}
+const waveCache = {};
+function wave(name, amps) {                                 // a cached PeriodicWave from harmonic amplitudes
+  if (!waveCache[name]) waveCache[name] = ac.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps), { disableNormalization: false });
+  return waveCache[name];
+}
+function waveOsc(name, amps, f) { const o = ac.createOscillator(); o.setPeriodicWave(wave(name, amps)); o.frequency.value = f; return o; }
+// a voice handle: holds while the key is down, then releases with its own time constant
+function voiceHandle(g, srcs, rel, after) {
+  let done = false;
+  return { stop(at) {
+    if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime);
+    g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, rel);
+    srcs.forEach((o) => { try { o.stop(tt + rel * 8 + 0.05); } catch (e) {} }); if (after) after(tt);
+  } };
+}
+function clickNoise(t, dest, freq, q, amp, len) {          // a short filtered noise burst: key click, mallet, quill
+  const n = ac.createBufferSource(); n.buffer = melAudio.noise; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
+  const ng = ac.createGain(); ng.gain.setValueAtTime(amp, t); ng.gain.setTargetAtTime(0, t + 0.001, len);
+  n.connect(bp); bp.connect(ng); ng.connect(dest); n.start(t, Math.random()); n.stop(t + len * 8);
+}
+// Hammond: drawbars 88 8400 000 (16', 5⅓', 8', 4') as one wave an octave down, a decaying third-harmonic
+// percussion, the key click, and every note through the shared Leslie (pitch and level wobble)
+function hammondNote(m) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.leslie);
+  const o = waveOsc('ham', [0, 1, 1, 1, 0.5, 0, 0, 0, 0.12], f / 2); melAudio.lesDet.connect(o.detune);
+  const og = ac.createGain(); og.gain.value = 1; o.connect(og); og.connect(g);
+  const p = mkOsc('sine', f * 3), pg = ac.createGain(); p.connect(pg); pg.connect(g);
+  pg.gain.setValueAtTime(0.5, t); pg.gain.setTargetAtTime(0, t, 0.22);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09, t + 0.005);
+  clickNoise(t, g, 2600, 0.8, 0.35, 0.003);
+  o.start(t); p.start(t);
+  return voiceHandle(g, [o, p], 0.012);
+}
+// harpsichord: a bright plucked string (the quill near the end makes a thin, nasal tone), 8' and 4' choirs,
+// a filter that closes after the pluck, and a damper that stops it when the key comes up
+function harpsiNote(m) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
+  lp.type = 'lowpass'; lp.Q.value = 0.6; lp.connect(g); g.connect(melAudio.opt);
+  const amps = [0]; for (let n = 1; n < 40; n++) amps.push(Math.abs(Math.sin(Math.PI * n * 0.11)) / Math.pow(n, 0.8));
+  const o1 = waveOsc('hpsi', amps, f), o2 = waveOsc('hpsi', amps, f * 2); o2.detune.value = 3;
+  const g2 = ac.createGain(); g2.gain.value = 0.4; o1.connect(lp); o2.connect(g2); g2.connect(lp);
+  lp.frequency.setValueAtTime(Math.min(16000, f * 22), t); lp.frequency.setTargetAtTime(Math.min(9000, f * 6), t, 0.12);
+  const tau = 1.4 * Math.pow(220 / f, 0.45);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.096, t + 0.0015); g.gain.setTargetAtTime(0, t + 0.0015, tau);
+  clickNoise(t, g, 4000, 1.2, 0.5, 0.004);
+  o1.start(t); o2.start(t); o1.stop(t + tau * 8); o2.stop(t + tau * 8);
+  return voiceHandle(g, [o1, o2], 0.045, (tt) => clickNoise(tt, melAudio.opt, 900, 1.5, 0.012, 0.01));   // the damper's soft thud
+}
+// vibraphone: a sine bar with its tuned partials at 4× and 10×, a soft mallet, the rotating-fan tremolo,
+// long ring while held (pedal down) and damped on release
+function vibesNote(m) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.vibBus);
+  const parts = [[1, 1, 3.2], [4, 0.22, 0.5], [10, 0.05, 0.12]], srcs = [];
+  for (const [r, a, tau] of parts) {
+    if (f * r > 16000) continue;
+    const o = mkOsc('sine', f * r), og = ac.createGain(); o.connect(og); og.connect(g);
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(a, t + 0.002); og.gain.setTargetAtTime(0, t + 0.002, tau * Math.pow(440 / f, 0.3));
+    o.start(t); o.stop(t + 14); srcs.push(o);
+  }
+  g.gain.value = 0.068;
+  clickNoise(t, g, 1800, 1, 0.12, 0.004);
+  return voiceHandle(g, srcs, 0.12);
+}
+// accordion: two reeds per note tuned a little apart (the "wet" musette beat), a bellows swell,
+// shaped by the reed chamber
+function accordionNote(m) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), bp = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
+  bp.type = 'peaking'; bp.frequency.value = 1300; bp.Q.value = 1.2; bp.gain.value = 6;
+  lp.type = 'lowpass'; lp.frequency.value = 3800; lp.Q.value = 0.5; bp.connect(lp); lp.connect(g); g.connect(melAudio.opt);
+  const amps = [0]; for (let n = 1; n < 30; n++) amps.push((n % 2 ? 1 : 0.55) / n);
+  const srcs = [-9, 0, 9].map((det, k) => { const o = waveOsc('acc', amps, f); o.detune.value = det; const og = ac.createGain(); og.gain.value = k === 1 ? 0.5 : 0.35; o.connect(og); og.connect(bp); o.start(t); return o; });
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.095, t + 0.045);
+  return voiceHandle(g, srcs, 0.05);
+}
+// electric piano: an FM tine, bright and bell-like at the strike, mellowing as it rings
+function epianoNote(m) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.opt);
+  const car = mkOsc('sine', f), mod = mkOsc('sine', f), mg = ac.createGain(); mod.connect(mg); mg.connect(car.frequency);
+  mg.gain.setValueAtTime(f * 2.2, t); mg.gain.setTargetAtTime(f * 0.25, t, 0.25);
+  const bell = mkOsc('sine', f * 14), bg = ac.createGain(), bm = ac.createGain(); bell.connect(bm); bm.connect(car.frequency);
+  bm.gain.setValueAtTime(f * 0.8, t); bm.gain.setTargetAtTime(0, t, 0.03);
+  car.connect(g); bg.gain.value = 0;
+  const tau = 1.8 * Math.pow(220 / f, 0.35);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.077, t + 0.002); g.gain.setTargetAtTime(0.014, t + 0.002, tau);
+  for (const o of [car, mod, bell]) o.start(t);
+  return voiceHandle(g, [car, mod, bell], 0.09);
+}
+// theatre organ: a tibia flute with octave couplers, deep tremulant on pitch and level
+function theatreNote(m) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.tremBus);
+  const srcs = [[0.5, 0.45], [1, 1], [2, 0.38], [4, 0.1]].map(([r, a]) => {
+    const o = waveOsc('tibia', [0, 1, 0.12, 0.05, 0.02], f * r); melAudio.tremDet.connect(o.detune);
+    const og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(g); o.start(t); return o;
+  });
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.052, t + 0.035);
+  return voiceHandle(g, srcs, 0.11);
+}
 function reedNote(m, vel = 1, dur = 0) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
   lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = 0.7; lp.connect(g); g.connect(melAudio.opt);
@@ -2411,6 +2529,7 @@ let melHelp = '', melValue = '';
 const MEL_HELP = {
   start: 'Strum across the metal plate, or tap single zones: it plays the chord picked on the Optigan’s chord buttons. The raised keyboard is the Optigan organ. Keys: ← → choose, Enter play, ↑ ↓ strum. Controller: d-pad, Ⓐ, Ⓑ leave.',
   voice: 'Strum plate voice: PLAIN is the steady tone, WAVY adds vibrato, BLEND mixes the two for a shimmer.',
+  disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. The chord buttons and rhythm stay the same.',
   vol: 'Volume: turn the knob, or drag up and down on it. Each instrument has its own; straight up is the normal level.',
   sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
   plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
@@ -2427,7 +2546,7 @@ function drawMelDisplay() {
   g.fillText(head, 34, 84);
   const hw = g.measureText(head).width;
   g.fillStyle = '#5a554d'; g.font = `bold 38px ${FONT}`;
-  g.fillText(`STRUM: ${SP_VOICES[mel.voice][0]} \u00B7 ${SP_SUS[mel.sus][0]}   \u00B7   BACKING: ${OPT_STYLES[mel.style]}`, 70 + hw, 80);
+  g.fillText(`STRUM: ${SP_VOICES[mel.voice][0]} \u00B7 ${SP_SUS[mel.sus][0]}   \u00B7   KEYS: ${OPT_DISCS[mel.disc][0]}   \u00B7   BACKING: ${OPT_STYLES[mel.style]}`, 70 + hw, 80);
   if (melValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 46px ${FONT}`; g.fillText(melValue, c.width - 34, 82); g.textAlign = 'left'; }
   g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
   const words = melHelp.split(' '); let line = '', y = 142;
@@ -2437,6 +2556,14 @@ function drawMelDisplay() {
 function drawMelButtons() {
   voiceBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.voice ? '#ffffff' : '#1d1b18']], k === mel.voice ? { bg: '#1d1b18' } : {}));
   drawVolKnob('strum'); drawVolKnob('optigan');
+  { const [name, col] = OPT_DISCS[mel.disc], { g, t } = mel.discFace, cx = 256;
+    g.putImageData(mel.discTracks, 0, 0);
+    g.fillStyle = col; g.beginPath(); g.arc(cx, cx, 76, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f6f2ea'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 76, -0.45, 0.45); g.fill();
+    g.fillStyle = '#1d1b18'; g.font = `bold ${name.length > 8 ? 17 : 22}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.save(); g.translate(cx, cx); g.rotate(Math.PI / 2); g.fillStyle = '#f6f2ea'; g.fillText(name, 0, -42); g.restore();
+    t.needsUpdate = true;
+    printText(mel.discL, [[`TAP DISC \u00B7 ${name}`, 30, '#5a554d']]); }
   susBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.sus ? '#ffffff' : '#1d1b18']], k === mel.sus ? { bg: '#1d1b18' } : {}));
   // each zone's note for the current chord, printed behind the plate
   { const { g, c, t } = plateNamesL, sw = c.width / SP_N; g.clearRect(0, 0, c.width, c.height);
@@ -2463,10 +2590,10 @@ function keyOf(kb, m) { return keyboards[kb].keys.find((k) => k.m === m); }
 function noteOn(id, kb, m) {
   if (!ac || !melAudio) return;
   noteOff(id);
-  const h = reedNote(m);
+  const h = keyNote(m);
   mel.held.set(id, { kb, m, h, t: performance.now() });
   const k = keyOf(kb, m); if (k) k.down = (k.down || 0) + 1;
-  melValue = `organ ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+  melValue = `${OPT_DISCS[mel.disc][0].toLowerCase()} ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 }
 function noteOff(id) {
   const n = mel.held.get(id); if (!n) return;
@@ -2485,10 +2612,17 @@ function chordUp(id) {
 }
 const volText = (key) => `${key === 'strum' ? 'Strum plate' : 'Optigan'} volume ${Math.round(VOL[key] * 100)}%`;
 function melVolBy(key, dv) { setVol(key, VOL[key] + dv); drawVolKnob(key); melValue = volText(key); drawMelDisplay(); }
+function setDisc(i) {
+  mel.disc = (i + OPT_DISCS.length) % OPT_DISCS.length; mel.discSwap = 1;
+  melHelp = MEL_HELP.disc; melValue = `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}`; buzz(10);
+  if (ac && melAudio) blip(520, 0.05, 0.03);
+  drawMelButtons(); drawMelDisplay();
+}
 function melButton(u, id) {
   if (u.t === 'voice') { mel.voice = u.i; melHelp = MEL_HELP.voice; melValue = SP_VOICES[u.i][0]; buzz(8); }
   if (u.t === 'sus') { mel.sus = u.i; melHelp = MEL_HELP.sus; melValue = 'sustain ' + SP_SUS[u.i][0].toLowerCase(); buzz(8); }
   if (u.t === 'plate') { melHelp = MEL_HELP.plate; strumZone(u.i); buzz(6); drawMelDisplay(); return; }
+  if (u.t === 'disc') { setDisc(mel.disc + 1); return; }
   if (u.t === 'vol') { melHelp = MEL_HELP.vol; melValue = volText(u.key); drawMelDisplay(); return; }
   if (u.t === 'style') {
     mel.style = u.i; melHelp = MEL_HELP.style; melValue = OPT_STYLES[u.i];
@@ -2535,7 +2669,7 @@ function melUp(e) {
   if (u.t === 'key') noteOff('p' + e.pointerId);
   if (u.t === 'chord') chordUp('p' + e.pointerId);
 }
-const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i }))];
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i }))];
 for (let i = 0; i < SP_N; i++) M_STATIONS.push({ t: 'plate', i });
 for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb: 1, m });
 let mFocus = -1;
@@ -2543,7 +2677,7 @@ function mFocusSet(i) {
   mFocus = i; if (i < 0) return;
   const f = M_STATIONS[i]; melHelp = MEL_HELP[f.t];
   melValue = f.t === 'key' ? `Optigan ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}`
-    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : OPT_STYLES[f.i];
+    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : f.t === 'disc' ? `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}` : OPT_STYLES[f.i];
   drawMelDisplay(); blip(660, 0.04, 0.03);
 }
 function melStep(d) { mFocusSet(mFocus < 0 ? (d > 0 ? 0 : M_STATIONS.length - 1) : (mFocus + d + M_STATIONS.length) % M_STATIONS.length); }
@@ -2551,7 +2685,8 @@ function melAdjust(d) {
   if (mFocus < 0) { mFocusSet(0); return; }
   const f = M_STATIONS[mFocus];
   if (f.t === 'plate') { strumRun(d); return; }
-  if (f.t === 'vol') { melVolBy(f.key, d * 0.05); return; }          // ↑ strums up the plate, ↓ strums down
+  if (f.t === 'vol') { melVolBy(f.key, d * 0.05); return; }
+  if (f.t === 'disc') { setDisc(mel.disc + d); return; }          // ↑ strums up the plate, ↓ strums down
   if (f.t === 'key') {                                     // ↓ from a key drops to the plate zone in front of it
     if (d < 0) { const j = M_STATIONS.findIndex((q) => q.t === 'plate' && q.i === Math.round((f.m - KB_LO) / (KB_HI - KB_LO) * (SP_N - 1))); if (j >= 0) mFocusSet(j); }
     return;
@@ -2696,6 +2831,7 @@ function updateMelody(dt) {
   const motor = optRunning() || mel.holdChord || mel.held.size || (playing && curM === MEL_M) ? 2.4 : 0;
   mel.discV = (mel.discV || 0) + (motor - (mel.discV || 0)) * Math.min(1, dt * 1.2);
   optDisc.rotation.y -= dt * mel.discV;
+  if (mel.discSwap > 0) { mel.discSwap = Math.max(0, mel.discSwap - dt * 2.5); optDisc.position.y = 1.16 + Math.sin(mel.discSwap * Math.PI) * 0.05; }
   const organ = optRunning() || mel.holdChord || mel.held.size ? 1 : 0;
   mel.cols[0].emissiveIntensity += (Math.min(0.6, ring * 0.7) - mel.cols[0].emissiveIntensity) * Math.min(1, dt * 10);
   mel.cols[1].emissiveIntensity += ((organ ? 0.55 : 0) - mel.cols[1].emissiveIntensity) * Math.min(1, dt * 6);
