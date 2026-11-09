@@ -844,7 +844,7 @@ $('pbLeft').onclick = () => { panX = Math.max(-1, panX - 0.6); };
 $('pbRight').onclick = () => { panX = Math.min(1, panX + 0.6); };
 $('viewBtn').onclick = () => toggleView();
 $('muteBtn').onclick = () => toggleMute();
-function toggleView() { if (state === 'exiting') return; view = view === 'first' ? 'third' : 'first'; toast(view === 'first' ? 'First-person view' : 'Third-person view'); }
+function toggleView() { if (state === 'exiting') return; if (playing) { toast('You play the machines in first person'); return; } view = view === 'first' ? 'third' : 'first'; toast(view === 'first' ? 'First-person view' : 'Third-person view'); }
 function toggleMute() { if (!ac) return; muted = !muted; master.gain.setTargetAtTime(muted ? 0 : 0.9, ac.currentTime, 0.05); $('muteBtn').textContent = muted ? '🔇' : '🔊'; toast(muted ? 'Sound off' : 'Sound on'); }
 
 /* ------------------------------------------------------------------ input */
@@ -854,10 +854,10 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyV') toggleView();
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'Escape' && playing) exitPlay();
-  if (playing) return;
+  if (playing) { playKey(e, true); return; }
   if (e.code === 'KeyE' || e.code === 'Space') interactCenter();
 });
-addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('keyup', (e) => { keys.delete(e.code); if (playing) playKey(e, false); });
 const canvas = renderer.domElement;
 let locked = false;
 function tryLock() { if (canvas.requestPointerLock) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }
@@ -966,7 +966,7 @@ const ORG_VOICES = [
   { name: 'Colour', col: '#ff1f8f', help: 'Colour voice: a richer extra note. Tap the chip under it to choose a 7th, 9th or 6th.' },
 ];
 const ORG_HELP = {
-  start: 'Push the coloured drawbars away from you to bring voices in, then turn the key wheel. Drag empty space, or use the arrows, to slide along the console.',
+  start: 'Push the coloured drawbars away from you to bring voices in, then turn the key wheel. Keys: ← → choose a control, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ press, Ⓑ leave.',
   wheel: 'Key wheel: the home note of the whole gallery. Neighbours on the wheel always sound related, so small turns sound smooth.',
   mood: 'Mood: Bright is major, Dark is minor, Floating is suspended, Ancient is an open fifth with no third.',
   bright: 'Brightness: opens the tone from soft and muffled to bright and reedy.',
@@ -1042,12 +1042,13 @@ const keyDots = [];
 /* ---------- the console: every control is a real object you touch */
 // deskG: x = player's right, +z = toward the player, y = up. tiltG: the sloped control surface.
 const deskG = new THREE.Group(); deskG.position.set(0, 0.15, A + 1.05); deskG.rotation.y = Math.PI; orgAl.g.add(deskG);
-const tiltG = new THREE.Group(); tiltG.position.set(0, 0.83, 0); tiltG.rotation.x = 0.3; deskG.add(tiltG);
+const tiltG = new THREE.Group(); tiltG.position.set(0, 0.83 + Math.sin(0.3) * 0.52, 0); tiltG.rotation.x = 0.3; deskG.add(tiltG);
 const ctrls = [];                                                   // raycast targets
 {
   const body = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.83, 0.9), mPipe); body.position.set(0, 0.415, -0.02); deskG.add(body); orgHits.push(body);
   const plate = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.05, 1.04), new THREE.MeshStandardMaterial({ color: '#ece4d6', roughness: 0.6, envMapIntensity: 0.6 }));
   plate.position.y = -0.026; tiltG.add(plate); orgHits.push(plate);
+  const under = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.42, 1.02), mPipe); under.position.y = -0.26; tiltG.add(under); orgHits.push(under);   // solid underneath the slope
 }
 function canvasTex(w, h) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1094,6 +1095,7 @@ MOODS.forEach((m, k) => {
   const z = -0.33 + k * 0.205, mat = capMat('#f8f4ed');
   const cap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.17), mat); cap.position.set(-0.6, 0.025, z); tiltG.add(cap);
   addCtrl(cap, { t: 'mood', i: k }, mat);
+  { const hit = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.2), hitMat); hit.position.set(-0.6, 0.05, z); tiltG.add(hit); addCtrl(hit, { t: 'mood', i: k }, mat); }
   const L = flatLabel(0.28, 0.15, 256, 136, cap, 0, 0.0262, 0); moodCaps.push(cap); moodLbls.push(L);
 });
 // voice drawbars
@@ -1114,6 +1116,7 @@ ORG_VOICES.forEach((v, k) => {
 const colourMat = capMat('#ff1f8f');
 const colourBtn = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.04, 0.09), colourMat); colourBtn.position.set(LEVER_X[4], 0.02, -0.4); tiltG.add(colourBtn);
 addCtrl(colourBtn, { t: 'colour' }, colourMat);
+{ const hit = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.16), hitMat); hit.position.set(LEVER_X[4], 0.05, -0.4); tiltG.add(hit); addCtrl(hit, { t: 'colour' }, colourMat); }
 const colourLbl = flatLabel(0.16, 0.08, 192, 96, colourBtn, 0, 0.0205, 0);
 // tone sliders (right)
 const SL = { x0: 0.88, len: 0.56 }, SLIDERS = [['bright', 'BRIGHTNESS', -0.3], ['breath', 'BREATH', -0.08], ['glide', 'GLIDE', 0.14]];
@@ -1134,6 +1137,7 @@ for (let s = 0; s < 4; s++) {
   const mat = capMat('#f8f4ed');
   const cap = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.04, 0.12), mat); cap.position.set(0.92 + s * 0.16, 0.02, 0.38); tiltG.add(cap);
   addCtrl(cap, { t: 'mem', i: s }, mat);
+  { const hit = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.12, 0.22), hitMat); hit.position.set(0.92 + s * 0.16, 0.05, 0.38); tiltG.add(hit); addCtrl(hit, { t: 'mem', i: s }, mat); }
   memCaps.push(cap); memLbls.push(flatLabel(0.125, 0.11, 160, 140, cap, 0, 0.0205, 0));
 }
 // display screen on a rail, slides with you along the console
@@ -1316,11 +1320,6 @@ function valueText(t, key, i) {
 }
 function dragTo(e) {
   if (!grab) return;
-  if (grab.t === 'pan') {
-    const span = innerWidth < innerHeight ? 2.6 : 1.4;
-    panX = Math.max(-1.0, Math.min(1.0, panX - (e.clientX - grab.x) / innerWidth * span)); grab.x = e.clientX;
-    return;
-  }
   if (grab.t === 'lever') {
     const p = surfacePoint(e, 0.11); if (!p) return;
     org.levels[grab.i] = c01((0.25 - p.z) / 0.5);
@@ -1338,21 +1337,14 @@ function dragTo(e) {
     if (idx !== org.root) { org.root = idx; orgChanged(); buzz(8); }
   }
 }
-function organPointerDown(e) {
-  if (grab) return;                                  // one hand on the console at a time
-  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const h = ray.intersectObjects(ctrls, false)[0];
-  if (!h) { grab = { t: 'pan', id: e.pointerId, x: e.clientX }; return; }
-  const u = h.object.userData;
-  grab = { ...u, id: e.pointerId, obj: h.object };
+function beginCtrl(u, obj, id, e) {                  // a hand closes on a control (finger, mouse, key or controller)
+  grab = { ...u, id, obj };
   setHeld(true);
   if (u.t === 'mood') { org.mood = u.i; dispHelp = ORG_HELP.mood; dispValue = ''; orgChanged(); buzz(8); }
   else if (u.t === 'colour') { org.colour = (org.colour + 1) % 3; if (org.levels[4] < 0.05) org.levels[4] = 0.35; dispHelp = ORG_VOICES[4].help; dispValue = ''; orgChanged(); buzz(8); }
-  else if (u.t === 'wheel') { dispHelp = ORG_HELP.wheel; dispValue = ''; drawDisplay(); dragTo(e); }
-  else if (u.t === 'lever') { dispHelp = ORG_VOICES[u.i].help; dragTo(e); }
-  else if (u.t === 'slider') { dispHelp = ORG_HELP[u.key]; dragTo(e); }
+  else if (u.t === 'wheel') { dispHelp = ORG_HELP.wheel; dispValue = ''; drawDisplay(); if (e) dragTo(e); }
+  else if (u.t === 'lever') { dispHelp = ORG_VOICES[u.i].help; if (e) dragTo(e); else { dispValue = valueText('lever', null, u.i); drawDisplay(); } }
+  else if (u.t === 'slider') { dispHelp = ORG_HELP[u.key]; if (e) dragTo(e); else { dispValue = valueText('slider', u.key); drawDisplay(); } }
   else if (u.t === 'mem') {
     dispHelp = ORG_HELP.mem; dispValue = 'Hold to save…'; drawDisplay();
     const s = u.i;
@@ -1363,9 +1355,8 @@ function organPointerDown(e) {
     }, 550);
   }
 }
-function organPointerMove(e) { if (grab && e.pointerId === grab.id) dragTo(e); }
-function organPointerUp(e) {
-  if (!grab || e.pointerId !== grab.id) return;
+function endCtrl() {
+  if (!grab) return;
   if (grab.t === 'mem') {
     clearTimeout(grab.timer);
     if (!grab.saved) {
@@ -1375,79 +1366,214 @@ function organPointerUp(e) {
     }
   }
   setHeld(false); grab = null;
+  if (focusI >= 0) glowFocus(true);
+}
+function organPointerDown(e) {
+  if (grab) return;                                  // one hand on the console at a time
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(ctrls, false)[0];
+  if (!h) return;
+  setFocus(-1);
+  beginCtrl(h.object.userData, h.object, e.pointerId, e);
+}
+function organPointerMove(e) {
+  if (grab && e.pointerId === grab.id) { dragTo(e); return; }
+  if (!grab && e.pointerType === 'mouse') {          // the hand follows the mouse over the console
+    const p = surfacePoint(e, 0.02);
+    hoverP = p && Math.abs(p.x) < 1.7 && Math.abs(p.z) < 0.6 ? tiltG.localToWorld(p) : null;
+  }
+}
+function organPointerUp(e) {
+  if (!grab || e.pointerId !== grab.id) return;
+  endCtrl();
 }
 
-/* ---------- play mode: you stand at the console, the camera looks over your shoulder */
+/* ---------- keyboard and controller: step through the controls, adjust, press */
+// the controls in order across the console, left to right
+const STATIONS = [];
+for (const c of ctrls) { const u = c.userData; if (!STATIONS.some((q) => q.t === u.t && q.i === u.i && q.key === u.key)) STATIONS.push({ t: u.t, i: u.i, key: u.key, mat: u.mat, obj: c }); }
+let focusI = -1, hoverP = null;
+function glowFocus(on) {
+  const st = STATIONS[focusI]; if (!st || !st.mat || (grab && grab.mat === st.mat)) return;
+  st.mat.emissive.set(on ? '#ffffff' : '#000000'); st.mat.emissiveIntensity = on ? 0.28 : 0;
+}
+function setFocus(i) {
+  if (i === focusI) return;
+  glowFocus(false); focusI = i; if (i < 0) return;
+  glowFocus(true);
+  const st = STATIONS[i]; dispValue = '';
+  dispHelp = st.t === 'lever' ? ORG_VOICES[st.i].help : st.t === 'colour' ? ORG_VOICES[4].help : st.t === 'slider' ? ORG_HELP[st.key] : ORG_HELP[st.t] || '';
+  if (st.t === 'lever') dispValue = valueText('lever', null, st.i); else if (st.t === 'slider') dispValue = valueText('slider', st.key);
+  drawDisplay(); blip(660, 0.04, 0.03);
+}
+function stepFocus(d) { if (grab && grab.id !== 'kb') return; setFocus(focusI < 0 ? (d > 0 ? 0 : STATIONS.length - 1) : (focusI + d + STATIONS.length) % STATIONS.length); }
+function adjustFocus(d) {                            // up / down
+  if (focusI < 0) { setFocus(0); return; }
+  const st = STATIONS[focusI];
+  if (st.t === 'mood') { const j = STATIONS.findIndex((q) => q.t === 'mood' && q.i === st.i - d); if (j >= 0) setFocus(j); return; }
+  if (st.t === 'wheel') { org.root = (org.root + d + 12) % 12; dispHelp = ORG_HELP.wheel; dispValue = ''; orgChanged(); buzz(8); return; }
+  if (st.t === 'lever') { org.levels[st.i] = c01(Math.round((org.levels[st.i] + d * 0.05) * 20) / 20); dispValue = valueText('lever', null, st.i); applyOrgan(false); drawDisplay(); return; }
+  if (st.t === 'slider') { org[st.key] = c01(Math.round((org[st.key] + d * 0.05) * 20) / 20); dispValue = valueText('slider', st.key); applyOrgan(false); drawDisplay(); }
+}
+function pressFocus(down) {                          // Enter / Space / Ⓐ
+  if (down) {
+    if (grab) return;
+    if (focusI < 0) { setFocus(0); return; }
+    const st = STATIONS[focusI];
+    if (['mood', 'colour', 'mem'].includes(st.t)) beginCtrl({ t: st.t, i: st.i, key: st.key, mat: st.mat }, st.obj, 'kb', null);
+  } else if (grab && grab.id === 'kb') endCtrl();
+}
+function playKey(e, down) {
+  const c = e.code;
+  const lr = c === 'ArrowLeft' || c === 'KeyA' ? -1 : c === 'ArrowRight' || c === 'KeyD' ? 1 : 0;
+  const ud = c === 'ArrowUp' || c === 'KeyW' ? 1 : c === 'ArrowDown' || c === 'KeyS' ? -1 : 0;
+  if (lr || ud || c === 'Enter' || c === 'Space') e.preventDefault();
+  if (down) { if (lr) stepFocus(lr); else if (ud) adjustFocus(ud); }
+  if ((c === 'Enter' || c === 'Space') && !(down && e.repeat)) pressFocus(down);
+}
+let padHold = {}, padPrevPlay = null;
+function playPad(dt) {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const p = pads && [...pads].find(Boolean); if (!p) return;
+  const b = (k) => !!(p.buttons[k] && p.buttons[k].pressed), ax = (k) => p.axes[k] || 0;
+  const now = {
+    l: b(14) || ax(0) < -0.55, r: b(15) || ax(0) > 0.55, u: b(12) || ax(1) < -0.55, d: b(13) || ax(1) > 0.55, a: b(0), x: b(1),
+  };
+  if (!padPrevPlay) { padPrevPlay = now; return; }    // ignore whatever was already held when you stepped up
+  const rep = (k, fn) => {                           // press, then repeat while held
+    if (now[k] && !padPrevPlay[k]) { fn(); padHold[k] = 0.38; }
+    else if (now[k]) { padHold[k] -= dt; if (padHold[k] <= 0) { fn(); padHold[k] = 0.12; } }
+  };
+  rep('l', () => stepFocus(-1)); rep('r', () => stepFocus(1));
+  rep('u', () => adjustFocus(1)); rep('d', () => adjustFocus(-1));
+  if (now.a !== padPrevPlay.a) pressFocus(now.a);
+  if (now.x && !padPrevPlay.x) exitPlay();
+  padPrevPlay = now;
+}
+
+/* ---------- play mode: you stand at the machine in first person. The camera
+   frames every control at once, and only your arm and hand reach in. */
 const playCam = new THREE.PerspectiveCamera(), camFrom = new THREE.Vector3(), camFromQ = new THREE.Quaternion();
-const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _sh = new THREE.Vector3(), _aq = new THREE.Quaternion();
-const DOWN = new THREE.Vector3(0, -1, 0);
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _aq = new THREE.Quaternion();
+const UP = new THREE.Vector3(0, 1, 0);
 let playT = 0;
+
+// framing: the whole control surface and its display, fitted to the screen's shape
+const FIT_PTS = [];
+for (const x of [-1.62, 1.62]) for (const z of [-0.54, 0.54]) FIT_PTS.push([tiltG, new THREE.Vector3(x, 0.08, z)]);
+for (const x of [-0.7, 0.7]) for (const y of [1.24, 1.72]) FIT_PTS.push([deskG, new THREE.Vector3(x, y, -0.6)]);
+const fitPos = new THREE.Vector3(), fitQ = new THREE.Quaternion(); let fitKey = '';
+function fitPlayCamera() {
+  const key = innerWidth + 'x' + innerHeight; if (key === fitKey) return; fitKey = key;
+  const pts = FIT_PTS.map(([g, p]) => g.localToWorld(p.clone()));
+  const look = pts.reduce((m, v) => m.add(v), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+  const portrait = innerWidth < innerHeight, el = portrait ? 0.98 : 0.8;          // how steeply you look down at it
+  const dir = deskG.localToWorld(new THREE.Vector3(0, Math.sin(el), Math.cos(el))).sub(deskG.getWorldPosition(new THREE.Vector3())).normalize();
+  playCam.fov = camera.fov; playCam.aspect = innerWidth / innerHeight; playCam.near = 0.05; playCam.far = 200; playCam.updateProjectionMatrix();
+  // keep clear of the timer at the top and the Leave button at the bottom
+  const top = 1 - 2 * 84 / innerHeight, bot = -1 + 2 * 100 / innerHeight, side = 1 - 2 * 12 / innerWidth;
+  let d = 3;
+  const measure = () => {
+    playCam.position.copy(look).addScaledVector(dir, d); playCam.lookAt(look); playCam.updateMatrixWorld(true);
+    let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+    for (const v of pts) { const q = _a.copy(v).project(playCam); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+    return { x0, x1, y0, y1 };
+  };
+  for (let it = 0; it < 4; it++) {
+    let lo = 0.6, hi = 40;
+    for (let k = 0; k < 32; k++) { d = (lo + hi) / 2; const m = measure(); if (m.x1 - m.x0 <= 2 * side && m.y1 - m.y0 <= top - bot) hi = d; else lo = d; }
+    d = hi; const m = measure();
+    const hh = Math.tan(THREE.MathUtils.degToRad(playCam.fov / 2)) * d, hw = hh * playCam.aspect;
+    look.addScaledVector(_b.set(1, 0, 0).applyQuaternion(playCam.quaternion), (m.x0 + m.x1) / 2 * hw)
+        .addScaledVector(_b.set(0, 1, 0).applyQuaternion(playCam.quaternion), ((m.y0 + m.y1) / 2 - (top + bot) / 2) * hh);
+  }
+  measure(); fitPos.copy(playCam.position); fitQ.copy(playCam.quaternion);
+}
+
+// the first-person arm: a sleeve, a hand and a pointing finger
+const mSleeve = new THREE.MeshStandardMaterial({ color: SHIRTS[0][1], roughness: 0.95 });
+const handRig = new THREE.Group(); handRig.visible = false; scene.add(handRig);
+const rigSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.056, 1, 12), mSleeve); handRig.add(rigSleeve);
+const rigCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.045, 12), new THREE.MeshStandardMaterial({ color: '#f4eee3', roughness: 0.9 })); handRig.add(rigCuff);
+const rigHand = new THREE.Group(); handRig.add(rigHand);
+{ const palm = new THREE.Mesh(new THREE.SphereGeometry(0.058, 14, 10), mSkin); palm.scale.set(1, 0.72, 1.15); rigHand.add(palm);
+  const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.07, 4, 8), mSkin); finger.rotation.x = -Math.PI / 2; finger.position.set(0, 0.004, -0.085); rigHand.add(finger);
+  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.017, 0.035, 4, 8), mSkin); thumb.rotation.set(-1.1, 0, 0.9); thumb.position.set(-0.05, 0.004, -0.03); rigHand.add(thumb); }
+const tipNow = new THREE.Vector3(), tipGoal = new THREE.Vector3(); let tipInit = false;
+function ctrlPoint(st, out) {                        // where on a control the fingertip goes
+  if (st.t === 'lever') return leverKnobs[st.i].localToWorld(out.set(0, 0.14, 0));
+  if (st.t === 'slider') return sliderKnobs[st.key].localToWorld(out.set(0, 0.03, 0));
+  if (st.t === 'wheel') { const a = org.root * Math.PI / 6; return tiltG.localToWorld(out.set(WHEEL.x + Math.sin(a) * WHEEL.r * 0.75, 0.02, WHEEL.z - Math.cos(a) * WHEEL.r * 0.75)); }
+  if (st.t === 'mood') return moodCaps[st.i].localToWorld(out.set(0, 0.03, 0));
+  if (st.t === 'mem') return memCaps[st.i].localToWorld(out.set(0, 0.025, 0));
+  if (st.t === 'colour') return colourBtn.localToWorld(out.set(0, 0.025, 0));
+  return null;
+}
+function updateHand(dt) {
+  tiltG.getWorldQuaternion(_aq); const n = _b.set(0, 1, 0).applyQuaternion(_aq).clone();
+  let press = false, have = true;
+  if (grab) { ctrlPoint(grab, tipGoal); press = true; }
+  else if (focusI >= 0) ctrlPoint(STATIONS[focusI], tipGoal);
+  else if (hoverP) tipGoal.copy(hoverP);
+  else { tiltG.localToWorld(tipGoal.set(0.25, 0.02, 0.62)); have = false; }    // resting at the front edge
+  tipGoal.addScaledVector(n, press ? 0.012 : have ? 0.06 : 0.05);
+  if (!tipInit) { tipNow.copy(tipGoal); tipInit = true; }
+  tipNow.lerp(tipGoal, 1 - Math.exp(-dt * (press ? 22 : 12)));
+  // the arm comes in from your side of the console, slightly from the right
+  const toYou = _a.copy(camera.position).sub(tipNow); toYou.y = 0; toYou.normalize();
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
+  const shoulder = tipNow.clone().addScaledVector(toYou, 0.5).addScaledVector(right, 0.12).addScaledVector(UP, 0.1);
+  const wrist = tipNow.clone().addScaledVector(toYou, 0.11).addScaledVector(UP, 0.03);
+  const along = wrist.clone().sub(shoulder), len = along.length(); along.normalize();
+  rigSleeve.position.copy(shoulder).addScaledVector(along, len / 2); rigSleeve.quaternion.setFromUnitVectors(UP, along); rigSleeve.scale.set(1, len, 1);
+  rigCuff.position.copy(wrist).addScaledVector(along, -0.02); rigCuff.quaternion.copy(rigSleeve.quaternion);
+  rigHand.position.copy(wrist).addScaledVector(along, 0.02);
+  rigHand.lookAt(_b.copy(rigHand.position).sub(tipNow).add(rigHand.position));     // finger points at the target
+}
+
 function enterPlay() {
   if (playing || state !== 'hall') return;
-  playing = true; playT = 0; panX = panS = 0; grab = null;
+  playing = true; playT = 0; panX = panS = 0; grab = null; focusI = -1; hoverP = null; tipInit = false; padPrevPlay = null;
   camFrom.copy(camera.position); camFromQ.copy(camera.quaternion);
   if (document.pointerLockElement) document.exitPointerLock();
   joy = null; lookT = null; drag = null; $('joy').classList.add('hidden');
   $('playBar').classList.remove('hidden'); $('caption').classList.add('hidden');
+  $('pbLeft').classList.add('hidden'); $('pbRight').classList.add('hidden'); $('viewBtn').classList.add('hidden');
   dispHelp = ORG_HELP.start; dispValue = ''; drawDisplay();
-  player.av.g.visible = true;
-  updatePlayAvatar(0);
+  mSleeve.color.set(SHIRTS[shirtIdx][1]);
+  player.av.g.visible = false; handRig.visible = true;
+  fitKey = ''; fitPlayCamera(); updatePlayAvatar(0);
+  toast(isTouch ? 'Touch and drag the controls' : '← → choose · ↑ ↓ adjust · Enter press · Esc leave');
 }
 function exitPlay() {
   if (!playing) return;
   if (grab) { setHeld(false); clearTimeout(grab.timer); grab = null; }
-  playing = false; $('playBar').classList.add('hidden');
+  setFocus(-1);
+  playing = false; $('playBar').classList.add('hidden'); handRig.visible = false;
+  $('pbLeft').classList.remove('hidden'); $('pbRight').classList.remove('hidden'); $('viewBtn').classList.remove('hidden');
   const av = player.av;
-  av.g.position.y = 0;
+  av.g.position.y = 0; av.g.visible = view === 'third';
   av.arms.forEach((sh, k) => { sh.quaternion.identity(); sh.rotation.set(0, 0, (k === 0 ? -1 : 1) * 0.08); sh.scale.set(1, 1, 1); });
   const p = orgAl.g.localToWorld(new THREE.Vector3(0, 0, A - 1.3));
   player.pos.set(p.x, 0, p.z);
   const n = normals[ORG_I]; player.yaw = Math.atan2(-n.x, -n.z); player.pitch = 0;
   av.g.rotation.set(0, player.yaw + Math.PI, 0);
 }
-function playSpot() { return deskG.localToWorld(_a.set(panS - 0.5, 0, 0.82)); }
+function playSpot() { return deskG.localToWorld(_a.set(0, 0, 0.82)); }
 function updatePlayAvatar(dt) {
-  panS += (panX - panS) * Math.min(1, dt * 8 || 1);
-  const av = player.av, right = av.arms[0];
-  const keepQ = right.quaternion.clone();
-  animateAvatar(av, dt, 0, time);                    // eyes and idle pose
-  right.quaternion.copy(keepQ);                      // the right arm is ours
-  const spot = playSpot();
-  av.g.position.copy(spot);
-  const face = deskG.localToWorld(_b.set(panS - 0.5, 0, -1));
-  av.g.lookAt(face.x, spot.y, face.z);
-  player.pos.set(spot.x, 0, spot.z);
-  // right hand reaches for whatever you're holding
-  let target = null;
-  if (grab && grab.t !== 'pan') {
-    if (grab.t === 'lever') target = leverKnobs[grab.i].getWorldPosition(_b);
-    else if (grab.t === 'slider') target = sliderKnobs[grab.key].getWorldPosition(_b);
-    else if (grab.t === 'wheel') target = wheelDisc.getWorldPosition(_b);
-    else target = grab.obj.getWorldPosition(_b);
-  }
-  if (target) {
-    right.getWorldPosition(_sh);
-    const dir = target.clone().sub(_sh), dist = dir.length();
-    av.g.getWorldQuaternion(_aq); dir.applyQuaternion(_aq.invert()).normalize();
-    _aq.setFromUnitVectors(DOWN, dir);
-    right.quaternion.slerp(_aq, Math.min(1, dt * 14 || 1));
-    const sc = Math.max(1, Math.min(1.8, dist / 0.66));
-    right.scale.y += (sc - right.scale.y) * Math.min(1, dt * 14 || 1);
-  } else {
-    _aq.setFromEuler(new THREE.Euler(0, 0, -0.08));
-    right.quaternion.slerp(_aq, Math.min(1, dt * 8 || 1));
-    right.scale.y += (1 - right.scale.y) * Math.min(1, dt * 8 || 1);
-  }
+  const spot = playSpot();                           // your (unseen) body stands at the console, for the sound's point of view
+  player.pos.set(spot.x, 0, spot.z); player.av.g.visible = false;
+  playPad(dt);
+  updateHand(dt || 0.016);
 }
 function updatePlayCamera(dt) {
-  const portrait = innerWidth < innerHeight;
-  const from = deskG.localToWorld(new THREE.Vector3(portrait ? panS : panS * 0.5, portrait ? 2.05 : 2.3, portrait ? 1.85 : 2.35));
-  const look = deskG.localToWorld(new THREE.Vector3(portrait ? panS : panS * 0.5, portrait ? 0.92 : 1.05, portrait ? -0.05 : -0.25));
-  playCam.position.copy(from); playCam.lookAt(look);
+  fitPlayCamera();
   playT = Math.min(1, playT + dt / 0.7);
   const e = 1 - Math.pow(1 - playT, 3);
-  camera.position.lerpVectors(camFrom, from, e);
-  camera.quaternion.slerpQuaternions(camFromQ, playCam.quaternion, e);
+  camera.position.lerpVectors(camFrom, fitPos, e);
+  camera.quaternion.slerpQuaternions(camFromQ, fitQ, e);
 }
 
 /* ------------------------------------------------------------------ main loop */
@@ -1573,7 +1699,7 @@ function update(dt) {
   // --- captions
   updateCaption();
   $('cross').classList.toggle('hidden', isTouch || view !== 'first' || !['corridor', 'hall', 'queue'].includes(state));
-  $('lockHint').classList.toggle('hidden', isTouch || locked || !['corridor', 'hall', 'queue'].includes(state));
+  $('lockHint').classList.toggle('hidden', isTouch || locked || playing || !['corridor', 'hall', 'queue'].includes(state));
 }
 
 function movePlayer(dt) {
