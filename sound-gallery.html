@@ -24,9 +24,9 @@
   #shirts{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:20px}
   .sw{width:48px;height:48px;border-radius:50%;border:3px solid transparent;cursor:pointer;box-shadow:inset 0 0 0 3px rgba(255,255,255,.6)}
   .sw.on{border-color:var(--ink);transform:scale(1.08)}
-  button.big{font-family:var(--font);font-size:22px;font-weight:700;letter-spacing:.08em;padding:16px 30px;border-radius:999px;border:0;
+  button.big,a.big{font-family:var(--font);font-size:22px;font-weight:700;letter-spacing:.08em;padding:16px 30px;border-radius:999px;border:0;
      background:var(--ink);color:var(--paper);cursor:pointer;width:100%}
-  button.big:active{transform:scale(.98)}
+  button.big:active,a.big:active{transform:scale(.98)}
   .credit{font-size:12px!important;opacity:.55!important}
   .credit a{color:inherit}
   .hint{font-size:15px;opacity:.65;margin:14px 0 0;line-height:1.4}
@@ -34,6 +34,8 @@
   #rec{position:absolute;top:max(12px,env(safe-area-inset-top));left:14px;background:rgba(250,246,238,.88);border-radius:999px;
        padding:9px 16px;font-size:20px;font-weight:700;letter-spacing:.06em;display:flex;gap:10px;align-items:center}
   #rec .dot{width:14px;height:14px;border-radius:50%;background:#e8262b;animation:blink 1.2s infinite}
+  #rec .meter{width:46px;height:8px;border-radius:4px;background:rgba(29,27,24,.15);overflow:hidden}
+  #rec .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#66e000,#ffd000 70%,#e8262b)}
   #rec small{font-size:13px;font-weight:400;opacity:.7;letter-spacing:.02em}
   @keyframes blink{50%{opacity:.25}}
   #btns{position:absolute;top:max(12px,env(safe-area-inset-top));right:14px;display:flex;gap:8px;pointer-events:auto}
@@ -56,6 +58,12 @@
   #playBar #pbLeave{background:var(--ink);color:var(--paper)}
   #flash{position:fixed;inset:0;background:#fffaf0;opacity:0;pointer-events:none;z-index:15;transition:opacity .2s}
   .rule{height:10px;border-radius:5px;margin:16px 0;background:repeating-linear-gradient(90deg,#1d1b18 0 10px,transparent 10px 20px)}
+  #end .card{max-height:calc(100% - 8px);overflow:auto}
+  #wave{position:static;inset:auto;touch-action:auto;width:100%;height:auto;aspect-ratio:960/200;border-radius:14px;background:#1d1b18;display:block;margin:4px 0 8px}
+  #recMeta{font-size:13px;letter-spacing:.06em;opacity:.65;margin-bottom:10px}
+  #endAudio{width:100%;margin-bottom:12px}
+  a.big.dl{display:block;text-decoration:none;box-sizing:border-box;text-align:center}
+  button.ghost.on{opacity:1;cursor:pointer}
   button.ghost{font-family:var(--font);font-size:18px;font-weight:700;padding:14px 26px;border-radius:999px;border:3px solid var(--ink);background:transparent;width:100%;margin-top:10px;opacity:.45}
 </style>
 <script type="importmap">
@@ -84,14 +92,20 @@
     <h1 style="font-size:clamp(34px,9vw,54px)">YOU HAVE<br>LEFT THE<br>GALLERY</h1>
     <div class="rule"></div>
     <p class="sub" id="endText">Your recording from the centre microphone.</p>
-    <button class="ghost" disabled>Download recording (next build)</button>
+    <div id="recBox" class="hidden">
+      <canvas id="wave" width="960" height="200" aria-label="Waveform of your recording"></canvas>
+      <div id="recMeta"></div>
+      <audio id="endAudio" controls preload="metadata"></audio>
+      <a id="dlBtn" class="big dl" download>DOWNLOAD RECORDING</a>
+      <button id="wavBtn" class="ghost on">Download as WAV · best quality, larger file</button>
+    </div>
     <button id="againBtn" class="big" style="margin-top:14px">REJOIN THE QUEUE</button>
     <p class="hint credit">Ear sculpture: <a href="https://sketchfab.com/3d-models/ears-666808cee1234cf099eb620990d1d684" target="_blank" rel="noopener">"Ears"</a> by hukai, <a href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a> (modified) · Door: <a href="https://skfb.ly/FZpP" target="_blank" rel="noopener">"Room Door Animation"</a> by 3DHaupt, <a href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a> (modified)</p>
   </div>
 </div>
 
 <div id="hud" class="hidden">
-  <div id="rec" class="hidden"><span class="dot"></span><span id="recTime">5:00</span><small id="recSub">centre mic</small></div>
+  <div id="rec" class="hidden"><span class="dot"></span><span id="recTime">5:00</span><span class="meter"><i id="recLvl"></i></span><small id="recSub">centre mic</small></div>
   <div id="btns"><button id="viewBtn">👁 View</button><button id="muteBtn">🔊</button></div>
   <div id="center"><div id="big"></div><div id="line"></div></div>
   <div id="caption" class="hidden"></div>
@@ -703,7 +717,7 @@ function walkable(x, z) {
 function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15) || inCorridor(x, z, 0.15, true); }
 
 /* ------------------------------------------------------------------ audio */
-let ac = null, reverbIn = null, hallBus = null, master, roomFilter, analyser, freqData, muted = false, level = 0;
+let ac = null, reverbIn = null, hallBus = null, master, roomFilter, analyser, freqData, muted = false, level = 0, roomOut = null;
 function initAudio() {
   ac = new (window.AudioContext || window.webkitAudioContext)();
   master = ac.createGain(); master.gain.value = 0.9;
@@ -720,7 +734,7 @@ function initAudio() {
   }
   const src = ac.createBufferSource(); src.buffer = buf; src.loop = true; src.loopStart = 0; src.loopEnd = (len - 2000) / ac.sampleRate;
   roomFilter = ac.createBiquadFilter(); roomFilter.type = 'lowpass'; roomFilter.frequency.value = 280; roomFilter.Q.value = 0.4;
-  const roomGain = ac.createGain(); roomGain.gain.value = 0.015;
+  const roomGain = ac.createGain(); roomGain.gain.value = 0.015; roomOut = roomGain;
   src.connect(roomFilter); roomFilter.connect(roomGain); roomGain.connect(master); src.start();
   [55, 82.41, 123.47].forEach((f, k) => {
     const o = ac.createOscillator(); o.frequency.value = f;
@@ -738,8 +752,107 @@ function initAudio() {
   conv.buffer = ir;
   const wet = ac.createGain(); wet.gain.value = 0.45;
   reverbIn.connect(conv); conv.connect(wet); wet.connect(hallBus);
+  initMic(wet);
   initOrganAudio();
 }
+/* ---------- THE CENTRE MICROPHONE
+   The two giant ears on the turning stage are a stereo pair: left ear, right
+   ear. Every instrument is fed to each ear with the level and delay its
+   distance gives, so as the stage turns once every five minutes the sound
+   field slowly swings around. Only what the ears hear is recorded: the
+   instruments, the room and its echo, never the interface sounds, and your
+   mute button doesn't affect it. */
+let micBus = null, micL = null, micR = null, micAn = null, micData = null, micOut = null;
+const micTaps = [];
+let recorder = null, recChunks = [], recMime = '', recBlob = null, recStartedAt = null, recSecs = 0;
+const EAR_X = 1.9, SOUND_SPEED = 343, _e = new THREE.Vector3();
+function initMic(revWet) {
+  micL = ac.createGain(); micR = ac.createGain();
+  const merge = ac.createChannelMerger(2); micL.connect(merge, 0, 0); micR.connect(merge, 0, 1);
+  micBus = ac.createGain(); micBus.gain.value = 0;                      // opens when your recording starts
+  merge.connect(micBus);
+  const comp = ac.createDynamicsCompressor();                           // gentle levelling, then a safety limiter
+  comp.threshold.value = -18; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.3;
+  const lim = ac.createDynamicsCompressor();
+  lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.1;
+  const makeup = ac.createGain(); makeup.gain.value = 1.6;
+  micBus.connect(comp); comp.connect(makeup); makeup.connect(lim);
+  micAn = ac.createAnalyser(); micAn.fftSize = 1024; micData = new Float32Array(micAn.fftSize); lim.connect(micAn);
+  micOut = ac.createMediaStreamDestination ? ac.createMediaStreamDestination() : null;
+  if (micOut) lim.connect(micOut);
+  // the room's echo and air reach both ears equally
+  const rv = ac.createGain(); rv.gain.value = 0.9; revWet.connect(rv); rv.connect(micL); rv.connect(micR);
+  if (roomOut) { const rt = ac.createGain(); rt.gain.value = 1.2; roomOut.connect(rt); rt.connect(micL); rt.connect(micR); }
+}
+function earPos(side, out) { return stage.localToWorld(out.set(side * EAR_X, MIC_Y + 0.05, 0)); }
+// feed a sound made at `pos` to both ears; `until` (seconds, context time) lets one-shot sounds tidy up
+function micTap(node, pos, gain = 1, until = 0) {
+  if (!micL) return;
+  const ears = [-1, 1].map((side) => {
+    const g = ac.createGain(), d = ac.createDelay(0.1);
+    node.connect(g); g.connect(d); d.connect(side < 0 ? micL : micR);
+    return { side, g, d };
+  });
+  const tap = { node, pos: pos.clone(), gain, until, ears };
+  micTaps.push(tap); aimTap(tap, true);
+  return tap;
+}
+function aimTap(tap, instant) {
+  const t = ac.currentTime;
+  for (const e of tap.ears) {
+    const dist = earPos(e.side, _e).distanceTo(tap.pos);
+    const lvl = tap.gain * 2.2 / Math.max(2.2, dist);                   // inverse-distance level, as each ear hears it
+    const del = Math.min(0.095, dist / SOUND_SPEED);
+    if (instant) { e.g.gain.value = lvl; e.d.delayTime.value = del; }
+    else { e.g.gain.setTargetAtTime(lvl, t, 0.1); e.d.delayTime.setTargetAtTime(del, t, 0.5); }
+  }
+}
+let micAimT = 0;
+function updateMic(dt) {
+  if (!micL) return;
+  micAimT += dt;
+  if (micAimT > 0.1) {                                                  // the stage turns slowly; ten updates a second is plenty
+    micAimT = 0;
+    for (let i = micTaps.length - 1; i >= 0; i--) {
+      const tap = micTaps[i];
+      if (tap.until && ac.currentTime > tap.until) { for (const e of tap.ears) { try { tap.node.disconnect(e.g); } catch (err) {} e.d.disconnect(); } micTaps.splice(i, 1); continue; }
+      aimTap(tap, false);
+    }
+  }
+  if (recorder && recorder.state === 'recording') {                     // level meter in the REC pill
+    micAn.getFloatTimeDomainData(micData);
+    let pk = 0; for (let i = 0; i < micData.length; i++) pk = Math.max(pk, Math.abs(micData[i]));
+    $('recLvl').style.width = Math.min(100, Math.round(Math.sqrt(pk) * 100)) + '%';
+  }
+}
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  for (const m of ['audio/webm;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm'])
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+function startRecording() {
+  if (!ac || !micOut) return;
+  micBus.gain.setTargetAtTime(1, ac.currentTime, 0.3);
+  const mime = pickMime(); if (mime === null) return;
+  try { recorder = new MediaRecorder(micOut.stream, mime ? { mimeType: mime, audioBitsPerSecond: 160000 } : undefined); }
+  catch (e) { try { recorder = new MediaRecorder(micOut.stream); } catch (e2) { recorder = null; return; } }
+  recChunks = []; recMime = recorder.mimeType || mime || 'audio/webm';
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.start(1000); recStartedAt = new Date(); recSecs = 0;
+}
+function stopRecording() {
+  return new Promise((resolve) => {
+    if (!recorder || recorder.state === 'inactive') { resolve(recBlob); return; }
+    recSecs = (Date.now() - recStartedAt.getTime()) / 1000;
+    micBus.gain.setTargetAtTime(0, ac.currentTime, 0.25);
+    setTimeout(() => {                                                   // let the fade finish before stopping
+      recorder.onstop = () => { recBlob = recChunks.length ? new Blob(recChunks, { type: recMime }) : null; resolve(recBlob); };
+      try { recorder.stop(); } catch (e) { resolve(null); }
+    }, 900);
+  });
+}
+
 function setPannerPos(p, v) {
   if (p.positionX) { p.positionX.value = v.x; p.positionY.value = v.y; p.positionZ.value = v.z; } else p.setPosition(v.x, v.y, v.z);
 }
@@ -766,6 +879,7 @@ function chime(i) {
   const g2 = ac.createGain(); g2.gain.setValueAtTime(0.18, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
   mod.connect(mg); mg.connect(car.frequency); car.connect(out); p2.connect(g2); g2.connect(out); out.connect(pan); pan.connect(hallBus || master);
   if (reverbIn) { const rs = ac.createGain(); rs.gain.value = 0.3; out.connect(rs); rs.connect(reverbIn); }
+  micTap(out, a.pos, 1, t + 3.5);
   [car, mod, p2].forEach(o => { o.start(t); o.stop(t + 3.3); });
   a.flash = 1;
 }
@@ -1218,6 +1332,7 @@ function initOrganAudio() {
   setPannerPos(pan, organPos);
   out.connect(pan); pan.connect(hallBus);
   const send = ac.createGain(); send.gain.value = 0.45; out.connect(send); send.connect(reverbIn);
+  micTap(out, organPos, 1.6);
   const lfo1 = ac.createOscillator(); lfo1.frequency.value = 0.11;
   const lfoF = ac.createGain(); lfoF.gain.value = 0; lfo1.connect(lfoF); lfoF.connect(filt.frequency); lfo1.start();
   const lfo2 = ac.createOscillator(); lfo2.frequency.value = 0.067;
@@ -1658,7 +1773,7 @@ function update(dt) {
       if (doorTarget === 0) { doorTarget = 1; if (doorAction) { doorMode = 'opening'; doorClipT = 0.9; } blip(1320, 0.25, 0.09); whoosh(1.6, true, 0.06); toast('Step inside'); }
       hud.line = 'STEP INSIDE';
       if (doorT > 0.9 && player.pos.z < A - 1.5) {
-        state = 'hall'; stateT = 0; doorTarget = 0; if (doorAction) { doorMode = 'closing'; doorClipT = 5.37; } recStart = time; whoosh(1.2, false, 0.08);
+        state = 'hall'; stateT = 0; doorTarget = 0; if (doorAction) { doorMode = 'closing'; doorClipT = 5.37; } recStart = time; whoosh(1.2, false, 0.08); startRecording();
         toast(`Recording started · ${fmt(SESSION_SEC)}`); $('rec').classList.remove('hidden');
       }
     }
@@ -1685,6 +1800,7 @@ function update(dt) {
   }
 
   // --- listener + room tone muffle
+  if (ac) updateMic(dt);
   if (ac) {
     camera.getWorldDirection(fwd);
     if (state === 'hall' || state === 'exiting') {
@@ -1698,7 +1814,7 @@ function update(dt) {
 
   // --- captions
   updateCaption();
-  $('cross').classList.toggle('hidden', isTouch || view !== 'first' || !['corridor', 'hall', 'queue'].includes(state));
+  $('cross').classList.toggle('hidden', isTouch || playing || view !== 'first' || !['corridor', 'hall', 'queue'].includes(state));
   $('lockHint').classList.toggle('hidden', isTouch || locked || playing || !['corridor', 'hall', 'queue'].includes(state));
 }
 
@@ -1772,6 +1888,7 @@ function beginExit() {
   player.av.g.visible = true;
   shimmer(); whoosh(3.2, true, 0.08);
   toast("Time's up");
+  stopRecording();
 }
 function updateExit(dt) {
   exitT += dt;
@@ -1797,9 +1914,75 @@ function updateExit(dt) {
 function showEnd() {
   state = 'done';
   $('hud').classList.add('hidden'); $('end').classList.remove('hidden');
-  $('endText').textContent = `Your ${fmt(SESSION_SEC)} recording from the centre microphone will be ready to download here once the recording engine is built.`;
+  showRecording();
   setTimeout(() => { $('flash').style.opacity = 0; }, 150);
-  if (ac) master.gain.setTargetAtTime(0, ac.currentTime, 0.6);
+  if (ac) master.gain.setTargetAtTime(0, ac.currentTime, 0.6);     // the gallery falls silent; your recording plays through the page
+}
+/* ---------- your recording, after you leave */
+function fileStamp(d) { const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`; }
+function extFor(m) { return /mp4|aac|m4a/.test(m) ? 'm4a' : /ogg/.test(m) ? 'ogg' : 'webm'; }
+async function showRecording() {
+  const txt = $('endText');
+  if (!window.MediaRecorder || !micOut) { txt.textContent = "This browser can't record from the centre microphone. Try the latest Chrome, Edge, Firefox or Safari."; return; }
+  txt.textContent = 'Preparing your recording…';
+  const blob = await stopRecording();
+  if (!blob) { txt.textContent = "Sorry, nothing was recorded this time."; return; }
+  const name = `sound-gallery-${fileStamp(recStartedAt || new Date())}`;
+  const url = URL.createObjectURL(blob);
+  $('endAudio').src = url;
+  const dl = $('dlBtn'); dl.href = url; dl.download = `${name}.${extFor(recMime)}`;
+  $('recMeta').textContent = `${fmt(recSecs)} · ${(recStartedAt || new Date()).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} · ${SHIRTS[shirtIdx][0]} shirt · ${(blob.size / 1048576).toFixed(1)} MB`;
+  txt.textContent = 'Your session, as the centre microphone heard it. The two ears turned with the stage, so the sound moves around the room.';
+  $('recBox').classList.remove('hidden');
+  // decode once for the waveform picture and the WAV download
+  let decoded = null;
+  try { const buf = await blob.arrayBuffer(); decoded = await new Promise((ok, no) => { const p = ac.decodeAudioData(buf, ok, no); if (p && p.then) p.then(ok, no); }); } catch (e) { decoded = null; }
+  drawWave(decoded);
+  if (decoded) $('recMeta').textContent = $('recMeta').textContent.replace(/^[^·]+/, fmt(decoded.duration) + ' ');
+  const wb = $('wavBtn');
+  if (!decoded) { wb.classList.add('hidden'); return; }
+  wb.onclick = () => {
+    wb.disabled = true; wb.textContent = 'Making the WAV file…';
+    setTimeout(() => {
+      try {
+        const w = URL.createObjectURL(toWav(decoded));
+        const a = document.createElement('a'); a.href = w; a.download = `${name}.wav`; document.body.appendChild(a); a.click(); a.remove();
+        wb.textContent = 'Download as WAV · best quality, larger file';
+      } catch (e) { wb.textContent = "Couldn't make the WAV file on this device"; }
+      wb.disabled = false;
+    }, 30);
+  };
+}
+function drawWave(buf) {
+  const cv = $('wave'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
+  g.fillStyle = '#1d1b18'; g.fillRect(0, 0, W, H);
+  const cols = ['#ff6a00', '#ff1f8f', '#8a4bff', '#1f6bff', '#00b7ff', '#00d0b0', '#66e000', '#ffd000'];
+  if (!buf) { g.fillStyle = 'rgba(244,238,227,.5)'; g.font = '28px ' + FONT; g.textAlign = 'center'; g.fillText('Recorded from the centre microphone', W / 2, H / 2 + 10); return; }
+  const L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L, n = L.length, bars = 240, bw = W / bars;
+  let peaks = [];
+  for (let b = 0; b < bars; b++) {
+    const i0 = Math.floor(b * n / bars), i1 = Math.floor((b + 1) * n / bars); let pk = 0;
+    for (let i = i0; i < i1; i += 4) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
+    peaks.push(pk);
+  }
+  const top = Math.max(0.05, ...peaks);
+  peaks.forEach((pk, b) => {
+    const h = Math.max(2, (pk / top) * (H * 0.86));
+    g.fillStyle = cols[Math.floor(b / bars * cols.length)];
+    g.fillRect(b * bw + 1, (H - h) / 2, Math.max(1, bw - 2), h);
+  });
+}
+function toWav(buf) {                                     // 16-bit stereo PCM
+  const ch = Math.min(2, buf.numberOfChannels), sr = buf.sampleRate, n = buf.length;
+  const data = [0, 1].map((c) => buf.getChannelData(Math.min(c, ch - 1)));
+  const bytes = 44 + n * 4, ab = new ArrayBuffer(bytes), v = new DataView(ab);
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, bytes - 8, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 4, true);
+  let o = 44;
+  for (let i = 0; i < n; i++) for (let c = 0; c < 2; c++) { const x = Math.max(-1, Math.min(1, data[c][i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true); o += 2; }
+  return new Blob([ab], { type: 'audio/wav' });
 }
 function fmt(s) { s = Math.ceil(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
