@@ -203,11 +203,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -932,6 +932,7 @@ function initAudio() {
   reverbIn.connect(conv); conv.connect(wet); wet.connect(hallBus);
   initMic(wet);
   initOrganAudio();
+  initRhythmAudio();
 }
 /* ---------- THE CENTRE MICROPHONE
    The two giant ears on the turning stage are a stereo pair: left ear, right
@@ -1163,7 +1164,7 @@ function clampPitch() { player.pitch = Math.max(-1.25, Math.min(1.25, player.pit
 let joy = null, lookT = null, drag = null;
 canvas.addEventListener('pointerdown', (e) => {
   if (ac && ac.state !== 'running') ac.resume();
-  if (playing) { organPointerDown(e); return; }
+  if (playing) { curM.down(e); return; }
   if (!['queue', 'corridor', 'hall'].includes(state)) return;
   if (e.pointerType === 'mouse') {
     if (!locked) { tryLock(); drag = { x: e.clientX, y: e.clientY, moved: 0 }; }
@@ -1180,7 +1181,7 @@ canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (playing) { organPointerMove(e); return; }
+  if (playing) { curM.move(e); return; }
   if (drag && e.pointerType === 'mouse' && !locked && (e.buttons & 1)) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
     player.yaw -= dx * 0.004; player.pitch -= dy * 0.004; clampPitch();
@@ -1196,7 +1197,7 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 function endPointer(e) {
-  if (playing) { organPointerUp(e); return; }
+  if (playing) { curM.up(e); return; }
   if (drag && e.pointerType === 'mouse') { if (drag.moved < 6) interactAt(e.clientX, e.clientY); drag = null; }
   if (joy && e.pointerId === joy.id) { joy = null; $('joy').classList.add('hidden'); }
   if (lookT && e.pointerId === lookT.id) {
@@ -1214,13 +1215,17 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') { const od = player.pos.x * normals[ORG_I].x + player.pos.z * normals[ORG_I].z, ou = player.pos.x * tangents[ORG_I].x + player.pos.z * tangents[ORG_I].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
-  if (state === 'hall' && !playing) { const oh = ray.intersectObjects(orgHits, false)[0]; if (oh && oh.distance < 16) { enterPlay(); return true; } }
+  if (state === 'hall' && !playing) {
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    if (best) { enterPlay(best[1]); return true; }
+  }
   const hit = ray.intersectObjects(plinths, false)[0];
   if (hit && hit.distance < 12) { chime(hit.object.userData.alcove); return true; }
   return false;
@@ -1723,8 +1728,8 @@ function playKey(e, down) {
   const lr = c === 'ArrowLeft' || c === 'KeyA' ? -1 : c === 'ArrowRight' || c === 'KeyD' ? 1 : 0;
   const ud = c === 'ArrowUp' || c === 'KeyW' ? 1 : c === 'ArrowDown' || c === 'KeyS' ? -1 : 0;
   if (lr || ud || c === 'Enter' || c === 'Space') e.preventDefault();
-  if (down) { if (lr) stepFocus(lr); else if (ud) adjustFocus(ud); }
-  if ((c === 'Enter' || c === 'Space') && !(down && e.repeat)) pressFocus(down);
+  if (down) { if (lr) curM.step(lr); else if (ud) curM.adjust(ud); }
+  if ((c === 'Enter' || c === 'Space') && !(down && e.repeat)) curM.press(down);
 }
 let padHold = {}, padPrevPlay = null;
 function playPad(dt) {
@@ -1739,11 +1744,333 @@ function playPad(dt) {
     if (now[k] && !padPrevPlay[k]) { fn(); padHold[k] = 0.38; }
     else if (now[k]) { padHold[k] -= dt; if (padHold[k] <= 0) { fn(); padHold[k] = 0.12; } }
   };
-  rep('l', () => stepFocus(-1)); rep('r', () => stepFocus(1));
-  rep('u', () => adjustFocus(1)); rep('d', () => adjustFocus(-1));
-  if (now.a !== padPrevPlay.a) pressFocus(now.a);
+  rep('l', () => curM.step(-1)); rep('r', () => curM.step(1));
+  rep('u', () => curM.adjust(1)); rep('d', () => curM.adjust(-1));
+  if (now.a !== padPrevPlay.a) curM.press(now.a);
   if (now.x && !padPrevPlay.x) exitPlay();
   padPrevPlay = now;
+}
+
+/* ================================================================== THE RHYTHM WHEEL (alcove VIII)
+   A tilted round step sequencer. Four rings of sixteen pads, one ring per sound: kick on the
+   outside, then snare, hi-hat, and a tuned tone in the middle that follows the organ's key.
+   A playhead sweeps around once a bar; lit pads sound as it passes. Every control is a real
+   object on the machine: tap or drag across pads, turn the two knobs, press the buttons. */
+const RHY_I = 8;
+const rhyAl = alcoves[RHY_I];
+rhyAl.g.remove(rhyAl.plinth); rhyAl.g.remove(rhyAl.beam);
+plinths.splice(plinths.indexOf(rhyAl.plinth), 1);
+const rhyHits = [], rhyCtrls = [];
+const RINGS = [                                            // inner → outer
+  { key: 'tone', name: 'TONE', col: '#00b8a0', r: 0.40, pad: 0.058 },
+  { key: 'hat', name: 'HI-HAT', col: '#1f6bff', r: 0.56, pad: 0.075 },
+  { key: 'snare', name: 'SNARE', col: '#ffc400', r: 0.73, pad: 0.095 },
+  { key: 'kick', name: 'KICK', col: '#e8262b', r: 0.92, pad: 0.115 },
+];
+const rhy = {
+  run: false, bpm: 92, swing: 0.12, mute: [false, false, false, false],
+  steps: RINGS.map(() => new Array(16).fill(false)),
+  step: -1, next: 0, nextT: 0, timer: null, queue: [], flash: RINGS.map(() => 0), clearArm: 0,
+};
+[[0, 6, 10], [2, 6, 10, 14], [4, 12], [0, 8, 10]].forEach((on, k) => on.forEach((s) => { rhy.steps[k][s] = true; }));
+const tempo01 = () => (rhy.bpm - 60) / 100, swingTo = (v) => { rhy.swing = Math.round(c01(v) * 60) / 100; };
+
+// rhyG: x = player's right, +z = toward the player, y = up (like the organ's desk)
+const rhyG = new THREE.Group(); rhyG.position.set(0, 0.15, A + 1.35); rhyG.rotation.y = Math.PI; rhyAl.g.add(rhyG);
+const wheelT = new THREE.Group(); wheelT.position.set(0, 0.98, 0); wheelT.rotation.x = 0.5; rhyG.add(wheelT);
+const mGloss = new THREE.MeshPhysicalMaterial({ color: '#f6f2ea', roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.7 });
+const padMats = [], padMeshes = [];
+let playMat, playLbl, knobs = {}, muteMats = [], clearMat, rhyDispL, playheadArm;
+{
+  // stand: a broad foot, a column, and a tilted square table carrying the wheel
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.12, 48), mGloss); foot.position.y = 0.06; rhyG.add(foot); rhyHits.push(foot);
+  const colm = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.9, 32), mGloss); colm.position.y = 0.55; rhyG.add(colm); rhyHits.push(colm);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.08, 2.4), mGloss); slab.position.y = -0.06; wheelT.add(slab); rhyHits.push(slab);
+  const face = new THREE.Mesh(new THREE.CylinderGeometry(1.06, 1.06, 0.05, 96), new THREE.MeshStandardMaterial({ color: '#24211d', roughness: 0.55 }));
+  face.position.y = 0.0; wheelT.add(face); rhyHits.push(face);
+  // thin coloured track for each ring
+  RINGS.forEach((R) => {
+    const tr = new THREE.Mesh(new THREE.RingGeometry(R.r - 0.006, R.r + 0.006, 96), new THREE.MeshBasicMaterial({ color: R.col, transparent: true, opacity: 0.45, toneMapped: false }));
+    tr.rotation.x = -Math.PI / 2; tr.position.y = 0.027; wheelT.add(tr);
+  });
+  // beat marks on the rim: the four beats of the bar
+  for (let b = 0; b < 4; b++) {
+    const th = b * Math.PI / 2, m = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.09), new THREE.MeshBasicMaterial({ color: '#f6f2ea', toneMapped: false }));
+    m.position.set(Math.sin(th) * 1.0, 0.03, -Math.cos(th) * 1.0); m.rotation.y = -th; wheelT.add(m);
+  }
+  // the pads
+  RINGS.forEach((R, k) => {
+    padMats[k] = []; padMeshes[k] = [];
+    for (let st = 0; st < 16; st++) {
+      const th = st * Math.PI / 8, mat = capMat('#efe8dc');
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(R.pad, R.pad, 0.04, 28), mat);
+      pad.position.set(Math.sin(th) * R.r, 0.045, -Math.cos(th) * R.r); wheelT.add(pad);
+      pad.userData = { t: 'pad', k, s: st }; rhyCtrls.push(pad);
+      padMats[k][st] = mat; padMeshes[k][st] = pad;
+    }
+  });
+  // playhead: a slim arm sweeping from the hub
+  playheadArm = new THREE.Group(); playheadArm.position.y = 0.03; wheelT.add(playheadArm);
+  { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.012, 0.74), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7, toneMapped: false }));
+    arm.position.z = -0.66; playheadArm.add(arm); }
+  // the hub: start / stop
+  playMat = capMat('#1d1b18');
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.27, 0.09, 48), playMat); hub.position.y = 0.065; wheelT.add(hub);
+  hub.userData = { t: 'play' }; rhyCtrls.push(hub);
+  playLbl = flatLabel(0.42, 0.42, 256, 256, hub, 0, 0.0455, 0);
+  // knobs (left of the wheel): tempo and swing
+  [['tempo', 'TEMPO', -0.42], ['swing', 'SWING', 0.42]].forEach(([key, label, z]) => {
+    const g = new THREE.Group(); g.position.set(-1.42, 0.0, z); wheelT.add(g);
+    const dial = flatLabel(0.46, 0.46, 256, 256, wheelT, -1.42, 0.005, z);
+    const mat = capMat('#2a2724');
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.145, 0.11, 40), mat); cap.position.y = 0.06; g.add(cap);
+    const notch = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.012, 0.1), new THREE.MeshBasicMaterial({ color: '#f6f2ea', toneMapped: false })); notch.position.set(0, 0.118, -0.07); g.add(notch);
+    cap.userData = { t: 'knob', key }; rhyCtrls.push(cap);
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 16), hitMat); hit.position.y = 0.06; g.add(hit); hit.userData = { t: 'knob', key }; rhyCtrls.push(hit);
+    const lb = flatLabel(0.4, 0.07, 256, 46, wheelT, -1.42, 0.005, z + 0.3);
+    knobs[key] = { g, mat, dial, lb, label };
+  });
+  // buttons (right of the wheel): a mute for each ring, then clear
+  RINGS.slice().reverse().forEach((R) => {
+    const k = RINGS.indexOf(R), z = -0.72 + (3 - k) * 0.33;
+    const mat = capMat(R.col);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.06, 0.2), mat); b.position.set(1.42, 0.03, z); wheelT.add(b);
+    b.userData = { t: 'mute', k }; rhyCtrls.push(b);
+    const L = flatLabel(0.32, 0.17, 256, 136, b, 0, 0.0305, 0); muteMats[k] = { mat, L, R };
+  });
+  clearMat = capMat('#f6f2ea');
+  const cb = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.06, 0.2), clearMat); cb.position.set(1.42, 0.03, 0.66); wheelT.add(cb);
+  cb.userData = { t: 'clear' }; rhyCtrls.push(cb);
+  clearMat.L = flatLabel(0.32, 0.17, 256, 136, cb, 0, 0.0305, 0);
+  const ttl = flatLabel(1.1, 0.12, 512, 56, wheelT, 0, 0.005, 1.1); printText(ttl, [['THE RHYTHM WHEEL', 34, '#5a554d']]);
+  // display on a rail above the wheel
+  rhyDispL = canvasTex(1024, 300);
+  const d = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.38), new THREE.MeshBasicMaterial({ map: rhyDispL.t, toneMapped: false }));
+  d.position.set(0, 2.05, -1.12); d.rotation.x = -0.12; rhyG.add(d);
+  const fr = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.44, 0.03), mDark); fr.position.set(0, 2.05, -1.14); fr.rotation.x = -0.12; rhyG.add(fr);
+  for (const x of [-0.6, 0.6]) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.95, 8), mChrome); pole.position.set(x, 0.98, -1.16); rhyG.add(pole); }
+}
+// the speaker wall behind: four circles, one per ring, that pulse with every hit
+const speakers = [];
+{
+  const back = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.0, 0.1), mGloss); back.position.set(0, 3.1, -1.75); rhyG.add(back); rhyHits.push(back);
+  [[3, 0.62, -0.75, 3.35], [2, 0.42, 0.85, 3.75], [1, 0.3, 0.95, 2.75], [0, 0.36, -0.1, 2.15]].forEach(([k, r, x, y]) => {
+    const mat = new THREE.MeshStandardMaterial({ color: RINGS[k].col, roughness: 0.4, emissive: RINGS[k].col, emissiveIntensity: 0.1 });
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, 0.12, 64), mat); cone.rotation.x = Math.PI / 2;
+    cone.position.set(x, y, -1.66); rhyG.add(cone);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 0.3, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.3 }));
+    cap.rotation.x = Math.PI / 2; cap.position.set(x, y, -1.6); rhyG.add(cap);
+    speakers[k] = { cone, cap, mat, base: 1 };
+  });
+}
+const rhyPos = rhyAl.g.localToWorld(new THREE.Vector3(0, 1.6, A + 1.6));
+
+/* ---------- sound */
+let rhyAudio = null;
+function initRhythmAudio() {
+  const out = ac.createGain(); out.gain.value = 0.9;
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, rhyPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.22; out.connect(send); send.connect(reverbIn);
+  micTap(out, rhyPos, 1.5);
+  const nlen = ac.sampleRate, nb = ac.createBuffer(1, nlen, ac.sampleRate), nd = nb.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+  rhyAudio = { out, noise: nb };
+}
+function env(g, t, peak, dec, att = 0.002) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + dec); }
+function noiseSrc(t, dur) { const s = ac.createBufferSource(); s.buffer = rhyAudio.noise; s.start(t, Math.random() * 0.5); s.stop(t + dur); return s; }
+const DRUM = {
+  kick(t, v) {
+    const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(44, t + 0.13);
+    env(g, t, 0.95 * v, 0.42); o.connect(g); g.connect(rhyAudio.out); o.start(t); o.stop(t + 0.45);
+    const c = ac.createOscillator(), cg = ac.createGain(); c.frequency.value = 1200; env(cg, t, 0.12 * v, 0.015, 0.001); c.connect(cg); cg.connect(rhyAudio.out); c.start(t); c.stop(t + 0.03);
+  },
+  snare(t, v) {
+    const n = noiseSrc(t, 0.25), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 0.7;
+    env(g, t, 0.6 * v, 0.19); n.connect(f); f.connect(g); g.connect(rhyAudio.out);
+    const o = ac.createOscillator(), og = ac.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(160, t + 0.08);
+    env(og, t, 0.35 * v, 0.11); o.connect(og); og.connect(rhyAudio.out); o.start(t); o.stop(t + 0.14);
+  },
+  hat(t, v) {
+    const n = noiseSrc(t, 0.08), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'highpass'; f.frequency.value = 7200;
+    env(g, t, 0.32 * v, 0.055, 0.001); n.connect(f); f.connect(g); g.connect(rhyAudio.out);
+  },
+  tone(t, v, st) {                                      // a soft pluck on the gallery's chord: root, octave, fifth, third
+    const third = MOODS[org.mood].moodSemi - 12, semi = [0, 12, 7, third][st % 4];
+    const f0 = rootFreq() * 2 * Math.pow(2, semi / 12);
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.value = f0; o2.type = 'sine'; o2.frequency.value = f0 * 2.002;
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(f0 * 9, t); lp.frequency.exponentialRampToValueAtTime(f0 * 1.5, t + 0.35);
+    env(g, t, 0.36 * v, 0.55, 0.004); o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(rhyAudio.out);
+    o.start(t); o2.start(t); o.stop(t + 0.6); o2.stop(t + 0.6);
+  },
+};
+function stepDur() { return 60 / rhy.bpm / 4; }
+function scheduleRhythm() {
+  if (!ac || !rhyAudio || !rhy.run) return;
+  const ahead = ac.currentTime + 0.14;
+  while (rhy.nextT < ahead) {
+    const st = rhy.next, sw = st % 2 ? rhy.swing * stepDur() * 0.66 : 0, t = rhy.nextT + sw;
+    RINGS.forEach((R, k) => {
+      if (rhy.steps[k][st] && !rhy.mute[k]) { DRUM[R.key](t, st % 4 === 0 ? 1 : 0.78, st); rhy.queue.push({ t, k, st }); }
+    });
+    rhy.queue.push({ t, st, head: true });
+    rhy.nextT += stepDur(); rhy.next = (rhy.next + 1) % 16;
+  }
+}
+function setRun(on) {
+  if (on === rhy.run) return;
+  rhy.run = on;
+  if (on && ac) { rhy.next = 0; rhy.nextT = ac.currentTime + 0.06; rhy.queue = []; scheduleRhythm(); rhy.timer = setInterval(scheduleRhythm, 25); }
+  else { clearInterval(rhy.timer); rhy.timer = null; rhy.step = -1; rhy.queue = []; }
+  drawRhyAll(); buzz(10);
+}
+
+/* ---------- labels and display */
+let rhyHelp = '', rhyValue = '';
+const RHY_HELP = {
+  start: 'Press the black centre to start. Light pads to make a beat: outer ring kick, then snare, hi-hat, and a tone in the gallery’s key. Keys: ← → choose, ↑ ↓ adjust or change ring, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  pad: 'Tap pads to light them, or drag across the ring to paint a pattern. The playhead goes once round per bar; the white marks are the four beats.',
+  play: 'Start and stop the wheel. It keeps playing for everyone in the room after you step away.',
+  tempo: 'Tempo: how fast the wheel turns, 60 to 160 beats a minute.',
+  swing: 'Swing: delays every other step for a looser, shuffling groove.',
+  mute: 'Mute: silences one ring without losing its pattern.',
+  clear: 'Clear: press twice to empty every ring and start fresh.',
+};
+function drawRhyDisplay() {
+  const { g, c, t } = rhyDispL;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
+  RINGS.forEach((R, k) => { g.fillStyle = R.col; g.fillRect(k * c.width / 4, 0, c.width / 4, 10); });
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 92px ${FONT}`;
+  g.fillText(`${rhy.bpm}`, 30, 110); const w = g.measureText(`${rhy.bpm}`).width;
+  g.font = `bold 34px ${FONT}`; g.fillText('BPM', 44 + w, 110);
+  g.textAlign = 'right'; g.fillStyle = '#5a554d'; g.font = `bold 34px ${FONT}`;
+  g.fillText(`${rhy.run ? 'PLAYING' : 'STOPPED'} · SWING ${Math.round(rhy.swing * 100)}%`, c.width - 30, 60);
+  if (rhyValue) { g.fillStyle = '#1d1b18'; g.font = `bold 40px ${FONT}`; g.fillText(rhyValue, c.width - 30, 110); }
+  g.textAlign = 'left'; g.fillStyle = '#3a3630'; g.font = `30px ${FONT}`;
+  const words = rhyHelp.split(' '); let line = '', y = 170;
+  for (const wd of words) { if (g.measureText(line + wd).width > c.width - 60) { g.fillText(line, 30, y); line = ''; y += 38; } line += wd + ' '; }
+  g.fillText(line, 30, y); t.needsUpdate = true;
+}
+function drawDial(key) {
+  const K = knobs[key], { g, c, t } = K.dial, cx = c.width / 2, v = key === 'tempo' ? tempo01() : rhy.swing / 0.6;
+  g.clearRect(0, 0, c.width, c.height);
+  g.lineWidth = 12; g.lineCap = 'round';
+  g.strokeStyle = 'rgba(29,27,24,0.18)'; g.beginPath(); g.arc(cx, cx, 104, Math.PI * 0.75, Math.PI * 2.25); g.stroke();
+  g.strokeStyle = key === 'tempo' ? RINGS[3].col : RINGS[1].col; g.beginPath(); g.arc(cx, cx, 104, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * c01(v))); g.stroke();
+  t.needsUpdate = true;
+  K.g.rotation.y = -(-0.75 * Math.PI + 1.5 * Math.PI * c01(v));
+  printText(K.lb, [[`${K.label} ${key === 'tempo' ? rhy.bpm : Math.round(rhy.swing * 100) + '%'}`, 26, '#5a554d']]);
+}
+function drawRhyAll() {
+  printText(playLbl, [[rhy.run ? '■' : '▶', 120, '#f6f2ea']]);
+  muteMats.forEach(({ L, R }, k) => printText(L, [[R.name, 30, rhy.mute[k] ? '#ffffff' : '#1d1b18'], [rhy.mute[k] ? 'MUTED' : 'ON', 22, rhy.mute[k] ? '#ffffff' : '#1d1b18', 'normal']], rhy.mute[k] ? { bg: '#1d1b18' } : {}));
+  printText(clearMat.L, [[rhy.clearArm > 0 ? 'SURE?' : 'CLEAR', 32, '#1d1b18']]);
+  drawDial('tempo'); drawDial('swing'); drawRhyDisplay();
+}
+
+/* ---------- touch, mouse, keys, controller */
+let rGrab = null;
+function rhyRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(rhyCtrls, false)[0]; }
+function rhyAct(u, ext) {                              // press / toggle a control
+  if (u.t === 'pad') { const v = ext !== undefined ? ext : !rhy.steps[u.k][u.s]; rhy.steps[u.k][u.s] = v; rhyHelp = RHY_HELP.pad; rhyValue = `${RINGS[u.k].name} step ${u.s + 1} ${v ? 'on' : 'off'}`; if (v && ac && rhyAudio && !rhy.mute[u.k]) DRUM[RINGS[u.k].key](ac.currentTime + 0.005, 0.7, u.s); buzz(6); drawRhyDisplay(); return v; }
+  if (u.t === 'play') { setRun(!rhy.run); rhyHelp = RHY_HELP.play; rhyValue = ''; drawRhyDisplay(); }
+  if (u.t === 'mute') { rhy.mute[u.k] = !rhy.mute[u.k]; rhyHelp = RHY_HELP.mute; rhyValue = `${RINGS[u.k].name} ${rhy.mute[u.k] ? 'muted' : 'on'}`; drawRhyAll(); buzz(8); }
+  if (u.t === 'clear') {
+    if (rhy.clearArm > 0) { rhy.steps.forEach((r) => r.fill(false)); rhy.clearArm = 0; rhyValue = 'Cleared'; buzz(25); }
+    else { rhy.clearArm = 2.5; rhyValue = 'Press again to clear'; }
+    rhyHelp = RHY_HELP.clear; drawRhyAll();
+  }
+  if (u.t === 'knob') { rhyHelp = RHY_HELP[u.key]; rhyValue = ''; drawRhyDisplay(); }
+}
+function knobBy(key, dv) {
+  if (key === 'tempo') rhy.bpm = Math.round(60 + c01(tempo01() + dv) * 100);
+  else swingTo(rhy.swing / 0.6 + dv);
+  rhyValue = key === 'tempo' ? `${rhy.bpm} BPM` : `Swing ${Math.round(rhy.swing * 100)}%`;
+  drawDial(key); drawRhyDisplay();
+}
+function rhyDown(e) {
+  if (rGrab) return;
+  const h = rhyRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  rFocus = -1;
+  const u = h.object.userData;
+  rGrab = { id: e.pointerId, u, y: e.clientY, x: e.clientX };
+  if (u.t === 'pad') rGrab.paint = rhyAct(u);
+  else rhyAct(u);
+}
+function rhyMove(e) {
+  if (!rGrab || e.pointerId !== rGrab.id) return;
+  if (rGrab.u.t === 'knob') { const d = (rGrab.y - e.clientY) + (e.clientX - rGrab.x); rGrab.y = e.clientY; rGrab.x = e.clientX; knobBy(rGrab.u.key, d / 260); return; }
+  if (rGrab.u.t === 'pad') { const h = rhyRay(e); if (h && h.object.userData.t === 'pad') { const u = h.object.userData; if (rhy.steps[u.k][u.s] !== rGrab.paint) rhyAct(u, rGrab.paint); } }
+}
+function rhyUp(e) { if (rGrab && e.pointerId === rGrab.id) rGrab = null; }
+// keyboard / controller: the controls in order, then every pad ring by ring (kick first)
+const R_STATIONS = [{ t: 'play' }, { t: 'knob', key: 'tempo' }, { t: 'knob', key: 'swing' }, ...[3, 2, 1, 0].map((k) => ({ t: 'mute', k })), { t: 'clear' }];
+for (const k of [3, 2, 1, 0]) for (let st = 0; st < 16; st++) R_STATIONS.push({ t: 'pad', k, s: st });
+let rFocus = -1;
+function rFocusSet(i) {
+  rFocus = i; if (i < 0) return;
+  const f = R_STATIONS[i]; rhyHelp = RHY_HELP[f.t === 'knob' ? f.key : f.t];
+  rhyValue = f.t === 'pad' ? `${RINGS[f.k].name} step ${f.s + 1}` : f.t === 'knob' ? (f.key === 'tempo' ? `${rhy.bpm} BPM` : `Swing ${Math.round(rhy.swing * 100)}%`) : '';
+  drawRhyDisplay(); blip(660, 0.04, 0.03);
+}
+function rhyStep(d) { rFocusSet(rFocus < 0 ? (d > 0 ? 0 : R_STATIONS.length - 1) : (rFocus + d + R_STATIONS.length) % R_STATIONS.length); }
+function rhyAdjust(d) {
+  if (rFocus < 0) { rFocusSet(0); return; }
+  const f = R_STATIONS[rFocus];
+  if (f.t === 'knob') { knobBy(f.key, d * 0.04); return; }
+  if (f.t === 'pad') { const k = Math.max(0, Math.min(3, f.k + d)); rFocusSet(R_STATIONS.findIndex((q) => q.t === 'pad' && q.k === k && q.s === f.s)); return; }
+  rhyStep(-d);
+}
+function rhyPress(down) {
+  if (!down) return;
+  if (rFocus < 0) { rFocusSet(0); return; }
+  const f = R_STATIONS[rFocus]; if (f.t !== 'knob') rhyAct(f);
+}
+function makeRhythmMachine() {
+  const fit = [];
+  for (const x of [-1.7, 1.7]) for (const z of [-1.1, 1.18]) fit.push([wheelT, new THREE.Vector3(x, 0.06, z)]);
+  for (const x of [-0.66, 0.66]) for (const y of [1.84, 2.26]) fit.push([rhyG, new THREE.Vector3(x, y, -1.12)]);
+  return {
+    al: RHY_I, base: rhyG, fit, elev: [1.1, 0.92], stand: 1.5,
+    down: rhyDown, move: rhyMove, up: rhyUp, step: rhyStep, adjust: rhyAdjust, press: rhyPress,
+    enter() { rFocus = -1; rGrab = null; rhyHelp = RHY_HELP.start; rhyValue = ''; drawRhyAll(); },
+    exit() { rFocus = -1; rGrab = null; },
+  };
+}
+
+drawRhyAll();
+
+/* ---------- every frame: playhead, lit pads, pulsing speakers */
+const PAD_OFF = new THREE.Color('#efe8dc'), _pc = new THREE.Color();
+function updateRhythm(dt) {
+  if (rhy.clearArm > 0) { rhy.clearArm -= dt; if (rhy.clearArm <= 0) { rhy.clearArm = 0; printText(clearMat.L, [['CLEAR', 32, '#1d1b18']]); } }
+  const now = ac ? ac.currentTime : 0;
+  while (rhy.queue.length && rhy.queue[0].t <= now) {
+    const q = rhy.queue.shift();
+    if (q.head) rhy.step = q.st; else { rhy.flash[q.k] = 1; }
+  }
+  for (let k = 0; k < 4; k++) rhy.flash[k] = Math.max(0, rhy.flash[k] - dt * 5);
+  const ang = rhy.run && rhy.step >= 0 ? rhy.step * Math.PI / 8 : 0;
+  playheadArm.rotation.y = -ang; playheadArm.visible = rhy.run;
+  const foc = playing && curM === RHY_M && rFocus >= 0 ? R_STATIONS[rFocus] : null;
+  for (let k = 0; k < 4; k++) for (let st = 0; st < 16; st++) {
+    const m = padMats[k][st], on = rhy.steps[k][st];
+    m.color.copy(on ? _pc.set(RINGS[k].col) : PAD_OFF);
+    if (rhy.mute[k] && on) m.color.lerp(PAD_OFF, 0.6);
+    const head = rhy.run && st === rhy.step, isF = foc && foc.t === 'pad' && foc.k === k && foc.s === st;
+    m.emissive.set(isF ? '#ffffff' : on ? RINGS[k].col : '#ffffff');
+    m.emissiveIntensity = isF ? 0.55 : head ? (on ? 0.9 : 0.18) : on ? 0.12 : 0;
+  }
+  const glow = (mat, f) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = f ? 0.3 : 0; };
+  glow(playMat, foc && foc.t === 'play'); glow(clearMat, foc && foc.t === 'clear');
+  for (const key of ['tempo', 'swing']) glow(knobs[key].mat, foc && foc.t === 'knob' && foc.key === key);
+  muteMats.forEach(({ mat, R }, k) => { mat.emissive.set(foc && foc.t === 'mute' && foc.k === k ? '#ffffff' : '#000000'); mat.emissiveIntensity = 0.3; mat.color.set(rhy.mute[k] ? '#5a554d' : R.col); });
+  speakers.forEach((sp, k) => {
+    const f = rhy.flash[k]; sp.mat.emissiveIntensity = 0.1 + f * 0.9;
+    const z = 1 + f * 0.12; sp.cone.scale.set(z, 1, z); sp.cap.position.z = -1.6 + f * 0.05;
+  });
 }
 
 /* ---------- play mode: you stand at the machine in first person. The camera
@@ -1760,10 +2087,11 @@ for (const x of [-0.7, 0.7]) for (const y of [1.24, 1.72]) FIT_PTS.push([deskG, 
 const fitPos = new THREE.Vector3(), fitQ = new THREE.Quaternion(); let fitKey = '';
 function fitPlayCamera() {
   const key = innerWidth + 'x' + innerHeight; if (key === fitKey) return; fitKey = key;
-  const pts = FIT_PTS.map(([g, p]) => g.localToWorld(p.clone()));
+  const pts = curM.fit.map(([g, p]) => g.localToWorld(p.clone()));
   const look = pts.reduce((m, v) => m.add(v), new THREE.Vector3()).multiplyScalar(1 / pts.length);
-  const portrait = innerWidth < innerHeight, el = portrait ? 0.98 : 0.8;          // how steeply you look down at it
-  const dir = deskG.localToWorld(new THREE.Vector3(0, Math.sin(el), Math.cos(el))).sub(deskG.getWorldPosition(new THREE.Vector3())).normalize();
+  const portrait = innerWidth < innerHeight, el = curM.elev[portrait ? 0 : 1];     // how steeply you look down at it
+  const base = curM.base;
+  const dir = base.localToWorld(new THREE.Vector3(0, Math.sin(el), Math.cos(el))).sub(base.getWorldPosition(new THREE.Vector3())).normalize();
   playCam.fov = camera.fov; playCam.aspect = innerWidth / innerHeight; playCam.near = 0.05; playCam.far = 200; playCam.updateProjectionMatrix();
   // keep clear of the timer at the top and the Leave button at the bottom
   const top = 1 - 2 * 84 / innerHeight, bot = -1 + 2 * 100 / innerHeight, side = 1 - 2 * 12 / innerWidth;
@@ -1827,15 +2155,17 @@ function updateHand(dt) {
   rigHand.lookAt(_b.copy(rigHand.position).sub(tipNow).add(rigHand.position));     // finger points at the target
 }
 
-function enterPlay() {
+let curM = null;                                      // the machine you're playing
+function enterPlay(m = ORGAN_M) {
   if (playing || state !== 'hall') return;
+  curM = m;
   playing = true; playT = 0; panX = panS = 0; grab = null; focusI = -1; hoverP = null; tipInit = false; padPrevPlay = null;
   camFrom.copy(camera.position); camFromQ.copy(camera.quaternion);
   if (document.pointerLockElement) document.exitPointerLock();
   joy = null; lookT = null; drag = null; $('joy').classList.add('hidden');
   $('playBar').classList.remove('hidden'); $('caption').classList.add('hidden');
   $('pbLeft').classList.add('hidden'); $('pbRight').classList.add('hidden'); $('viewBtn').classList.add('hidden');
-  dispHelp = ORG_HELP.start; dispValue = ''; drawDisplay();
+  m.enter();
   mSleeve.color.set(SHIRTS[shirtIdx][1]);
   player.av.g.visible = false; handRig.visible = SHOW_HAND;
   fitKey = ''; fitPlayCamera(); updatePlayAvatar(0);
@@ -1843,19 +2173,18 @@ function enterPlay() {
 }
 function exitPlay() {
   if (!playing) return;
-  if (grab) { setHeld(false); clearTimeout(grab.timer); grab = null; }
-  setFocus(-1);
+  curM.exit();
   playing = false; $('playBar').classList.add('hidden'); handRig.visible = false;
   $('pbLeft').classList.remove('hidden'); $('pbRight').classList.remove('hidden'); $('viewBtn').classList.remove('hidden');
   const av = player.av;
   av.g.position.y = 0; av.g.visible = view === 'third';
   av.arms.forEach((sh, k) => { sh.quaternion.identity(); sh.rotation.set(0, 0, (k === 0 ? -1 : 1) * 0.08); sh.scale.set(1, 1, 1); });
-  const p = orgAl.g.localToWorld(new THREE.Vector3(0, 0, A - 1.3));
+  const p = alcoves[curM.al].g.localToWorld(new THREE.Vector3(0, 0, A - 1.3));
   player.pos.set(p.x, 0, p.z);
-  const n = normals[ORG_I]; player.yaw = Math.atan2(-n.x, -n.z); player.pitch = 0;
+  const n = normals[curM.al]; player.yaw = Math.atan2(-n.x, -n.z); player.pitch = 0;
   av.g.rotation.set(0, player.yaw + Math.PI, 0);
 }
-function playSpot() { return deskG.localToWorld(_a.set(0, 0, 0.82)); }
+function playSpot() { return curM.base.localToWorld(_a.set(0, 0, curM.stand)); }
 function updatePlayAvatar(dt) {
   const spot = playSpot();                           // your (unseen) body stands at the console, for the sound's point of view
   player.pos.set(spot.x, 0, spot.z); player.av.g.visible = false;
@@ -1869,6 +2198,14 @@ function updatePlayCamera(dt) {
   camera.position.lerpVectors(camFrom, fitPos, e);
   camera.quaternion.slerpQuaternions(camFromQ, fitQ, e);
 }
+const ORGAN_M = {
+  al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
+  down: organPointerDown, move: organPointerMove, up: organPointerUp,
+  step: stepFocus, adjust: adjustFocus, press: pressFocus,
+  enter() { dispHelp = ORG_HELP.start; dispValue = ''; drawDisplay(); },
+  exit() { if (grab) { setHeld(false); clearTimeout(grab.timer); grab = null; } setFocus(-1); },
+};
+const RHY_M = makeRhythmMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -1924,6 +2261,7 @@ function update(dt) {
   }
   if (npcs.length) updateNpcs(dt, time);
   updateOrgan(dt);
+  updateRhythm(dt);
   updateProjector(dt);
 
   // --- door
@@ -2048,6 +2386,9 @@ function updateCaption() {
   if (playing) { c.classList.add('hidden'); return; }
   if (show === ORG_I) {
     c.innerHTML = `<b>VI</b> · The Drone Organ<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the organ to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === RHY_I) {
+    c.innerHTML = `<b>VIII</b> · The Rhythm Wheel<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the wheel to play</span>`;
     c.classList.remove('hidden');
   } else if (show) {
     c.innerHTML = `<b>${ROMAN[show]}</b> · ${show === 6 ? 'Headline alcove' : 'Machine forthcoming'}<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the plinth for a test tone</span>`;
