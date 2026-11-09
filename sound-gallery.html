@@ -2088,7 +2088,11 @@ melAl.g.remove(melAl.plinth); melAl.g.remove(melAl.beam);
 plinths.splice(plinths.indexOf(melAl.plinth), 1);
 const melHits = [], melCtrls = [];
 const SCALES = [[0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10], [0, 2, 4, 5, 7, 9, 10], [0, 2, 3, 5, 7, 9, 10]];   // Bright, Dark, Floating, Ancient
-const PC_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const PC_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const PC_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+// spell notes the way the gallery's key is written: flats in flat keys, sharps in sharp keys
+function keyIsFlat() { const r = NOTE_SEMI[org.root], minor = org.mood === 1 || org.mood === 3; return minor ? [2, 7, 0, 5, 10, 3, 8].includes(r) : [5, 10, 3, 8, 1, 6].includes(r); }
+const PC_NAMES = new Proxy([], { get: (_, k) => (keyIsFlat() ? PC_FLAT : PC_SHARP)[k] });
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const MT_VOICES = [['FLUTES', '#00b8a0'], ['STRINGS', '#e8262b'], ['CHOIR', '#8a4bff']];
 const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD'];
@@ -2319,7 +2323,7 @@ function drawMelButtons() {
   styleBtns.forEach((b, k) => printText(b.L, [[b.name, 36, k === mel.style ? '#ffffff' : '#1d1b18']], k === mel.style ? { bg: '#1d1b18', radius: 12 } : {}));
   chordBtns.forEach((b, d) => printText(b.L, [[chordLabel(d), 76, d === mel.chord ? '#ffffff' : '#1d1b18'], [ROMANS[d], 40, d === mel.chord ? '#cfe9b8' : '#5a554d']], d === mel.chord ? { bg: '#3d7a12' } : {}));
 }
-const KEY_TINT = { inW: new THREE.Color('#fbf8f2'), outW: new THREE.Color('#a9a297'), homeW: new THREE.Color('#bfe39a'), inB: new THREE.Color('#3a3530'), outB: new THREE.Color('#121110'), homeB: new THREE.Color('#4d7a2a') };
+const KEY_TINT = { inW: new THREE.Color('#fbf8f2'), outW: new THREE.Color('#a9a297'), homeW: new THREE.Color('#bfe39a'), inB: new THREE.Color('#6e665b'), outB: new THREE.Color('#121110'), homeB: new THREE.Color('#4d7a2a') };
 function melKeyChanged() {
   const sc = galleryScale(), home = NOTE_SEMI[org.root];
   for (const kb of keyboards) for (const k of kb.keys) {
