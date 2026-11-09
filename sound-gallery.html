@@ -526,6 +526,143 @@ const EAR_CUBE = 0.95;                                 // each cube's side, metr
   }
 })();
 
+/* ------------------------------------------------------------------ the quote projector
+   A round screen high on the wall above the entrance, fed by a vintage projector hanging
+   in the middle of the hall. Quotes about sound loop like a carousel slide show: the shutter
+   dims, the next slide drops in slightly out of focus and sharpens, under a warm, flickering
+   lamp with a little film grain. Edit QUOTES to change the slides. */
+const QUOTES = [
+  ['Wherever we are, what we hear is mostly noise. When we ignore it, it disturbs us. When we listen to it, we find it fascinating.', 'John Cage', 'The Future of Music: Credo, 1937'],
+  ['Deep Listening is listening in every possible way to everything possible to hear no matter what you are doing.', 'Pauline Oliveros', 'Deep Listening, 2005'],
+  ['There is no such thing as an empty space or an empty time. There is always something to see, something to hear.', 'John Cage', 'Silence, 1961'],
+  ['Today the world suffers from an overpopulation of sounds.', 'R. Murray Schafer', 'The Tuning of the World, 1977'],
+  ['Ambient Music must be able to accommodate many levels of listening attention without enforcing one in particular; it must be as ignorable as it is interesting.', 'Brian Eno', 'Music for Airports, 1978'],
+  ['After silence, that which comes nearest to expressing the inexpressible is music.', 'Aldous Huxley', 'Music at Night, 1931'],
+  ['Music expresses that which cannot be said and on which it is impossible to be silent.', 'Victor Hugo', 'William Shakespeare, 1864'],
+  ['Without music, life would be a mistake.', 'Friedrich Nietzsche', 'Twilight of the Idols, 1889'],
+];
+const SLIDE_SECS = 9, CHANGE_SECS = 1.6;
+const SCREEN_R = 1.6, SCREEN_Y = 5.1;
+const proj = { i: Math.floor(Math.random() * QUOTES.length), t: 0, drawn: -1 };
+const slideCv = document.createElement('canvas'); slideCv.width = slideCv.height = 768;
+const slideCtx = slideCv.getContext('2d');
+const slideTex = new THREE.CanvasTexture(slideCv); slideTex.colorSpace = THREE.SRGBColorSpace;
+const screenMat = new THREE.MeshBasicMaterial({ map: slideTex, toneMapped: false });
+const projG = new THREE.Group(); hall.add(projG);
+{ // the screen: a white disc with a thin dark rim, on the inside of the entrance wall
+  const rim = new THREE.Mesh(new THREE.RingGeometry(SCREEN_R, SCREEN_R + 0.07, 96), new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: 0.6 }));
+  rim.position.set(0, SCREEN_Y, A - 0.03); rim.rotation.y = Math.PI; projG.add(rim);
+  const scr = new THREE.Mesh(new THREE.CircleGeometry(SCREEN_R, 96), screenMat);
+  scr.position.set(0, SCREEN_Y, A - 0.04); scr.rotation.y = Math.PI; projG.add(scr);
+}
+// film grain: a faint noise layer that jumps around every frame
+const grainCv = document.createElement('canvas'); grainCv.width = grainCv.height = 128;
+{ const g = grainCv.getContext('2d'), d = g.createImageData(128, 128);
+  for (let k = 0; k < d.data.length; k += 4) { d.data[k] = 40; d.data[k + 1] = 32; d.data[k + 2] = 24; d.data[k + 3] = Math.random() < 0.5 ? Math.random() * 255 : 0; }
+  g.putImageData(d, 0, 0); }
+const grainTex = new THREE.CanvasTexture(grainCv); grainTex.wrapS = grainTex.wrapT = THREE.RepeatWrapping; grainTex.repeat.set(3, 3);
+const grain = new THREE.Mesh(new THREE.CircleGeometry(SCREEN_R, 96), new THREE.MeshBasicMaterial({ map: grainTex, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false }));
+grain.position.set(0, SCREEN_Y, A - 0.045); grain.rotation.y = Math.PI; projG.add(grain);
+// the projector: hung from the dome on a rod, lens aimed at the screen
+const PROJ_POS = new THREE.Vector3(0, 6.7, A - 8.6);
+{
+  const mBody = new THREE.MeshStandardMaterial({ color: '#2b2824', roughness: 0.45, metalness: 0.35 });
+  const mTrim = new THREE.MeshStandardMaterial({ color: '#b9b2a6', roughness: 0.3, metalness: 0.8 });
+  const pj = new THREE.Group(); pj.position.copy(PROJ_POS); projG.add(pj);
+  pj.lookAt(0, SCREEN_Y, A);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.34, 0.62), mBody); pj.add(body);
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.2, 20), mTrim); lens.rotation.x = Math.PI / 2; lens.position.z = 0.4; pj.add(lens);
+  const glass = new THREE.Mesh(new THREE.CircleGeometry(0.07, 20), new THREE.MeshBasicMaterial({ color: '#fff3d6', toneMapped: false })); glass.position.z = 0.501; pj.add(glass);
+  for (const z of [-0.2, 0.18]) {                    // two film reels on top
+    const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 28), mTrim); reel.rotation.z = Math.PI / 2; reel.position.set(0, 0.36, z); pj.add(reel);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.2, 0.03), mBody); arm.position.set(0, 0.22, z); pj.add(arm);
+  }
+  proj.reels = pj.children.filter((c) => c.geometry && c.geometry.type === 'CylinderGeometry' && c !== lens);
+  const domeY = WALL_H + RC * DOME_SQUASH * Math.sqrt(Math.max(0, 1 - Math.pow((A - 8.6) / RC, 2)));
+  rodBetween(new THREE.Vector3(0, PROJ_POS.y + 0.17, PROJ_POS.z), new THREE.Vector3(0, domeY, PROJ_POS.z), 0.02, mTrim, projG);
+}
+// the beam of light, from the lens to the edge of the screen, with dust drifting in it
+const LENS = PROJ_POS.clone().add(new THREE.Vector3(0, SCREEN_Y, A).sub(PROJ_POS).normalize().multiplyScalar(0.5));
+const SCREEN_C = new THREE.Vector3(0, SCREEN_Y, A - 0.05), BEAM_END = new THREE.Vector3(0, SCREEN_Y, A - 0.9);
+const beamLen = LENS.distanceTo(BEAM_END);
+const beamMat = new THREE.MeshBasicMaterial({ color: '#fff1d2', transparent: true, opacity: 0.03, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+const projBeam = new THREE.Mesh(new THREE.CylinderGeometry(SCREEN_R * 0.9, 0.06, beamLen, 48, 1, true), beamMat);
+projBeam.position.copy(LENS).lerp(BEAM_END, 0.5);
+projBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), SCREEN_C.clone().sub(LENS).normalize());
+projG.add(projBeam);
+const DUST = 140, dustPos = new Float32Array(DUST * 3), dustSeed = [];
+for (let k = 0; k < DUST; k++) dustSeed.push({ u: Math.random(), a: Math.random() * Math.PI * 2, r: Math.sqrt(Math.random()) * 0.9, s: 0.006 + Math.random() * 0.02, w: Math.random() * 6 });
+const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: '#fff4dc', size: 0.018, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+projG.add(dust);
+const _dv = new THREE.Vector3(), _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = SCREEN_C.clone().sub(LENS).normalize();
+_bx.crossVectors(_bz, new THREE.Vector3(0, 1, 0)).normalize(); _by.crossVectors(_bx, _bz).normalize();
+
+function wrapLines(ctx, text, maxW) {
+  const words = text.split(' '), lines = []; let line = '';
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+  if (line) lines.push(line); return lines;
+}
+// one slide: warm light field, the quote, the speaker. `light` 0–1 is the lamp through the shutter,
+// `blur` px is focus, `dy` drops the slide in from above
+function drawSlide(q, light, blur, dy, idx = proj.i) {
+  const g = slideCtx, S = slideCv.width, c = S / 2;
+  const field = g.createRadialGradient(c, c * 0.92, S * 0.05, c, c, S * 0.52);
+  field.addColorStop(0, `rgba(255,248,232,${light})`); field.addColorStop(0.75, `rgba(243,232,210,${light * 0.92})`); field.addColorStop(1, `rgba(150,138,118,${light * 0.7})`);
+  g.globalCompositeOperation = 'source-over'; g.filter = 'none';
+  g.fillStyle = '#16130f'; g.fillRect(0, 0, S, S);
+  g.fillStyle = field; g.fillRect(0, 0, S, S);
+  if (!q || light < 0.05) return;
+  g.save();
+  if ('filter' in g && blur > 0.3) g.filter = `blur(${blur.toFixed(1)}px)`;
+  g.translate(0, dy);
+  g.globalAlpha = Math.min(1, light * 1.1);
+  const [text, who, src] = q, maxW = S * 0.62;
+  let size = 56, lines;
+  for (; size > 24; size -= 2) { g.font = `${size}px ${FONT}`; lines = wrapLines(g, text, maxW); if (lines.length * size * 1.28 < S * 0.46) break; }
+  const lh = size * 1.28, total = lines.length * lh + size * 1.9, top = c - total / 2 + size * 0.2;
+  g.fillStyle = ALCOVE_COL[1 + (idx % 11)];
+  g.font = `bold ${Math.round(size * 2.2)}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillText('“', c, top - size * 0.15);
+  g.fillStyle = '#2a241c'; g.font = `${size}px ${FONT}`; g.textBaseline = 'top';
+  lines.forEach((l, k) => g.fillText(l, c, top + size * 0.35 + k * lh));
+  const ay = top + size * 0.35 + lines.length * lh + size * 0.5;
+  g.font = `bold ${Math.round(size * 0.52)}px ${FONT}`; g.fillStyle = '#2a241c';
+  g.fillText('— ' + who.toUpperCase(), c, ay);
+  g.font = `italic ${Math.round(size * 0.46)}px ${FONT}`; g.fillStyle = 'rgba(42,36,28,0.7)';
+  g.fillText(src, c, ay + size * 0.7);
+  g.restore();
+}
+let projRedraw = 0;
+function updateProjector(dt) {
+  proj.t += dt;
+  const cycle = SLIDE_SECS + CHANGE_SECS;
+  if (proj.t >= cycle) { proj.t -= cycle; proj.i = (proj.i + 1) % QUOTES.length; }
+  const tc = proj.t - SLIDE_SECS;                    // < 0: showing; 0..CHANGE_SECS: changing slides
+  const ease = (x) => x * x * (3 - 2 * x), cl = (x) => Math.max(0, Math.min(1, x));
+  if (tc < 0) {
+    if (proj.drawn !== proj.i) { drawSlide(QUOTES[proj.i], 1, 0, 0); slideTex.needsUpdate = true; proj.drawn = proj.i; }
+  } else if ((projRedraw = (projRedraw + 1) % 2) === 0) {   // during the change, redraw every other frame
+    const out = cl(tc / 0.4), inn = cl((tc - 0.6) / (CHANGE_SECS - 0.6)), next = (proj.i + 1) % QUOTES.length;
+    if (tc < 0.6) drawSlide(QUOTES[proj.i], 1 - 0.75 * ease(out), out * 6, -out * 40);       // shutter closes, slide lifts away
+    else drawSlide(QUOTES[next], 0.25 + 0.75 * ease(inn), (1 - ease(inn)) * 9, (1 - ease(inn)) * 60, next);   // next slide drops in, soft, then sharpens
+    slideTex.needsUpdate = true; proj.drawn = -1;
+  }
+  // the lamp: a slow breath and a quick flicker, shared by the screen and the beam
+  const fl = 0.955 + Math.sin(time * 1.3) * 0.015 + (Math.random() - 0.5) * 0.035;
+  screenMat.color.setScalar(fl);
+  beamMat.opacity = 0.03 * fl * (tc >= 0 && tc < CHANGE_SECS ? 0.55 + 0.45 * Math.abs(Math.cos(tc / CHANGE_SECS * Math.PI)) : 1);
+  grainTex.offset.set(Math.random(), Math.random());
+  for (const r of proj.reels) r.rotation.x += dt * 1.4;
+  for (let k = 0; k < DUST; k++) {                   // dust drifts slowly through the light
+    const d = dustSeed[k]; d.u = (d.u + d.s * dt) % 1; const wob = Math.sin(time * 0.4 + d.w) * 0.05;
+    const rad = (0.06 + (SCREEN_R * 0.85 - 0.06) * d.u) * (d.r + wob);
+    _dv.copy(LENS).addScaledVector(_bz, beamLen * d.u).addScaledVector(_bx, Math.cos(d.a + time * 0.05) * rad).addScaledVector(_by, Math.sin(d.a + time * 0.05) * rad);
+    dustPos[k * 3] = _dv.x; dustPos[k * 3 + 1] = _dv.y; dustPos[k * 3 + 2] = _dv.z;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+}
+
 // the hanging microphone (does not rotate)
 const mic = new THREE.Group(); mic.position.set(0, MIC_Y, 0); scene.add(mic);
 {
@@ -1769,6 +1906,7 @@ function update(dt) {
   }
   if (npcs.length) updateNpcs(dt, time);
   updateOrgan(dt);
+  updateProjector(dt);
 
   // --- door
   updateDoor(dt);
