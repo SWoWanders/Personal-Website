@@ -149,18 +149,22 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.25 : 1.5));   // l
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.85;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#d9d1c4');
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+{ // the soft reflected light every surface picks up, dimmed so the room has shadow and contrast
+  const env = new RoomEnvironment(renderer);
+  env.traverse((o) => { if (o.material) { if (o.material.color) o.material.color.multiplyScalar(0.45); if (o.material.emissive) o.material.emissive.multiplyScalar(0.45); } });
+  scene.environment = pmrem.fromScene(env, 0.04).texture;
+}
 
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
 camera.rotation.order = 'YXZ';
 
-scene.add(new THREE.HemisphereLight('#fff6e8', '#cbb89c', 0.9));
+scene.add(new THREE.HemisphereLight('#fff6e8', '#cbb89c', 0.38));   // soft fill, kept low so the spotlights model the room
 
 /* ------------------------------------------------------------------ textures */
 function rng(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
@@ -1751,7 +1755,7 @@ function update(dt) {
     sp.fx.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), tmp);
     sp.beam.position.copy(sp.s.position); sp.beam.quaternion.copy(sp.fx.quaternion);
     const r = Math.tan(0.2) * len; sp.beam.scale.set(r, len, r);
-    sp.beam.material.color.copy(sp.s.color); sp.beam.material.opacity = 0.05 + lv * 0.08;
+    sp.beam.material.color.copy(sp.s.color); sp.beam.material.opacity = 0.025 + lv * 0.05;
   });
   for (const a of alcoves) {
     if (!a) continue;
