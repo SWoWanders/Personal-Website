@@ -534,14 +534,32 @@ const EAR_CUBE = 0.95;                                 // each cube's side, metr
 const QUOTES = [
   ['Wherever we are, what we hear is mostly noise. When we ignore it, it disturbs us. When we listen to it, we find it fascinating.', 'John Cage', 'The Future of Music: Credo, 1937'],
   ['Deep Listening is listening in every possible way to everything possible to hear no matter what you are doing.', 'Pauline Oliveros', 'Deep Listening, 2005'],
-  ['There is no such thing as an empty space or an empty time. There is always something to see, something to hear.', 'John Cage', 'Silence, 1961'],
   ['Today the world suffers from an overpopulation of sounds.', 'R. Murray Schafer', 'The Tuning of the World, 1977'],
   ['Ambient Music must be able to accommodate many levels of listening attention without enforcing one in particular; it must be as ignorable as it is interesting.', 'Brian Eno', 'Music for Airports, 1978'],
   ['After silence, that which comes nearest to expressing the inexpressible is music.', 'Aldous Huxley', 'Music at Night, 1931'],
   ['Music expresses that which cannot be said and on which it is impossible to be silent.', 'Victor Hugo', 'William Shakespeare, 1864'],
   ['Without music, life would be a mistake.', 'Friedrich Nietzsche', 'Twilight of the Idols, 1889'],
+  ["It's a very abstract museum in which they show sound paintings. If you can say that you show sound.", "Ken Nordine", ''],
+  ["Ears are made not for hearing but for listening. Listening is an active skill, whereas hearing is passive. Listening is something that we have to work at — it's a relationship with sound.", "Laurie Anderson", ''],
+  ["Music is reinvented every time somebody whistles or makes a symphony… try to get you to feel the way sound goes into your ears and curls around and goes into your mind.", "Laurie Anderson", ''],
+  ["Everything on this planet has something to do with music. Music functions in the realm of sculptured air.", "Frank Zappa", ''],
+  ["Music, in performance, is a type of sculpture. The air in the performance is sculpted into something…", "Frank Zappa", ''],
+  ["I was always interested in sound anyway. And orchestrations. My favorite composers were always composers who had this palette of great orchestral sound: Ravel and Stravinsky.", "Gershon Kingsley", ''],
+  ["Euphony means a pleasant sound, and that's the effect I'm seeking.", "Moondog", ''],
+  ["That's a great sound, you know, it's… You can, you can see what's going on, you can see it all just from the sound, you know.", "Moondog", ''],
+  ["I wanted to invent some kind of an instrument that would not operate mechanically, as does the piano, or the cello and the violin, whose bow movements can be compared to those of a saw. I conceived of an instrument that would create sound without using any mechanical energy, like the conductor of an orchestra.", "Leon Theremin", ''],
+  ["I don't even know what sound is, much less what it's for. It isn't to make money that's for sure. I've never made any.", "Captain Beefheart", ''],
+  ["Listen to the birds. That's where all the music comes from. Birds know everything about how it should sound and where that sound should come from.", "Captain Beefheart", ''],
+  ["There is no such thing as silence. Something is always happening that makes sound.", "John Cage", ''],
+  ["There is no such thing as an empty space or an empty time. There is always something to see, something to hear. In fact, try as we may to make a silence, we cannot.", "John Cage", ''],
+  ["To me the synthesizer was always a source of new sounds that musicians could use to expand the range of possibilities for making music.", "Robert Moog", ''],
+  ["That's the way a musician thinks of a synthesizer: this part changes the tone color, this part changes the pitches, this part changes the articulation. So when a musician works with patch cords and sets the knobs, he is synthesizing a sound.", "Robert Moog", ''],
+  ["I'm always looking for sounds that are pleasing at the time. The sound of a helicopter is really annoying until you're drowning, and it's there to rescue you. Then it sounds like music.", "Tom Waits", ''],
 ];
 const SLIDE_SECS = 9, CHANGE_SECS = 1.6;
+for (let k = QUOTES.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [QUOTES[k], QUOTES[j]] = [QUOTES[j], QUOTES[k]]; }
+for (let k = 1; k < QUOTES.length; k++) if (QUOTES[k][1] === QUOTES[k - 1][1]) { const j = (k + 2) % QUOTES.length; [QUOTES[k], QUOTES[j]] = [QUOTES[j], QUOTES[k]]; }
+const slideSecs = (k) => Math.min(20, Math.max(SLIDE_SECS, 4 + QUOTES[k][0].length / 18));   // time to read it
 const SCREEN_R = 1.6, SCREEN_Y = 5.1;
 const proj = { i: Math.floor(Math.random() * QUOTES.length), t: 0, drawn: -1 };
 const slideCv = document.createElement('canvas'); slideCv.width = slideCv.height = 768;
@@ -619,26 +637,26 @@ function drawSlide(q, light, blur, dy, idx = proj.i) {
   g.globalAlpha = Math.min(1, light * 1.1);
   const [text, who, src] = q, maxW = S * 0.62;
   let size = 56, lines;
-  for (; size > 24; size -= 2) { g.font = `${size}px ${FONT}`; lines = wrapLines(g, text, maxW); if (lines.length * size * 1.28 < S * 0.46) break; }
-  const lh = size * 1.28, total = lines.length * lh + size * 1.9, top = c - total / 2 + size * 0.2;
+  for (; size > 22; size -= 2) { g.font = `${size}px ${FONT}`; lines = wrapLines(g, text, size < 34 ? S * 0.68 : maxW); if (lines.length * size * 1.25 < S * 0.52) break; }
+  const lh = size * 1.25, total = lines.length * lh + size * 1.9, top = c - total / 2 + size * 0.2;
   g.fillStyle = ALCOVE_COL[1 + (idx % 11)];
   g.font = `bold ${Math.round(size * 2.2)}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   g.fillText('“', c, top - size * 0.15);
   g.fillStyle = '#2a241c'; g.font = `${size}px ${FONT}`; g.textBaseline = 'top';
   lines.forEach((l, k) => g.fillText(l, c, top + size * 0.35 + k * lh));
   const ay = top + size * 0.35 + lines.length * lh + size * 0.5;
-  g.font = `bold ${Math.round(size * 0.52)}px ${FONT}`; g.fillStyle = '#2a241c';
+  g.font = `bold ${Math.round(Math.max(20, size * 0.52))}px ${FONT}`; g.fillStyle = '#2a241c';
   g.fillText('— ' + who.toUpperCase(), c, ay);
-  g.font = `italic ${Math.round(size * 0.46)}px ${FONT}`; g.fillStyle = 'rgba(42,36,28,0.7)';
-  g.fillText(src, c, ay + size * 0.7);
+  g.font = `italic ${Math.round(Math.max(17, size * 0.46))}px ${FONT}`; g.fillStyle = 'rgba(42,36,28,0.7)';
+  if (src) g.fillText(src, c, ay + size * 0.7);
   g.restore();
 }
 let projRedraw = 0;
 function updateProjector(dt) {
   proj.t += dt;
-  const cycle = SLIDE_SECS + CHANGE_SECS;
+  const show = slideSecs(proj.i), cycle = show + CHANGE_SECS;
   if (proj.t >= cycle) { proj.t -= cycle; proj.i = (proj.i + 1) % QUOTES.length; }
-  const tc = proj.t - SLIDE_SECS;                    // < 0: showing; 0..CHANGE_SECS: changing slides
+  const tc = proj.t - show;                    // < 0: showing; 0..CHANGE_SECS: changing slides
   const ease = (x) => x * x * (3 - 2 * x), cl = (x) => Math.max(0, Math.min(1, x));
   if (tc < 0) {
     if (proj.drawn !== proj.i) { drawSlide(QUOTES[proj.i], 1, 0, 0); slideTex.needsUpdate = true; proj.drawn = proj.i; }
