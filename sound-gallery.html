@@ -203,11 +203,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Mellotron and the Optigan' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -933,6 +933,7 @@ function initAudio() {
   initMic(wet);
   initOrganAudio();
   initRhythmAudio();
+  initMelodyAudio();
 }
 /* ---------- THE CENTRE MICROPHONE
    The two giant ears on the turning stage are a stereo pair: left ear, right
@@ -1215,15 +1216,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -2073,6 +2074,386 @@ function updateRhythm(dt) {
   });
 }
 
+/* ================================================================== THE MELODY CONSOLE (alcove IV)
+   Two keyboards in one walnut cabinet, after the Mellotron and the Optigan.
+   Front: the Mellotron, a tape keyboard with flutes, strings and choir. Each held note
+     wobbles like old tape and runs out after eight seconds, as the real tapes did.
+   Behind: the Optigan, a chord organ with its own keys, seven chord buttons built from the
+     gallery's key, and four backing styles that keep time with the Rhythm Wheel.
+   Keys that belong to the gallery's key are lit; the home note is tinted green.
+   Everything is synthesised live, so it is always in tune with the organ. */
+const MEL_I = 4;
+const melAl = alcoves[MEL_I];
+melAl.g.remove(melAl.plinth); melAl.g.remove(melAl.beam);
+plinths.splice(plinths.indexOf(melAl.plinth), 1);
+const melHits = [], melCtrls = [];
+const SCALES = [[0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10], [0, 2, 4, 5, 7, 9, 10], [0, 2, 3, 5, 7, 9, 10]];   // Bright, Dark, Floating, Ancient
+const PC_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+const MT_VOICES = [['FLUTES', '#00b8a0'], ['STRINGS', '#e8262b'], ['CHOIR', '#8a4bff']];
+const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD'];
+const KB_LO = 48, KB_HI = 72;                            // C3 to C5, two octaves
+const mel = { voice: 0, style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null };
+function galleryScale() { const root = NOTE_SEMI[org.root]; return SCALES[org.mood].map((x) => (root + x) % 12); }
+function triad(d) {                                     // the chord on scale degree d, as semitones above the home note
+  const sc = SCALES[org.mood], n = (k) => sc[(d + k) % 7] + (d + k >= 7 ? 12 : 0);
+  return [n(0), n(2), n(4)];
+}
+function chordLabel(d) {
+  const t = triad(d), pc = (NOTE_SEMI[org.root] + t[0]) % 12, third = t[1] - t[0], fifth = t[2] - t[0];
+  return PC_NAMES[pc] + (third === 3 ? (fifth === 6 ? '°' : 'm') : '');
+}
+const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+// mG: x = player's right, +z = toward the player, y = up
+const melG = new THREE.Group(); melG.position.set(0, 0.15, A + 1.25); melG.rotation.y = Math.PI; melAl.g.add(melG);
+const mWalnut = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
+const mCream = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
+const keyboards = [];                                   // [0] Mellotron (front), [1] Optigan (raised, behind)
+let voiceBtns = [], styleBtns = [], chordBtns = [], melDispL, optDisc;
+function buildKeys(kb, parent, y, z) {
+  const g = new THREE.Group(); g.position.set(0, y, z); parent.add(g);
+  const WW = 0.086, startX = -(15 * WW) / 2 + WW / 2, WI = [0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6], LEFT = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+  const keys = [];
+  for (let m = KB_LO; m <= KB_HI; m++) {
+    const semi = m % 12, oct = Math.floor((m - KB_LO) / 12), black = WI[semi] < 0;
+    const mat = new THREE.MeshStandardMaterial({ color: black ? '#1d1b18' : '#fbf8f2', roughness: black ? 0.35 : 0.3, envMapIntensity: 0.6, emissive: '#000000' });
+    let mesh;
+    if (black) { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.15), mat); mesh.position.set(startX + (oct * 7 + LEFT[semi]) * WW + WW / 2, 0.036, -0.045); }
+    else { mesh = new THREE.Mesh(new THREE.BoxGeometry(WW - 0.006, 0.03, 0.24), mat); mesh.position.set(startX + (oct * 7 + WI[semi]) * WW, 0.015, 0); }
+    mesh.userData = { t: 'key', kb, m }; g.add(mesh); melCtrls.push(mesh);
+    keys.push({ m, mesh, mat, black, y0: mesh.position.y });
+  }
+  return { g, keys };
+}
+{
+  // lower cabinet and the Mellotron's keybed
+  melHits.push(box(2.0, 0.78, 0.66, mWalnut, 0, 0.39, -0.06, melG));
+  melHits.push(box(2.02, 0.04, 0.38, mCream, 0, 0.8, 0.1, melG));
+  keyboards[0] = buildKeys(0, melG, 0.82, 0.13);
+  // the Optigan's raised tier behind
+  melHits.push(box(2.0, 0.3, 0.44, mWalnut, 0, 0.97, -0.43, melG));
+  melHits.push(box(2.02, 0.04, 0.36, mCream, 0, 1.13, -0.4, melG));
+  keyboards[1] = buildKeys(1, melG, 1.15, -0.38);
+  // Mellotron voice buttons: left cheek of the front tier
+  MT_VOICES.forEach(([name, col], k) => {
+    const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.095), mat);
+    b.position.set(-0.84, 0.84, 0.23 - k * 0.11); melG.add(b); b.userData = { t: 'voice', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.25, 0.09, 256, 92, b, 0, 0.0205, 0); voiceBtns[k] = { mat, L, col, name };
+  });
+  { const L = flatLabel(0.32, 0.07, 320, 70, melG, 0.84, 0.823, 0.12); printText(L, [['MELLOTRON', 40, '#5a554d']]); }
+  // Optigan backing styles: left cheek of the raised tier
+  OPT_STYLES.forEach((name, k) => {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.075), mat);
+    b.position.set(-0.84, 1.17, -0.27 - k * 0.083); melG.add(b); b.userData = { t: 'style', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.25, 0.07, 256, 72, b, 0, 0.0205, 0); styleBtns[k] = { mat, L, name };
+  });
+  // the Optigan's spinning disc, right cheek
+  optDisc = new THREE.Group(); optDisc.position.set(0.84, 1.16, -0.4); melG.add(optDisc);
+  { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 48), new THREE.MeshPhysicalMaterial({ color: '#d8e4ea', roughness: 0.1, transmission: 0.5, thickness: 0.01, transparent: true, opacity: 0.85 }));
+    optDisc.add(d);
+    for (let r = 0; r < 5; r++) { const ring = new THREE.Mesh(new THREE.RingGeometry(0.04 + r * 0.022, 0.046 + r * 0.022, 48), new THREE.MeshBasicMaterial({ color: '#3a4a52', side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.007; optDisc.add(ring); }
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 16), mChrome); optDisc.add(hub);
+    const L = flatLabel(0.32, 0.06, 320, 60, melG, 0.84, 1.153, -0.2); printText(L, [['OPTIGAN', 40, '#5a554d']]); }
+  // the chord panel: a row of seven buttons, leaning back toward you
+  const chordG = new THREE.Group(); chordG.position.set(0, 1.36, -0.66); chordG.rotation.x = 0.95; melG.add(chordG);
+  melHits.push(box(2.0, 0.04, 0.3, mWalnut, 0, -0.03, 0, chordG));
+  for (let d = 0; d < 7; d++) {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.05, 0.19), mat);
+    b.position.set(-0.75 + d * 0.25, 0.02, 0.0); chordG.add(b); b.userData = { t: 'chord', i: d }; melCtrls.push(b);
+    const L = flatLabel(0.21, 0.18, 256, 220, b, 0, 0.0255, 0); chordBtns[d] = { mat, L };
+  }
+  mel.chordG = chordG;
+  // display on a rail above
+  melDispL = canvasTex(1024, 300);
+  const disp = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.38), new THREE.MeshBasicMaterial({ map: melDispL.t, toneMapped: false }));
+  disp.position.set(0, 1.92, -0.78); disp.rotation.x = -0.12; melG.add(disp);
+  const fr = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.44, 0.03), mDark); fr.position.set(0, 1.92, -0.8); fr.rotation.x = -0.12; melG.add(fr);
+  for (const x of [-0.6, 0.6]) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.5, 8), mChrome); pole.position.set(x, 1.55, -0.82); melG.add(pole); }
+  // two tall speaker columns, one per instrument, that glow while they sound
+  mel.cols = [-1, 1].map((sx) => {
+    const mat = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.6, emissive: sx < 0 ? '#ffb46b' : '#8fd3ff', emissiveIntensity: 0 });
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 2.6, 40), mat); c.position.set(sx * 1.55, 1.3, -0.9); melG.add(c); melHits.push(c);
+    const grille = new THREE.Mesh(new THREE.CylinderGeometry(0.265, 0.265, 1.4, 40, 1, true), new THREE.MeshStandardMaterial({ color: '#3a3630', roughness: 0.9, side: THREE.DoubleSide }));
+    grille.position.set(sx * 1.55, 1.55, -0.9); melG.add(grille);
+    return mat;
+  });
+}
+const melPos = melAl.g.localToWorld(new THREE.Vector3(0, 1.4, A + 1.5));
+
+/* ---------- sound */
+let melAudio = null;
+function initMelodyAudio() {
+  const out = ac.createGain(); out.gain.value = 0.85;
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, melPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.35; out.connect(send); send.connect(reverbIn);
+  micTap(out, melPos, 1.5);
+  // tape wobble shared by every Mellotron note: slow drift plus a quick flutter, in cents
+  const wow = ac.createOscillator(); wow.frequency.value = 0.55; const wowG = ac.createGain(); wowG.gain.value = 7; wow.connect(wowG); wow.start();
+  const flut = ac.createOscillator(); flut.frequency.value = 6.3; const flutG = ac.createGain(); flutG.gain.value = 2.5; flut.connect(flutG); flut.start();
+  const nlen = ac.sampleRate * 2, nb = ac.createBuffer(1, nlen, ac.sampleRate), nd = nb.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+  // tape hiss and Optigan crackle, faded in while each instrument is sounding
+  const hissS = ac.createBufferSource(); hissS.buffer = nb; hissS.loop = true;
+  const hissF = ac.createBiquadFilter(); hissF.type = 'highpass'; hissF.frequency.value = 3000;
+  const hiss = ac.createGain(); hiss.gain.value = 0; hissS.connect(hissF); hissF.connect(hiss); hiss.connect(out); hissS.start();
+  const crk = ac.createGain(); crk.gain.value = 0; crk.connect(out);
+  melAudio = { out, wowG, flutG, noise: nb, hiss, crk };
+}
+function linkWobble(o) { melAudio.wowG.connect(o.detune); melAudio.flutG.connect(o.detune); }
+function mkOsc(type, f, det = 0) { const o = ac.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det; return o; }
+// a Mellotron note: returns a handle with stop()
+function tapeNote(m, voice) {
+  const t = ac.currentTime, f = mf(m), g = ac.createGain(), oscs = [];
+  g.gain.setValueAtTime(0.0001, t); g.connect(melAudio.out);
+  if (voice === 0) {                                     // flutes: soft sine, a breath of noise
+    const o = mkOsc('sine', f), o2 = mkOsc('triangle', f * 2), g2 = ac.createGain(); g2.gain.value = 0.12;
+    o.connect(g); o2.connect(g2); g2.connect(g); oscs.push(o, o2);
+    const n = ac.createBufferSource(); n.buffer = melAudio.noise; n.loop = true; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 2; bp.Q.value = 3;
+    const ng = ac.createGain(); ng.gain.value = 0.18; n.connect(bp); bp.connect(ng); ng.connect(g); oscs.push(n);
+    g.gain.linearRampToValueAtTime(0.2, t + 0.09);
+  } else if (voice === 1) {                              // strings: three detuned saws, rounded off
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400 + f * 1.5; lp.Q.value = 0.5; lp.connect(g);
+    for (const d of [-8, 0, 7]) { const o = mkOsc('sawtooth', f, d); o.connect(lp); oscs.push(o); }
+    g.gain.linearRampToValueAtTime(0.075, t + 0.32);
+  } else {                                               // choir: saws through "ah" vowel filters
+    const mix = ac.createGain(); mix.gain.value = 1;
+    for (const [fq, q, a] of [[730, 6, 1], [1090, 7, 0.6], [2440, 8, 0.25]]) { const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = q; const bg = ac.createGain(); bg.gain.value = a; mix.connect(bp); bp.connect(bg); bg.connect(g); }
+    for (const d of [-6, 5]) { const o = mkOsc('sawtooth', f, d); o.connect(mix); oscs.push(o); }
+    const v = mkOsc('sine', 5.2), vg = ac.createGain(); vg.gain.value = 9; v.connect(vg); oscs.push(v);
+    oscs.forEach((o) => { if (o.detune && o !== v) vg.connect(o.detune); });
+    g.gain.linearRampToValueAtTime(0.5, t + 0.38);
+  }
+  oscs.forEach((o) => { if (o.detune) linkWobble(o); o.start(t); });
+  // the tape runs out after eight seconds
+  g.gain.setValueAtTime(g.gain.value, t + 7.4); g.gain.linearRampToValueAtTime(0.0001, t + 8);
+  let done = false;
+  return { stop() { if (done) return; done = true; const tt = ac.currentTime; g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, 0.07); oscs.forEach((o) => o.stop(tt + 0.5)); } };
+}
+// an Optigan note: a reedy chord-organ tone
+function reedNote(m, vel = 1, dur = 0) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = 0.7; lp.connect(g); g.connect(melAudio.out);
+  const o1 = mkOsc('square', f), o2 = mkOsc('square', f * 2, 4), h = ac.createGain(); h.gain.value = 0.35;
+  o1.connect(lp); o2.connect(h); h.connect(lp);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.055 * vel, t + 0.012);
+  o1.start(t); o2.start(t);
+  let done = false;
+  const stop = (at) => { if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime); g.gain.setTargetAtTime(0, tt, 0.05); o1.stop(tt + 0.4); o2.stop(tt + 0.4); };
+  if (dur) stop(t + dur);
+  return { stop };
+}
+/* ---------- the Optigan's backing: chords, bass and brushes on the Rhythm Wheel's grid */
+const OPT_PAT = {
+  1: { bass: { 0: 0, 8: 1 }, chord: { 2: 1, 6: 1, 10: 1, 14: 1 }, brush: [4, 12] },                         // strum
+  2: { bass: { 0: 0, 6: 1, 8: 0, 14: 1 }, chord: { 3: 1.4, 6: 1.4, 10: 1.4, 13: 1.4 }, brush: [0, 3, 6, 10, 12] },   // bossa
+  3: { bass: { 0: 0, 8: 1 }, chord: { 0: 7.5, 8: 7.5 }, brush: [4, 12] },                                   // ballad
+};
+function chordMidis(d) { const base = 57 + ((NOTE_SEMI[org.root] - 9 + 12) % 12); return triad(d).map((x) => base + x); }   // around A3–G#4
+function schedNote(kind, t, m, dur) {
+  const f = mf(m), g = ac.createGain(); g.connect(melAudio.out);
+  if (kind === 'bass') {
+    const o = mkOsc('triangle', f), o2 = mkOsc('sine', f * 2); const h = ac.createGain(); h.gain.value = 0.2;
+    o.connect(g); o2.connect(h); h.connect(g);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.01); g.gain.setTargetAtTime(0, t + dur * 0.9, 0.06);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.4); o2.stop(t + dur + 0.4);
+  } else {
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2000; lp.connect(g);
+    const o = mkOsc('square', f), o2 = mkOsc('square', f * 2, 5), h = ac.createGain(); h.gain.value = 0.3;
+    o.connect(lp); o2.connect(h); h.connect(lp);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.03, t + 0.008); g.gain.setTargetAtTime(0, t + dur * 0.85, 0.05);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.4); o2.stop(t + dur + 0.4);
+  }
+}
+function schedBrush(t, accent) {
+  const s = ac.createBufferSource(); s.buffer = melAudio.noise; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5200; bp.Q.value = 0.6;
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(accent ? 0.09 : 0.05, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+  s.connect(bp); bp.connect(g); g.connect(melAudio.out); s.start(t, Math.random()); s.stop(t + 0.2);
+}
+function scheduleOptigan() {
+  if (!ac || !melAudio || !mel.style || mel.chord === null) return;
+  const ahead = ac.currentTime + 0.14, P = OPT_PAT[mel.style];
+  while (mel.nextT < ahead) {
+    const st = mel.next, t = mel.nextT, sd = stepDur(), cm = chordMidis(mel.chord), bassRoot = cm[0] - 24;
+    if (st in P.bass) schedNote('bass', t, bassRoot + (P.bass[st] ? 7 : 0), sd * (mel.style === 3 ? 7.5 : 1.8));
+    if (st in P.chord) cm.forEach((m, k) => schedNote('chord', t + k * 0.012, m, sd * P.chord[st]));
+    if (P.brush.includes(st)) schedBrush(t, st % 4 === 0);
+    mel.nextT += sd; mel.next = (mel.next + 1) % 16;
+  }
+}
+function optRunning() { return mel.style > 0 && mel.chord !== null; }
+function syncOptigan() {
+  const want = optRunning();
+  if (want && !mel.timer && ac) {
+    if (rhy.run) { mel.next = rhy.next; mel.nextT = rhy.nextT; } else { mel.next = 0; mel.nextT = ac.currentTime + 0.05; }
+    scheduleOptigan(); mel.timer = setInterval(scheduleOptigan, 25);
+  } else if (!want && mel.timer) { clearInterval(mel.timer); mel.timer = null; }
+}
+
+/* ---------- labels and display */
+let melHelp = '', melValue = '';
+const MEL_HELP = {
+  start: 'Play the front keyboard (Mellotron) for tape flutes, strings or choir. The raised keyboard is the Optigan organ; its chord buttons give you a backing in the gallery’s key. Lit keys fit the key; green is home. Keys: ← → choose, Enter play. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  voice: 'Mellotron voice: flutes, strings or choir, each on its own tape. Hold a note and the tape runs out after eight seconds, just like the real thing.',
+  style: 'Optigan backing: pick a style, then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
+  chord: 'Chord buttons: the seven chords that belong to the gallery’s key. Try I, then IV, then V, then back to I.',
+  key: 'Lit keys belong to the gallery’s key, so they always sound right. Green keys are the home note. Slide along the keys to glide.',
+};
+function drawMelDisplay() {
+  const { g, c, t } = melDispL;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#66c000'; g.fillRect(0, 0, c.width, 10);
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 80px ${FONT}`;
+  g.fillText(mel.chord !== null ? chordLabel(mel.chord) : PC_NAMES[NOTE_SEMI[org.root]] + (org.mood === 1 ? 'm' : ''), 30, 100);
+  g.textAlign = 'right'; g.fillStyle = '#5a554d'; g.font = `bold 32px ${FONT}`;
+  g.fillText(`TAPE: ${MT_VOICES[mel.voice][0]} · BACKING: ${OPT_STYLES[mel.style]}`, c.width - 30, 56);
+  if (melValue) { g.fillStyle = '#1d1b18'; g.font = `bold 38px ${FONT}`; g.fillText(melValue, c.width - 30, 104); }
+  g.textAlign = 'left'; g.fillStyle = '#3a3630'; g.font = `28px ${FONT}`;
+  const words = melHelp.split(' '); let line = '', y = 160;
+  for (const wd of words) { if (g.measureText(line + wd).width > c.width - 60) { g.fillText(line, 30, y); line = ''; y += 35; } line += wd + ' '; }
+  g.fillText(line, 30, y); t.needsUpdate = true;
+}
+function drawMelButtons() {
+  voiceBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.voice ? '#ffffff' : '#1d1b18']], k === mel.voice ? { bg: '#1d1b18' } : {}));
+  styleBtns.forEach((b, k) => printText(b.L, [[b.name, 36, k === mel.style ? '#ffffff' : '#1d1b18']], k === mel.style ? { bg: '#1d1b18', radius: 12 } : {}));
+  chordBtns.forEach((b, d) => printText(b.L, [[chordLabel(d), 76, d === mel.chord ? '#ffffff' : '#1d1b18'], [ROMANS[d], 40, d === mel.chord ? '#cfe9b8' : '#5a554d']], d === mel.chord ? { bg: '#3d7a12' } : {}));
+}
+const KEY_TINT = { inW: new THREE.Color('#fbf8f2'), outW: new THREE.Color('#a9a297'), homeW: new THREE.Color('#bfe39a'), inB: new THREE.Color('#3a3530'), outB: new THREE.Color('#121110'), homeB: new THREE.Color('#4d7a2a') };
+function melKeyChanged() {
+  const sc = galleryScale(), home = NOTE_SEMI[org.root];
+  for (const kb of keyboards) for (const k of kb.keys) {
+    const pc = k.m % 12, inS = sc.includes(pc);
+    k.base = k.black ? (pc === home ? KEY_TINT.homeB : inS ? KEY_TINT.inB : KEY_TINT.outB) : (pc === home ? KEY_TINT.homeW : inS ? KEY_TINT.inW : KEY_TINT.outW);
+    k.mat.color.copy(k.base);
+  }
+  drawMelButtons(); drawMelDisplay();
+}
+
+/* ---------- touch, mouse, keys, controller */
+function keyOf(kb, m) { return keyboards[kb].keys.find((k) => k.m === m); }
+function noteOn(id, kb, m) {
+  if (!ac || !melAudio) return;
+  noteOff(id);
+  const h = kb === 0 ? tapeNote(m, mel.voice) : reedNote(m);
+  mel.held.set(id, { kb, m, h, t: performance.now() });
+  const k = keyOf(kb, m); if (k) k.down = (k.down || 0) + 1;
+  melValue = `${kb === 0 ? MT_VOICES[mel.voice][0].toLowerCase() : 'organ'} ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+}
+function noteOff(id) {
+  const n = mel.held.get(id); if (!n) return;
+  n.h.stop(); mel.held.delete(id);
+  const k = keyOf(n.kb, n.m); if (k) k.down = Math.max(0, (k.down || 1) - 1);
+}
+function chordDown(d, id) {
+  mel.chord = d; melHelp = MEL_HELP.chord; melValue = `${ROMANS[d]} · ${chordLabel(d)}`;
+  if (mel.style === 0 && ac && melAudio) { chordUp(); mel.holdChord = { id, notes: chordMidis(d).map((m) => reedNote(m, 0.9)) }; }
+  syncOptigan(); drawMelButtons(); drawMelDisplay(); buzz(8);
+}
+function chordUp(id) {
+  if (!mel.holdChord || (id !== undefined && mel.holdChord.id !== id)) return;
+  mel.holdChord.notes.forEach((n) => n.stop()); mel.holdChord = null;
+  if (mel.style === 0) { mel.chord = null; drawMelButtons(); drawMelDisplay(); }
+}
+function melButton(u, id) {
+  if (u.t === 'voice') { mel.voice = u.i; melHelp = MEL_HELP.voice; melValue = MT_VOICES[u.i][0]; buzz(8); }
+  if (u.t === 'style') {
+    mel.style = u.i; melHelp = MEL_HELP.style; melValue = OPT_STYLES[u.i];
+    if (mel.style === 0) { mel.chord = null; } else if (mel.chord === null) mel.chord = 0;
+    if (mel.timer) { clearInterval(mel.timer); mel.timer = null; }
+    syncOptigan(); buzz(8);
+  }
+  if (u.t === 'chord') { chordDown(u.i, id); return; }
+  drawMelButtons(); drawMelDisplay();
+}
+function melRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(melCtrls, false)[0]; }
+const melPtr = new Map();                                  // pointerId → what it's holding
+function melDown(e) {
+  const h = melRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  mFocus = -1;
+  const u = h.object.userData;
+  melPtr.set(e.pointerId, u);
+  if (u.t === 'key') { melHelp = MEL_HELP.key; noteOn('p' + e.pointerId, u.kb, u.m); drawMelDisplay(); }
+  else melButton(u, 'p' + e.pointerId);
+}
+function melMove(e) {
+  const u = melPtr.get(e.pointerId); if (!u || u.t !== 'key') return;
+  const h = melRay(e);
+  if (h && h.object.userData.t === 'key') {               // slide along the keys
+    const v = h.object.userData;
+    if (v.kb !== u.kb || v.m !== u.m) { melPtr.set(e.pointerId, v); noteOn('p' + e.pointerId, v.kb, v.m); drawMelDisplay(); }
+  }
+}
+function melUp(e) {
+  const u = melPtr.get(e.pointerId); if (!u) return;
+  melPtr.delete(e.pointerId);
+  if (u.t === 'key') noteOff('p' + e.pointerId);
+  if (u.t === 'chord') chordUp('p' + e.pointerId);
+}
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i }))];
+for (const kb of [0, 1]) for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb, m });
+let mFocus = -1;
+function mFocusSet(i) {
+  mFocus = i; if (i < 0) return;
+  const f = M_STATIONS[i]; melHelp = MEL_HELP[f.t];
+  melValue = f.t === 'key' ? `${f.kb ? 'Optigan' : 'Mellotron'} ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}` : f.t === 'voice' ? MT_VOICES[f.i][0] : OPT_STYLES[f.i];
+  drawMelDisplay(); blip(660, 0.04, 0.03);
+}
+function melStep(d) { mFocusSet(mFocus < 0 ? (d > 0 ? 0 : M_STATIONS.length - 1) : (mFocus + d + M_STATIONS.length) % M_STATIONS.length); }
+function melAdjust(d) {
+  if (mFocus < 0) { mFocusSet(0); return; }
+  const f = M_STATIONS[mFocus];
+  if (f.t === 'key') { const j = M_STATIONS.findIndex((q) => q.t === 'key' && q.kb === (d > 0 ? 1 : 0) && q.m === f.m); if (j >= 0) mFocusSet(j); return; }
+  melStep(-d);
+}
+function melPress(down) {
+  if (mFocus < 0) { if (down) mFocusSet(0); return; }
+  const f = M_STATIONS[mFocus];
+  if (f.t === 'key') { if (down) noteOn('kb', f.kb, f.m); else noteOff('kb'); drawMelDisplay(); return; }
+  if (f.t === 'chord') { if (down) chordDown(f.i, 'kb'); else chordUp('kb'); return; }
+  if (down) melButton(f, 'kb');
+}
+function makeMelodyMachine() {
+  const fit = [];
+  for (const x of [-1.0, 1.0]) { fit.push([melG, new THREE.Vector3(x, 0.84, 0.26)]); fit.push([melG, new THREE.Vector3(x, 1.17, -0.62)]); }
+  for (const x of [-0.66, 0.66]) for (const y of [1.72, 2.13]) fit.push([melG, new THREE.Vector3(x, y, -0.78)]);
+  return {
+    al: MEL_I, base: melG, fit, elev: [0.95, 0.72], stand: 1.0,
+    down: melDown, move: melMove, up: melUp, step: melStep, adjust: melAdjust, press: melPress,
+    enter() { mFocus = -1; melHelp = MEL_HELP.start; melValue = ''; drawMelButtons(); drawMelDisplay(); },
+    exit() { for (const id of [...mel.held.keys()]) noteOff(id); melPtr.clear(); chordUp(); mFocus = -1; },
+  };
+}
+melKeyChanged();
+
+/* ---------- every frame: pressed keys, focus glow, the disc, the glowing columns */
+function updateMelody(dt) {
+  const sig = org.root + ':' + org.mood;
+  if (sig !== mel.sig) { mel.sig = sig; melKeyChanged(); }
+  const foc = playing && curM === MEL_M && mFocus >= 0 ? M_STATIONS[mFocus] : null;
+  for (const [kbI, kb] of keyboards.entries()) for (const k of kb.keys) {
+    const down = (k.down || 0) > 0, isF = foc && foc.t === 'key' && foc.kb === kbI && foc.m === k.m;
+    k.mesh.position.y = k.y0 - (down ? 0.009 : 0);
+    k.mat.emissive.set(down ? (kbI === 0 ? '#ffb46b' : '#8fd3ff') : '#ffffff');
+    k.mat.emissiveIntensity = down ? 0.55 : isF ? 0.35 : 0;
+  }
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  voiceBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'voice' && foc.i === k));
+  styleBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'style' && foc.i === k));
+  chordBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'chord' && foc.i === k));
+  // a held tape note fades its key when the tape runs out
+  for (const [id, n] of mel.held) if (n.kb === 0 && performance.now() - n.t > 8000) noteOff(id);
+  if (optRunning() || mel.holdChord) optDisc.rotation.y -= dt * 2.4;
+  let tape = 0, organ = optRunning() || mel.holdChord ? 1 : 0;
+  for (const n of mel.held.values()) { if (n.kb === 0) tape = 1; else organ = 1; }
+  mel.cols[0].emissiveIntensity += ((tape ? 0.55 : 0) - mel.cols[0].emissiveIntensity) * Math.min(1, dt * 6);
+  mel.cols[1].emissiveIntensity += ((organ ? 0.55 : 0) - mel.cols[1].emissiveIntensity) * Math.min(1, dt * 6);
+  if (melAudio) {
+    melAudio.hiss.gain.setTargetAtTime(tape ? 0.006 : 0, ac.currentTime, 0.15);
+  }
+}
+
 /* ---------- play mode: you stand at the machine in first person. The camera
    frames every control at once, and only your arm and hand reach in. */
 const playCam = new THREE.PerspectiveCamera(), camFrom = new THREE.Vector3(), camFromQ = new THREE.Quaternion();
@@ -2206,6 +2587,7 @@ const ORGAN_M = {
   exit() { if (grab) { setHeld(false); clearTimeout(grab.timer); grab = null; } setFocus(-1); },
 };
 const RHY_M = makeRhythmMachine();
+const MEL_M = makeMelodyMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -2262,6 +2644,7 @@ function update(dt) {
   if (npcs.length) updateNpcs(dt, time);
   updateOrgan(dt);
   updateRhythm(dt);
+  updateMelody(dt);
   updateProjector(dt);
 
   // --- door
@@ -2386,6 +2769,9 @@ function updateCaption() {
   if (playing) { c.classList.add('hidden'); return; }
   if (show === ORG_I) {
     c.innerHTML = `<b>VI</b> · The Drone Organ<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the organ to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === MEL_I) {
+    c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the keyboards to play</span>`;
     c.classList.remove('hidden');
   } else if (show === RHY_I) {
     c.innerHTML = `<b>VIII</b> · The Rhythm Wheel<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the wheel to play</span>`;
