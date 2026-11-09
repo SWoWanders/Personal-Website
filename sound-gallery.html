@@ -2256,6 +2256,7 @@ const OPT_PAT = {
 };
 function chordMidis(d) { const base = 57 + ((NOTE_SEMI[org.root] - 9 + 12) % 12); return triad(d).map((x) => base + x); }   // around A3–G#4
 function schedNote(kind, t, m, dur) {
+  glassEvents.push({ t, m, d: Math.max(0.15, dur), lvl: kind === 'bass' ? 0.9 : 0.75 });
   const f = mf(m), g = ac.createGain(); g.connect(melAudio.out);
   if (kind === 'bass') {
     const o = mkOsc('triangle', f), o2 = mkOsc('sine', f * 2); const h = ac.createGain(); h.gain.value = 0.2;
@@ -2422,6 +2423,7 @@ function makeMelodyMachine() {
   const fit = [];
   for (const x of [-1.0, 1.0]) { fit.push([melG, new THREE.Vector3(x, 0.84, 0.26)]); fit.push([melG, new THREE.Vector3(x, 1.17, -0.62)]); }
   for (const x of [-0.66, 0.66]) for (const y of [1.72, 2.13]) fit.push([melG, new THREE.Vector3(x, y, -0.78)]);
+  for (const x of [-1.0, 1.0]) fit.push([melG, new THREE.Vector3(x, 3.52, -0.98)]);
   return {
     al: MEL_I, base: melG, fit, elev: [0.95, 0.72], stand: 1.0,
     down: melDown, move: melMove, up: melUp, step: melStep, adjust: melAdjust, press: melPress,
@@ -2429,10 +2431,94 @@ function makeMelodyMachine() {
     exit() { for (const id of [...mel.held.keys()]) noteOff(id); melPtr.clear(); chordUp(); mFocus = -1; },
   };
 }
+
+/* ---------- the stained-glass light panel above the console
+   Behind a window of tessellated coloured glass sits a grid of bulbs: one row for every key
+   (C3 at the bottom, C5 at the top). Mellotron notes light the warm bulbs in their row,
+   Optigan notes the cool ones, and each piece of glass glows with the bulbs behind it. */
+const GL = { W: 1.9, H: 1.2, rows: KB_HI - KB_LO + 1, cols: 14 };
+const glassG = new THREE.Group(); glassG.position.set(0, 2.88, -0.98); melG.add(glassG);
+const bulbI = new Float32Array(GL.rows * GL.cols), bulbXY = [];
+let bulbMesh, glassPieces = [];
+{
+  // frame and backing box
+  const mFrame = new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: 0.5 });
+  box(GL.W + 0.12, 0.06, 0.22, mFrame, 0, GL.H / 2 + 0.03, -0.08, glassG);
+  box(GL.W + 0.12, 0.06, 0.22, mFrame, 0, -GL.H / 2 - 0.03, -0.08, glassG);
+  box(0.06, GL.H, 0.22, mFrame, GL.W / 2 + 0.03, 0, -0.08, glassG);
+  box(0.06, GL.H, 0.22, mFrame, -GL.W / 2 - 0.03, 0, -0.08, glassG);
+  box(GL.W, GL.H, 0.02, new THREE.MeshBasicMaterial({ color: '#0e0c0a' }), 0, 0, -0.19, glassG);
+  for (const x of [-0.8, 0.8]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2, 8), mChrome); post.position.set(x, -GL.H / 2 - 0.55, -0.1); glassG.add(post); }
+  // the bulbs
+  const geo = new THREE.SphereGeometry(0.017, 10, 8);
+  bulbMesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ toneMapped: false }), GL.rows * GL.cols);
+  const dm = new THREE.Object3D();
+  for (let r = 0; r < GL.rows; r++) for (let c = 0; c < GL.cols; c++) {
+    const x = -GL.W * 0.45 + c * (GL.W * 0.9 / (GL.cols - 1)) + (r % 2 ? 0.02 : -0.02), y = -GL.H * 0.45 + r * (GL.H * 0.9 / (GL.rows - 1));
+    dm.position.set(x, y, -0.13); dm.updateMatrix(); bulbMesh.setMatrixAt(r * GL.cols + c, dm.matrix);
+    bulbXY.push([x, y]); bulbMesh.setColorAt(r * GL.cols + c, new THREE.Color('#2a241c'));
+  }
+  glassG.add(bulbMesh);
+  // the glass: a grid of cells, each a square, two triangles, or four triangles
+  const rnd = rng(1967), pal = ALCOVE_COL.slice(1), cx = 10, cy = 6, cw = GL.W / cx, ch = GL.H / cy;
+  const lead = [];
+  const piece = (pts) => {
+    const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+    const col = new THREE.Color(pal[Math.floor(rnd() * pal.length)]);
+    const mat = new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.3), transparent: true, opacity: 0.72, toneMapped: false, depthWrite: false });
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat); glassG.add(m);
+    const ctr = pts.reduce((a, [x, y]) => [a[0] + x / pts.length, a[1] + y / pts.length], [0, 0]);
+    const near = [];
+    bulbXY.forEach(([bx, by], k) => { const d = Math.hypot(bx - ctr[0], by - ctr[1]); if (d < 0.17) near.push([k, 1 - d / 0.17]); });
+    glassPieces.push({ mat, col, near });
+    for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; lead.push(a[0], a[1], 0.002, b[0], b[1], 0.002); }
+  };
+  for (let i = 0; i < cx; i++) for (let j = 0; j < cy; j++) {
+    const x0 = -GL.W / 2 + i * cw, y0 = -GL.H / 2 + j * ch, x1 = x0 + cw, y1 = y0 + ch, xm = (x0 + x1) / 2, ym = (y0 + y1) / 2, k = rnd();
+    if (k < 0.3) piece([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]);
+    else if (k < 0.65) { if ((i + j) % 2) { piece([[x0, y0], [x1, y0], [x1, y1]]); piece([[x0, y0], [x1, y1], [x0, y1]]); } else { piece([[x0, y0], [x1, y0], [x0, y1]]); piece([[x1, y0], [x1, y1], [x0, y1]]); } }
+    else { piece([[x0, y0], [x1, y0], [xm, ym]]); piece([[x1, y0], [x1, y1], [xm, ym]]); piece([[x1, y1], [x0, y1], [xm, ym]]); piece([[x0, y1], [x0, y0], [xm, ym]]); }
+  }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lead, 3));
+  glassG.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: '#141210' })));
+}
+const glassEvents = [];                                     // backing notes scheduled ahead: light them when they sound
+const BULB_WARM = new THREE.Color('#ffc27a'), BULB_COOL = new THREE.Color('#cfe8ff'), BULB_OFF = new THREE.Color('#2a241c'), _bc = new THREE.Color();
+const bulbInst = (c) => c % 2;                              // even columns: Mellotron; odd: Optigan
+function updateGlass(dt) {
+  const tgt = new Float32Array(GL.rows * GL.cols), now = ac ? ac.currentTime : 0;
+  const light = (m, inst, lvl) => {
+    const r = Math.max(0, Math.min(GL.rows - 1, m - KB_LO));
+    for (const [dr, w] of [[0, 1], [-1, 0.3], [1, 0.3]]) {
+      const rr = r + dr; if (rr < 0 || rr >= GL.rows) continue;
+      for (let c = 0; c < GL.cols; c++) if (bulbInst(c) === inst) { const k = rr * GL.cols + c; tgt[k] = Math.max(tgt[k], lvl * w); }
+    }
+  };
+  for (const n of mel.held.values()) light(n.m, n.kb, 1);
+  if (mel.holdChord) chordMidis(mel.chord ?? 0).forEach((m) => light(m, 1, 0.9));
+  for (let i = glassEvents.length - 1; i >= 0; i--) {
+    const e = glassEvents[i];
+    if (now > e.t + e.d) { glassEvents.splice(i, 1); continue; }
+    if (now >= e.t) light(e.m, 1, e.lvl);
+  }
+  const up = Math.min(1, dt * 25), down = Math.min(1, dt * 4);
+  for (let k = 0; k < bulbI.length; k++) {
+    bulbI[k] += (tgt[k] - bulbI[k]) * (tgt[k] > bulbI[k] ? up : down);
+    _bc.copy(BULB_OFF).lerp(bulbInst(k % GL.cols) ? BULB_COOL : BULB_WARM, Math.min(1, bulbI[k] * 1.2)).multiplyScalar(1 + bulbI[k] * 1.5);
+    bulbMesh.setColorAt(k, _bc);
+  }
+  bulbMesh.instanceColor.needsUpdate = true;
+  for (const p of glassPieces) {
+    let g = 0; for (const [k, w] of p.near) g += bulbI[k] * w;
+    p.mat.color.copy(p.col).multiplyScalar(0.3 + Math.min(1.6, g * 0.55));
+  }
+}
+
 melKeyChanged();
 
 /* ---------- every frame: pressed keys, focus glow, the disc, the glowing columns */
 function updateMelody(dt) {
+  updateGlass(dt);
   const sig = org.root + ':' + org.mood;
   if (sig !== mel.sig) { mel.sig = sig; melKeyChanged(); }
   const foc = playing && curM === MEL_M && mFocus >= 0 ? M_STATIONS[mFocus] : null;
