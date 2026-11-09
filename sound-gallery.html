@@ -207,7 +207,7 @@ function labelTex(i) {
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
   g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Mellotron and the Optigan' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -2075,9 +2075,12 @@ function updateRhythm(dt) {
 }
 
 /* ================================================================== THE MELODY CONSOLE (alcove IV)
-   Two keyboards in one walnut cabinet, after the Mellotron and the Optigan.
-   Front: the Mellotron, a tape keyboard with flutes, strings and choir. Each held note
-     wobbles like old tape and runs out after eight seconds, as the real tapes did.
+   A strum plate and a keyboard in one walnut cabinet, after the Omnichord and the Optigan.
+   Front: a strum plate laid out like the Omnichord's: thirteen touch zones that play the
+     current chord's root, third and fifth, climbing four octaves. Each zone is placed in a
+     fixed pitch window, so the fifth sits below the root and the run zig-zags up, as on the
+     real instrument. Strum across it or tap single zones. The tone is a square wave with an
+     instant attack and a long exponential fade through a fixed filter; one voice has vibrato.
    Behind: the Optigan, a chord organ with its own keys, seven chord buttons built from the
      gallery's key, and four backing styles that keep time with the Rhythm Wheel.
    Keys that belong to the gallery's key are lit; the home note is tinted green.
@@ -2094,10 +2097,13 @@ const PC_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 
 function keyIsFlat() { const r = NOTE_SEMI[org.root], minor = org.mood === 1 || org.mood === 3; return minor ? [2, 7, 0, 5, 10, 3, 8].includes(r) : [5, 10, 3, 8, 1, 6].includes(r); }
 const PC_NAMES = new Proxy([], { get: (_, k) => (keyIsFlat() ? PC_FLAT : PC_SHARP)[k] });
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-const MT_VOICES = [['FLUTES', '#00b8a0'], ['STRINGS', '#e8262b'], ['CHOIR', '#8a4bff']];
+const SP_VOICES = [['PLAIN', '#00b8a0'], ['WAVY', '#e8262b'], ['BLEND', '#8a4bff']];   // the Omnichord's standard voice, its vibrato voice, or both
+const SP_SUS = [['SHORT', 0.13], ['MEDIUM', 0.42], ['LONG', 1.1]];                       // decay time constant, seconds
+const SP_N = 13, SP_LO = 42, SP_HI = 101;                 // thirteen zones; their pitch windows run F♯2 to F7
 const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD'];
 const KB_LO = 48, KB_HI = 72;                            // C3 to C5, two octaves
-const mel = { voice: 0, style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null };
+const mel = { voice: 2, sus: 1, plateChord: 0, plates: Array.from({ length: SP_N }, () => ({ h: null, m: 0, t0: -9, tau: 1 })),
+  style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null };
 function galleryScale() { const root = NOTE_SEMI[org.root]; return SCALES[org.mood].map((x) => (root + x) % 12); }
 function triad(d) {                                     // the chord on scale degree d, as semitones above the home note
   const sc = SCALES[org.mood], n = (k) => sc[(d + k) % 7] + (d + k >= 7 ? 12 : 0);
@@ -2108,13 +2114,21 @@ function chordLabel(d) {
   return PC_NAMES[pc] + (third === 3 ? (fifth === 6 ? '°' : 'm') : '');
 }
 const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
+// the strum plate's notes. Zone i plays the chord's root, third or fifth (i % 3), each in a
+// fixed one-octave window that climbs an octave every three zones; the last zone is the top root.
+// So a C chord reads C3 E3 G2 · C4 E4 G3 · C5 E5 G4 · C6 E6 G5 · C7, like the real strumplate.
+function plateMidi(i, d = mel.plateChord) {
+  const r = NOTE_SEMI[org.root], tones = triad(d).map((x) => (r + x) % 12);
+  const pc = i === SP_N - 1 ? tones[0] : tones[i % 3], lo = SP_LO + 12 * Math.floor(i / 3);
+  return lo + ((pc - (lo % 12)) + 12) % 12;
+}
 
 // mG: x = player's right, +z = toward the player, y = up
 const melG = new THREE.Group(); melG.position.set(0, 0.15, A + 1.25); melG.rotation.y = Math.PI; melAl.g.add(melG);
 const mWalnut = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
 const mCream = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
-const keyboards = [];                                   // [0] Mellotron (front), [1] Optigan (raised, behind)
-let voiceBtns = [], styleBtns = [], chordBtns = [], melDispL, optDisc;
+const keyboards = [];                                   // [1] Optigan (raised, behind); the front tier is the strum plate
+let voiceBtns = [], susBtns = [], styleBtns = [], chordBtns = [], plateSegs = [], plateNamesL, melDispL, optDisc;
 function buildKeys(kb, parent, y, z) {
   const g = new THREE.Group(); g.position.set(0, y, z); parent.add(g);
   const WW = 0.086, startX = -(15 * WW) / 2 + WW / 2, WI = [0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6], LEFT = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
@@ -2131,21 +2145,36 @@ function buildKeys(kb, parent, y, z) {
   return { g, keys };
 }
 {
-  // lower cabinet and the Mellotron's keybed
+  // lower cabinet and the strum plate's bed
   melHits.push(box(2.0, 0.78, 0.66, mWalnut, 0, 0.39, -0.06, melG));
   melHits.push(box(2.02, 0.04, 0.38, mCream, 0, 0.8, 0.1, melG));
-  keyboards[0] = buildKeys(0, melG, 0.82, 0.13);
+  {
+    // the strum plate: one brushed-metal strip, scored into thirteen zones, low notes on the left
+    const W = 1.27, sw = W / SP_N, x0 = -W / 2 + sw / 2;
+    box(W + 0.05, 0.012, 0.25, mDark, 0, 0.826, 0.135, melG);                       // a dark bezel round the plate
+    for (let i = 0; i < SP_N; i++) {
+      const mat = new THREE.MeshStandardMaterial({ color: '#c6c9cc', metalness: 0.85, roughness: 0.34, envMapIntensity: 0.9, emissive: '#000000' });
+      const s = new THREE.Mesh(new THREE.BoxGeometry(sw - 0.005, 0.014, 0.22), mat);
+      s.position.set(x0 + i * sw, 0.838, 0.135); s.userData = { t: 'plate', i }; melG.add(s); melCtrls.push(s);
+      plateSegs[i] = { mesh: s, mat };
+    }
+    plateNamesL = flatLabel(W, 0.05, 1664, 66, melG, 0, 0.8205, -0.02);             // each zone's note, printed behind it
+  }
   // the Optigan's raised tier behind
   melHits.push(box(2.0, 0.3, 0.44, mWalnut, 0, 0.97, -0.43, melG));
   melHits.push(box(2.02, 0.04, 0.36, mCream, 0, 1.13, -0.4, melG));
   keyboards[1] = buildKeys(1, melG, 1.15, -0.38);
-  // Mellotron voice buttons: left cheek of the front tier
-  MT_VOICES.forEach(([name, col], k) => {
+  // strum plate voice buttons on the left cheek, sustain on the right
+  SP_VOICES.forEach(([name, col], k) => {
     const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.095), mat);
     b.position.set(-0.84, 0.84, 0.23 - k * 0.11); melG.add(b); b.userData = { t: 'voice', i: k }; melCtrls.push(b);
     const L = flatLabel(0.25, 0.09, 256, 92, b, 0, 0.0205, 0); voiceBtns[k] = { mat, L, col, name };
   });
-  { const L = flatLabel(0.32, 0.07, 320, 70, melG, 0.84, 0.823, 0.12); printText(L, [['MELLOTRON', 40, '#5a554d']]); }
+  SP_SUS.forEach(([name], k) => {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.095), mat);
+    b.position.set(0.84, 0.84, 0.23 - k * 0.11); melG.add(b); b.userData = { t: 'sus', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.25, 0.09, 256, 92, b, 0, 0.0205, 0); susBtns[k] = { mat, L, name };
+  });
   // Optigan backing styles: left cheek of the raised tier
   OPT_STYLES.forEach((name, k) => {
     const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.075), mat);
@@ -2192,48 +2221,56 @@ function initMelodyAudio() {
   setPannerPos(pan, melPos); out.connect(pan); pan.connect(hallBus);
   const send = ac.createGain(); send.gain.value = 0.35; out.connect(send); send.connect(reverbIn);
   micTap(out, melPos, 1.5);
-  // tape wobble shared by every Mellotron note: slow drift plus a quick flutter, in cents
-  const wow = ac.createOscillator(); wow.frequency.value = 0.55; const wowG = ac.createGain(); wowG.gain.value = 7; wow.connect(wowG); wow.start();
-  const flut = ac.createOscillator(); flut.frequency.value = 6.3; const flutG = ac.createGain(); flutG.gain.value = 2.5; flut.connect(flutG); flut.start();
   const nlen = ac.sampleRate * 2, nb = ac.createBuffer(1, nlen, ac.sampleRate), nd = nb.getChannelData(0);
   for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
-  // tape hiss and Optigan crackle, faded in while each instrument is sounding
-  const hissS = ac.createBufferSource(); hissS.buffer = nb; hissS.loop = true;
-  const hissF = ac.createBiquadFilter(); hissF.type = 'highpass'; hissF.frequency.value = 3000;
-  const hiss = ac.createGain(); hiss.gain.value = 0; hissS.connect(hissF); hissF.connect(hiss); hiss.connect(out); hissS.start();
-  const crk = ac.createGain(); crk.gain.value = 0; crk.connect(out);
-  melAudio = { out, wowG, flutG, noise: nb, hiss, crk };
+  // the strum plate's circuit: every zone's tone shares one fixed filter, as in the Omnichord,
+  // so a note keeps its hollow, glassy colour all the way down its fade instead of darkening
+  // like a plucked string. One vibrato oscillator wobbles the WAVY voice for every zone at once.
+  const spIn = ac.createGain();
+  const spHP = ac.createBiquadFilter(); spHP.type = 'highpass'; spHP.frequency.value = 120; spHP.Q.value = 0.5;
+  const spLP = ac.createBiquadFilter(); spLP.type = 'lowpass'; spLP.frequency.value = 3000; spLP.Q.value = 0.55;
+  const spLP2 = ac.createBiquadFilter(); spLP2.type = 'lowpass'; spLP2.frequency.value = 7000; spLP2.Q.value = 0.5;
+  const spSat = ac.createWaveShaper(); spSat.curve = softClipCurve(); spSat.oversample = '2x';
+  spIn.connect(spHP); spHP.connect(spLP); spLP.connect(spLP2); spLP2.connect(spSat); spSat.connect(out);
+  const vib = ac.createOscillator(); vib.frequency.value = 5.6; const vibG = ac.createGain(); vibG.gain.value = 16; vib.connect(vibG); vib.start();
+  melAudio = { out, noise: nb, spIn, vibG };
 }
-function linkWobble(o) { melAudio.wowG.connect(o.detune); melAudio.flutG.connect(o.detune); }
+function softClipCurve() {                                  // gentle tanh rounding, like the analogue output stage
+  const n = 1024, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); }
+  return c;
+}
 function mkOsc(type, f, det = 0) { const o = ac.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det; return o; }
-// a Mellotron note: returns a handle with stop()
-function tapeNote(m, voice) {
-  const t = ac.currentTime, f = mf(m), g = ac.createGain(), oscs = [];
-  g.gain.setValueAtTime(0.0001, t); g.connect(melAudio.out);
-  if (voice === 0) {                                     // flutes: soft sine, a breath of noise
-    const o = mkOsc('sine', f), o2 = mkOsc('triangle', f * 2), g2 = ac.createGain(); g2.gain.value = 0.12;
-    o.connect(g); o2.connect(g2); g2.connect(g); oscs.push(o, o2);
-    const n = ac.createBufferSource(); n.buffer = melAudio.noise; n.loop = true; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 2; bp.Q.value = 3;
-    const ng = ac.createGain(); ng.gain.value = 0.18; n.connect(bp); bp.connect(ng); ng.connect(g); oscs.push(n);
-    g.gain.linearRampToValueAtTime(0.2, t + 0.09);
-  } else if (voice === 1) {                              // strings: three detuned saws, rounded off
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400 + f * 1.5; lp.Q.value = 0.5; lp.connect(g);
-    for (const d of [-8, 0, 7]) { const o = mkOsc('sawtooth', f, d); o.connect(lp); oscs.push(o); }
-    g.gain.linearRampToValueAtTime(0.075, t + 0.32);
-  } else {                                               // choir: saws through "ah" vowel filters
-    const mix = ac.createGain(); mix.gain.value = 1;
-    for (const [fq, q, a] of [[730, 6, 1], [1090, 7, 0.6], [2440, 8, 0.25]]) { const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = q; const bg = ac.createGain(); bg.gain.value = a; mix.connect(bp); bp.connect(bg); bg.connect(g); }
-    for (const d of [-6, 5]) { const o = mkOsc('sawtooth', f, d); o.connect(mix); oscs.push(o); }
-    const v = mkOsc('sine', 5.2), vg = ac.createGain(); vg.gain.value = 9; v.connect(vg); oscs.push(v);
-    oscs.forEach((o) => { if (o.detune && o !== v) vg.connect(o.detune); });
-    g.gain.linearRampToValueAtTime(0.5, t + 0.38);
-  }
-  oscs.forEach((o) => { if (o.detune) linkWobble(o); o.start(t); });
-  // the tape runs out after eight seconds
-  g.gain.setValueAtTime(g.gain.value, t + 7.4); g.gain.linearRampToValueAtTime(0.0001, t + 8);
+// one strum-plate zone sounds: an instant attack, then a long exponential fade. A zone
+// struck again while still ringing restarts its fade, as touching a real zone recharges it.
+function strumZone(i, delay = 0) {
+  if (!ac || !melAudio) return;
+  const z = mel.plates[i], m = plateMidi(i), t = ac.currentTime + 0.004 + delay, f = mf(m), tau = SP_SUS[mel.sus][1];
+  if (z.h) z.h.stop(t);
+  const g = ac.createGain(); g.connect(melAudio.spIn);
+  const pk = 0.07 * Math.pow(0.988, m - 60);               // high zones a touch quieter, as the ear hears them louder
+  const mix = [[0, 1], [1, 0], [0.62, 0.62]][mel.voice]; // [vibrato voice, standard voice]
+  const oscs = [];
+  mix.forEach((a, k) => {
+    if (!a) return;
+    const o = mkOsc('square', f), og = ac.createGain(); og.gain.value = a;
+    if (k === 0) melAudio.vibG.connect(o.detune);
+    o.connect(og); og.connect(g); oscs.push(o);
+  });
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(pk, t + 0.0025); g.gain.setTargetAtTime(0, t + 0.0025, tau);
+  const end = t + tau * 8 + 0.05;
+  oscs.forEach((o) => { o.start(t); o.stop(end); });
   let done = false;
-  return { stop() { if (done) return; done = true; const tt = ac.currentTime; g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, 0.07); oscs.forEach((o) => o.stop(tt + 0.5)); } };
+  const h = { stop(at) { if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime); g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, 0.004); oscs.forEach((o) => { try { o.stop(tt + 0.04); } catch (e) {} }); } };
+  Object.assign(z, { h, m, t0: t, tau });
+  melValue = `strum ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 }
+// a run across the plate, as a keyboard or controller strum: about 18 ms between zones
+function strumRun(dir) {
+  for (let k = 0; k < SP_N; k++) strumZone(dir > 0 ? k : SP_N - 1 - k, k * 0.018);
+  buzz(12); drawMelDisplay();
+}
+function plateLevel(i, now) { const z = mel.plates[i]; return now < z.t0 ? 0 : Math.exp(-(now - z.t0) / z.tau); }
 // an Optigan note: a reedy chord-organ tone
 function reedNote(m, vel = 1, dur = 0) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
@@ -2298,8 +2335,10 @@ function syncOptigan() {
 /* ---------- labels and display */
 let melHelp = '', melValue = '';
 const MEL_HELP = {
-  start: 'Play the front keyboard (Mellotron) for tape flutes, strings or choir. The raised keyboard is the Optigan organ; its chord buttons give you a backing in the gallery’s key. Lit keys fit the key; green is home. Keys: ← → choose, Enter play. Controller: d-pad, Ⓐ, Ⓑ leave.',
-  voice: 'Mellotron voice: flutes, strings or choir, each on its own tape. Hold a note and the tape runs out after eight seconds, just like the real thing.',
+  start: 'Strum across the metal plate, or tap single zones: it plays the chord picked on the Optigan’s chord buttons. The raised keyboard is the Optigan organ. Keys: ← → choose, Enter play, ↑ ↓ strum. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  voice: 'Strum plate voice: PLAIN is the steady tone, WAVY adds vibrato, BLEND mixes the two for a shimmer.',
+  sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
+  plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
   style: 'Optigan backing: pick a style, then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
   chord: 'Chord buttons: the seven chords that belong to the gallery’s key. Try I, then IV, then V, then back to I.',
   key: 'Lit keys belong to the gallery’s key, so they always sound right. Green keys are the home note. Slide along the keys to glide.',
@@ -2309,11 +2348,11 @@ function drawMelDisplay() {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
   g.fillStyle = '#66c000'; g.fillRect(0, 0, c.width, 10);
   g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 72px ${FONT}`;
-  const head = mel.chord !== null ? chordLabel(mel.chord) : PC_NAMES[NOTE_SEMI[org.root]] + (org.mood === 1 ? 'm' : '');
+  const head = chordLabel(mel.chord ?? mel.plateChord);
   g.fillText(head, 34, 84);
   const hw = g.measureText(head).width;
   g.fillStyle = '#5a554d'; g.font = `bold 38px ${FONT}`;
-  g.fillText(`TAPE: ${MT_VOICES[mel.voice][0]}   \u00B7   BACKING: ${OPT_STYLES[mel.style]}`, 70 + hw, 80);
+  g.fillText(`STRUM: ${SP_VOICES[mel.voice][0]} \u00B7 ${SP_SUS[mel.sus][0]}   \u00B7   BACKING: ${OPT_STYLES[mel.style]}`, 70 + hw, 80);
   if (melValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 46px ${FONT}`; g.fillText(melValue, c.width - 34, 82); g.textAlign = 'left'; }
   g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
   const words = melHelp.split(' '); let line = '', y = 142;
@@ -2322,13 +2361,20 @@ function drawMelDisplay() {
 }
 function drawMelButtons() {
   voiceBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.voice ? '#ffffff' : '#1d1b18']], k === mel.voice ? { bg: '#1d1b18' } : {}));
+  susBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.sus ? '#ffffff' : '#1d1b18']], k === mel.sus ? { bg: '#1d1b18' } : {}));
+  // each zone's note for the current chord, printed behind the plate
+  { const { g, c, t } = plateNamesL, sw = c.width / SP_N; g.clearRect(0, 0, c.width, c.height);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold 34px ${FONT}`;
+    const home = NOTE_SEMI[org.root];
+    for (let i = 0; i < SP_N; i++) { const m = plateMidi(i); g.fillStyle = m % 12 === (home + triad(mel.plateChord)[0]) % 12 ? '#3d7a12' : '#5a554d'; g.fillText(`${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`, sw * (i + 0.5), c.height / 2); }
+    t.needsUpdate = true; }
   styleBtns.forEach((b, k) => printText(b.L, [[b.name, 36, k === mel.style ? '#ffffff' : '#1d1b18']], k === mel.style ? { bg: '#1d1b18', radius: 12 } : {}));
   chordBtns.forEach((b, d) => printText(b.L, [[chordLabel(d), 76, d === mel.chord ? '#ffffff' : '#1d1b18'], [ROMANS[d], 40, d === mel.chord ? '#cfe9b8' : '#5a554d']], d === mel.chord ? { bg: '#3d7a12' } : {}));
 }
 const KEY_TINT = { inW: new THREE.Color('#fbf8f2'), outW: new THREE.Color('#a9a297'), homeW: new THREE.Color('#bfe39a'), inB: new THREE.Color('#6e665b'), outB: new THREE.Color('#121110'), homeB: new THREE.Color('#4d7a2a') };
 function melKeyChanged() {
   const sc = galleryScale(), home = NOTE_SEMI[org.root];
-  for (const kb of keyboards) for (const k of kb.keys) {
+  for (const kb of keyboards) if (kb) for (const k of kb.keys) {
     const pc = k.m % 12, inS = sc.includes(pc);
     k.base = k.black ? (pc === home ? KEY_TINT.homeB : inS ? KEY_TINT.inB : KEY_TINT.outB) : (pc === home ? KEY_TINT.homeW : inS ? KEY_TINT.inW : KEY_TINT.outW);
     k.mat.color.copy(k.base);
@@ -2341,10 +2387,10 @@ function keyOf(kb, m) { return keyboards[kb].keys.find((k) => k.m === m); }
 function noteOn(id, kb, m) {
   if (!ac || !melAudio) return;
   noteOff(id);
-  const h = kb === 0 ? tapeNote(m, mel.voice) : reedNote(m);
+  const h = reedNote(m);
   mel.held.set(id, { kb, m, h, t: performance.now() });
   const k = keyOf(kb, m); if (k) k.down = (k.down || 0) + 1;
-  melValue = `${kb === 0 ? MT_VOICES[mel.voice][0].toLowerCase() : 'organ'} ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+  melValue = `organ ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 }
 function noteOff(id) {
   const n = mel.held.get(id); if (!n) return;
@@ -2352,7 +2398,7 @@ function noteOff(id) {
   const k = keyOf(n.kb, n.m); if (k) k.down = Math.max(0, (k.down || 1) - 1);
 }
 function chordDown(d, id) {
-  mel.chord = d; melHelp = MEL_HELP.chord; melValue = `${ROMANS[d]} · ${chordLabel(d)}`;
+  mel.chord = d; mel.plateChord = d; melHelp = MEL_HELP.chord; melValue = `${ROMANS[d]} · ${chordLabel(d)}`;
   if (mel.style === 0 && ac && melAudio) { chordUp(); mel.holdChord = { id, notes: chordMidis(d).map((m) => reedNote(m, 0.9)) }; }
   syncOptigan(); drawMelButtons(); drawMelDisplay(); buzz(8);
 }
@@ -2362,7 +2408,9 @@ function chordUp(id) {
   if (mel.style === 0) { mel.chord = null; drawMelButtons(); drawMelDisplay(); }
 }
 function melButton(u, id) {
-  if (u.t === 'voice') { mel.voice = u.i; melHelp = MEL_HELP.voice; melValue = MT_VOICES[u.i][0]; buzz(8); }
+  if (u.t === 'voice') { mel.voice = u.i; melHelp = MEL_HELP.voice; melValue = SP_VOICES[u.i][0]; buzz(8); }
+  if (u.t === 'sus') { mel.sus = u.i; melHelp = MEL_HELP.sus; melValue = 'sustain ' + SP_SUS[u.i][0].toLowerCase(); buzz(8); }
+  if (u.t === 'plate') { melHelp = MEL_HELP.plate; strumZone(u.i); buzz(6); drawMelDisplay(); return; }
   if (u.t === 'style') {
     mel.style = u.i; melHelp = MEL_HELP.style; melValue = OPT_STYLES[u.i];
     if (mel.style === 0) { mel.chord = null; } else if (mel.chord === null) mel.chord = 0;
@@ -2379,12 +2427,22 @@ function melDown(e) {
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   mFocus = -1;
   const u = h.object.userData;
-  melPtr.set(e.pointerId, u);
+  melPtr.set(e.pointerId, u.t === 'plate' ? { t: 'plate', i: u.i } : u);
   if (u.t === 'key') { melHelp = MEL_HELP.key; noteOn('p' + e.pointerId, u.kb, u.m); drawMelDisplay(); }
   else melButton(u, 'p' + e.pointerId);
 }
 function melMove(e) {
-  const u = melPtr.get(e.pointerId); if (!u || u.t !== 'key') return;
+  const u = melPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'plate') {                                   // strumming: sound every zone the finger crosses, in order
+    const h = melRay(e), v = h && h.object.userData;
+    if (v && v.t === 'plate' && v.i !== u.i) {
+      const dir = Math.sign(v.i - u.i);
+      for (let i = u.i + dir; i !== v.i + dir; i += dir) strumZone(i);
+      u.i = v.i; drawMelDisplay();
+    }
+    return;
+  }
+  if (u.t !== 'key') return;
   const h = melRay(e);
   if (h && h.object.userData.t === 'key') {               // slide along the keys
     const v = h.object.userData;
@@ -2397,20 +2455,26 @@ function melUp(e) {
   if (u.t === 'key') noteOff('p' + e.pointerId);
   if (u.t === 'chord') chordUp('p' + e.pointerId);
 }
-const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i }))];
-for (const kb of [0, 1]) for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb, m });
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i }))];
+for (let i = 0; i < SP_N; i++) M_STATIONS.push({ t: 'plate', i });
+for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb: 1, m });
 let mFocus = -1;
 function mFocusSet(i) {
   mFocus = i; if (i < 0) return;
   const f = M_STATIONS[i]; melHelp = MEL_HELP[f.t];
-  melValue = f.t === 'key' ? `${f.kb ? 'Optigan' : 'Mellotron'} ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}` : f.t === 'voice' ? MT_VOICES[f.i][0] : OPT_STYLES[f.i];
+  melValue = f.t === 'key' ? `Optigan ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}`
+    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : OPT_STYLES[f.i];
   drawMelDisplay(); blip(660, 0.04, 0.03);
 }
 function melStep(d) { mFocusSet(mFocus < 0 ? (d > 0 ? 0 : M_STATIONS.length - 1) : (mFocus + d + M_STATIONS.length) % M_STATIONS.length); }
 function melAdjust(d) {
   if (mFocus < 0) { mFocusSet(0); return; }
   const f = M_STATIONS[mFocus];
-  if (f.t === 'key') { const j = M_STATIONS.findIndex((q) => q.t === 'key' && q.kb === (d > 0 ? 1 : 0) && q.m === f.m); if (j >= 0) mFocusSet(j); return; }
+  if (f.t === 'plate') { strumRun(d); return; }          // ↑ strums up the plate, ↓ strums down
+  if (f.t === 'key') {                                     // ↓ from a key drops to the plate zone in front of it
+    if (d < 0) { const j = M_STATIONS.findIndex((q) => q.t === 'plate' && q.i === Math.round((f.m - KB_LO) / (KB_HI - KB_LO) * (SP_N - 1))); if (j >= 0) mFocusSet(j); }
+    return;
+  }
   melStep(-d);
 }
 function melPress(down) {
@@ -2434,7 +2498,7 @@ function makeMelodyMachine() {
 
 /* ---------- the stained-glass light panel above the console
    Behind a window of tessellated coloured glass sits a grid of bulbs: one row for every key
-   (C3 at the bottom, C5 at the top). Mellotron notes light the warm bulbs in their row,
+   (C3 at the bottom, C5 at the top). strum-plate notes light the warm bulbs (its four octaves spread over the rows),
    Optigan notes the cool ones, and each piece of glass glows with the bulbs behind it. */
 const GL = { W: 1.9, H: 0.72, rows: KB_HI - KB_LO + 1, cols: 14 };
 const glassG = new THREE.Group(); glassG.position.set(0, 2.15, -0.98); melG.add(glassG);
@@ -2484,17 +2548,21 @@ let bulbMesh, glassPieces = [];
 }
 const glassEvents = [];                                     // backing notes scheduled ahead: light them when they sound
 const BULB_WARM = new THREE.Color('#ffc27a'), BULB_COOL = new THREE.Color('#cfe8ff'), BULB_OFF = new THREE.Color('#2a241c'), _bc = new THREE.Color();
-const bulbInst = (c) => c % 2;                              // even columns: Mellotron; odd: Optigan
+const bulbInst = (c) => c % 2;                              // even columns: strum plate; odd: Optigan
 function updateGlass(dt) {
   const tgt = new Float32Array(GL.rows * GL.cols), now = ac ? ac.currentTime : 0;
-  const light = (m, inst, lvl) => {
-    const r = Math.max(0, Math.min(GL.rows - 1, m - KB_LO));
+  const light = (m, inst, lvl, row) => {
+    const r = Math.max(0, Math.min(GL.rows - 1, row ?? m - KB_LO));
     for (const [dr, w] of [[0, 1], [-1, 0.3], [1, 0.3]]) {
       const rr = r + dr; if (rr < 0 || rr >= GL.rows) continue;
       for (let c = 0; c < GL.cols; c++) if (bulbInst(c) === inst) { const k = rr * GL.cols + c; tgt[k] = Math.max(tgt[k], lvl * w); }
     }
   };
   for (const n of mel.held.values()) light(n.m, n.kb, 1);
+  for (let i = 0; i < SP_N; i++) {                          // strum-plate notes: warm bulbs, their whole range spread up the window
+    const z = mel.plates[i], lvl = plateLevel(i, now);
+    if (lvl > 0.03) light(z.m, 0, Math.min(1, lvl * 1.15), Math.round((z.m - SP_LO) / (SP_HI - SP_LO) * (GL.rows - 1)));
+  }
   if (mel.holdChord) chordMidis(mel.chord ?? 0).forEach((m) => light(m, 1, 0.9));
   for (let i = glassEvents.length - 1; i >= 0; i--) {
     const e = glassEvents[i];
@@ -2522,7 +2590,7 @@ function updateMelody(dt) {
   const sig = org.root + ':' + org.mood;
   if (sig !== mel.sig) { mel.sig = sig; melKeyChanged(); }
   const foc = playing && curM === MEL_M && mFocus >= 0 ? M_STATIONS[mFocus] : null;
-  for (const [kbI, kb] of keyboards.entries()) for (const k of kb.keys) {
+  for (const [kbI, kb] of keyboards.entries()) if (kb) for (const k of kb.keys) {
     const down = (k.down || 0) > 0, isF = foc && foc.t === 'key' && foc.kb === kbI && foc.m === k.m;
     k.mesh.position.y = k.y0 - (down ? 0.009 : 0);
     k.mat.emissive.set(down ? (kbI === 0 ? '#ffb46b' : '#8fd3ff') : '#ffffff');
@@ -2530,18 +2598,19 @@ function updateMelody(dt) {
   }
   const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
   voiceBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'voice' && foc.i === k));
+  susBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'sus' && foc.i === k));
+  // plate zones glow as they ring and fade with the sound
+  const now = ac ? ac.currentTime : 0; let ring = 0;
+  plateSegs.forEach((s, i) => {
+    const lvl = plateLevel(i, now), isF = foc && foc.t === 'plate' && foc.i === i; ring = Math.max(ring, lvl);
+    s.mat.emissive.set(lvl > 0.02 ? '#ffc27a' : '#ffffff'); s.mat.emissiveIntensity = lvl > 0.02 ? 0.15 + lvl * 0.75 : isF ? 0.35 : 0;
+  });
   styleBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'style' && foc.i === k));
   chordBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'chord' && foc.i === k));
-  // a held tape note fades its key when the tape runs out
-  for (const [id, n] of mel.held) if (n.kb === 0 && performance.now() - n.t > 8000) noteOff(id);
   if (optRunning() || mel.holdChord) optDisc.rotation.y -= dt * 2.4;
-  let tape = 0, organ = optRunning() || mel.holdChord ? 1 : 0;
-  for (const n of mel.held.values()) { if (n.kb === 0) tape = 1; else organ = 1; }
-  mel.cols[0].emissiveIntensity += ((tape ? 0.55 : 0) - mel.cols[0].emissiveIntensity) * Math.min(1, dt * 6);
+  const organ = optRunning() || mel.holdChord || mel.held.size ? 1 : 0;
+  mel.cols[0].emissiveIntensity += (Math.min(0.6, ring * 0.7) - mel.cols[0].emissiveIntensity) * Math.min(1, dt * 10);
   mel.cols[1].emissiveIntensity += ((organ ? 0.55 : 0) - mel.cols[1].emissiveIntensity) * Math.min(1, dt * 6);
-  if (melAudio) {
-    melAudio.hiss.gain.setTargetAtTime(tape ? 0.006 : 0, ac.currentTime, 0.15);
-  }
 }
 
 /* ---------- play mode: you stand at the machine in first person. The camera
@@ -2861,7 +2930,7 @@ function updateCaption() {
     c.innerHTML = `<b>VI</b> · The Drone Organ<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the organ to play</span>`;
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
-    c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the keyboards to play</span>`;
+    c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
     c.classList.remove('hidden');
   } else if (show === RHY_I) {
     c.innerHTML = `<b>VIII</b> · The Rhythm Wheel<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the wheel to play</span>`;
