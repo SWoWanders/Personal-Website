@@ -2465,7 +2465,7 @@ let bulbMesh, glassPieces = [];
   const piece = (pts) => {
     const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
     const col = new THREE.Color(pal[Math.floor(rnd() * pal.length)]);
-    const mat = new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.3), transparent: true, opacity: 0.72, toneMapped: false, depthWrite: false });
+    const mat = new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.1), transparent: true, opacity: 0.8, toneMapped: false, depthWrite: false });
     const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat); glassG.add(m);
     const ctr = pts.reduce((a, [x, y]) => [a[0] + x / pts.length, a[1] + y / pts.length], [0, 0]);
     const near = [];
@@ -2510,7 +2510,7 @@ function updateGlass(dt) {
   bulbMesh.instanceColor.needsUpdate = true;
   for (const p of glassPieces) {
     let g = 0; for (const [k, w] of p.near) g += bulbI[k] * w;
-    p.mat.color.copy(p.col).multiplyScalar(0.3 + Math.min(1.6, g * 0.55));
+    p.mat.color.copy(p.col).multiplyScalar(0.1 + Math.min(1.9, g * 1.0));   // dim at rest, blazing when lit
   }
 }
 
