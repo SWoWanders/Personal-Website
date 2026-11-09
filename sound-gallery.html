@@ -2240,7 +2240,24 @@ function buildKeys(kb, parent, y, z) {
   optDisc = new THREE.Group(); optDisc.position.set(0.84, 1.16, -0.4); melG.add(optDisc);
   { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 48), new THREE.MeshPhysicalMaterial({ color: '#d8e4ea', roughness: 0.1, transmission: 0.5, thickness: 0.01, transparent: true, opacity: 0.85 }));
     optDisc.add(d);
-    for (let r = 0; r < 5; r++) { const ring = new THREE.Mesh(new THREE.RingGeometry(0.04 + r * 0.022, 0.046 + r * 0.022, 48), new THREE.MeshBasicMaterial({ color: '#3a4a52', side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.007; optDisc.add(ring); }
+    // printed like a real Optigan disc: rings of optical sound tracks, each broken into a different
+    // pattern of dashes, around a coloured label, so you can see it turn
+    { const L = canvasTex(512, 512), { g, c } = L, cx = 256;
+      g.clearRect(0, 0, 512, 512);
+      for (let r = 0; r < 9; r++) {
+        const rad = 92 + r * 18, n = 24 + ((r * 7) % 5) * 12;
+        g.strokeStyle = r % 3 === 2 ? '#7a2a2a' : '#26343b'; g.lineWidth = 9;
+        for (let k = 0; k < n; k++) {
+          const a0 = k / n * Math.PI * 2, len = (0.35 + 0.55 * Math.abs(Math.sin(k * (r + 3) * 1.7))) / n * Math.PI * 2;
+          g.beginPath(); g.arc(cx, cx, rad, a0, a0 + len); g.stroke();
+        }
+      }
+      g.fillStyle = '#e8262b'; g.beginPath(); g.arc(cx, cx, 74, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#f6f2ea'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 74, -0.5, 0.5); g.fill();
+      g.fillStyle = '#ffd000'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 74, 2.6, 3.4); g.fill();
+      L.t.needsUpdate = true;
+      const face = new THREE.Mesh(new THREE.CircleGeometry(0.148, 64), new THREE.MeshBasicMaterial({ map: L.t, transparent: true, toneMapped: false }));
+      face.rotation.x = -Math.PI / 2; face.position.y = 0.0075; optDisc.add(face); }
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 16), mChrome); optDisc.add(hub);
     const L = flatLabel(0.32, 0.06, 320, 60, melG, 0.84, 1.153, -0.2); printText(L, [['OPTIGAN', 40, '#5a554d']]); }
   // the chord panel: a row of seven buttons, leaning back toward you
@@ -2675,7 +2692,10 @@ function updateMelody(dt) {
   });
   styleBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'style' && foc.i === k));
   chordBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'chord' && foc.i === k));
-  if (optRunning() || mel.holdChord) optDisc.rotation.y -= dt * 2.4;
+  // the disc's motor runs while anyone is at the console or the backing plays; it spins up and coasts down
+  const motor = optRunning() || mel.holdChord || mel.held.size || (playing && curM === MEL_M) ? 2.4 : 0;
+  mel.discV = (mel.discV || 0) + (motor - (mel.discV || 0)) * Math.min(1, dt * 1.2);
+  optDisc.rotation.y -= dt * mel.discV;
   const organ = optRunning() || mel.holdChord || mel.held.size ? 1 : 0;
   mel.cols[0].emissiveIntensity += (Math.min(0.6, ring * 0.7) - mel.cols[0].emissiveIntensity) * Math.min(1, dt * 10);
   mel.cols[1].emissiveIntensity += ((organ ? 0.55 : 0) - mel.cols[1].emissiveIntensity) * Math.min(1, dt * 6);
