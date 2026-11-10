@@ -150,7 +150,20 @@ const FONT = 'Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", Arial, sa
 
 /* ------------------------------------------------------------------ renderer */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.25 : 1.5));   // lighter on phones, leaving room for the audio
+const PR_MAX = Math.min(devicePixelRatio, isTouch ? 1.25 : 1.5);
+renderer.setPixelRatio(PR_MAX);   // lighter on phones, leaving room for the audio
+// how far ahead the beat machines queue their notes. A phone drawing 3D can stall for a moment;
+// with a longer queue the notes are already waiting in the audio engine, so the music doesn't stop.
+const LOOKAHEAD = isTouch ? 0.4 : 0.15;
+// adaptive sharpness: if frames are slow, draw fewer pixels so the device has breath left for sound
+const perfGov = { pr: PR_MAX, slow: 0, fast: 0, last: 0 };
+function governFrame() {
+  const now = performance.now(), ft = perfGov.last ? now - perfGov.last : 16; perfGov.last = now;
+  if (ft > 250) return;                                          // a hidden tab or a one-off hitch
+  if (ft > 30) { perfGov.slow++; perfGov.fast = 0; } else if (ft < 19) { perfGov.fast++; perfGov.slow = Math.max(0, perfGov.slow - 1); }
+  if (perfGov.slow > 45 && perfGov.pr > 0.6) { perfGov.pr = Math.max(0.6, perfGov.pr - 0.15); renderer.setPixelRatio(perfGov.pr); perfGov.slow = 0; }
+  if (perfGov.fast > 600 && perfGov.pr < PR_MAX) { perfGov.pr = Math.min(PR_MAX, perfGov.pr + 0.1); renderer.setPixelRatio(perfGov.pr); perfGov.fast = 0; }
+}
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -949,6 +962,8 @@ function initAudio() {
   // a larger audio buffer on phones and tablets: a hair more delay, but no crackle when the device is busy drawing 3D
   const AC = window.AudioContext || window.webkitAudioContext;
   try { ac = new AC({ latencyHint: isTouch ? 'playback' : 'balanced' }); } catch (e) { ac = new AC(); }
+  // if the system pauses the audio (an overloaded phone, a call, another app), start it again
+  ac.onstatechange = () => { if (ac.state !== 'running' && ac.state !== 'closed' && !document.hidden) ac.resume().catch(() => {}); };
   master = ac.createGain(); master.gain.value = 0.78;
   // with several machines playing at once the mix can pile up past full scale, and the speaker's hard
   // clipping is heard as crackle. A firmer compressor, then a soft safety limiter that rounds off
@@ -984,7 +999,7 @@ function initAudio() {
   hallBus = ac.createBiquadFilter(); hallBus.type = 'lowpass'; hallBus.frequency.value = 350; hallBus.Q.value = 0.4; hallBus.connect(master);
   // shared room reverb (a generated hall impulse)
   reverbIn = ac.createGain();
-  const conv = ac.createConvolver(), irLen = Math.floor(ac.sampleRate * 2.8), ir = ac.createBuffer(2, irLen, ac.sampleRate);
+  const conv = ac.createConvolver(), irLen = Math.floor(ac.sampleRate * (isTouch ? 2.0 : 2.8)), ir = ac.createBuffer(2, irLen, ac.sampleRate);
   for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3.2); }
   conv.buffer = ir;
   const wet = ac.createGain(); wet.gain.value = 0.45;
@@ -1986,7 +2001,7 @@ function stepDur() { return 60 / rhy.bpm / 4; }
 function scheduleRhythm() {
   if (!ac || !rhyAudio || !rhy.run) return;
   while (rhy.nextT < ac.currentTime - 0.05) { rhy.nextT += stepDur(); rhy.next = (rhy.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
-  const ahead = ac.currentTime + 0.14;
+  const ahead = ac.currentTime + LOOKAHEAD;
   while (rhy.nextT < ahead) {
     const st = rhy.next, sw = st % 2 ? rhy.swing * stepDur() * 0.66 : 0, t = rhy.nextT + sw;
     RINGS.forEach((R, k) => {
@@ -2575,7 +2590,7 @@ function schedBrush(t, accent) {
 function scheduleOptigan() {
   if (!ac || !melAudio || !mel.style || mel.chord === null) return;
   while (mel.nextT < ac.currentTime - 0.05) { mel.nextT += stepDur(); mel.next = (mel.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
-  const ahead = ac.currentTime + 0.14, P = OPT_PAT[mel.style];
+  const ahead = ac.currentTime + LOOKAHEAD, P = OPT_PAT[mel.style];
   while (mel.nextT < ahead) {
     const st = mel.next, t = mel.nextT, sd = stepDur(), cm = chordMidis(mel.chord), bassRoot = cm[0] - 24;
     if (st in P.bass) schedNote('bass', t, bassRoot + (P.bass[st] ? 7 : 0), sd * (mel.style === 3 ? 7.5 : 1.8));
@@ -3236,7 +3251,7 @@ function bassGrid(st, t) {
 function bassTick() {
   if (!ac || !bassAudio || !bass.pat || rhy.run) return;
   while (bass.nextT < ac.currentTime - 0.05) { bass.nextT += stepDur(); bass.next = (bass.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
-  const ahead = ac.currentTime + 0.14;
+  const ahead = ac.currentTime + LOOKAHEAD;
   while (bass.nextT < ahead) {
     const st = bass.next, sw = st % 2 ? rhy.swing * stepDur() * 0.66 : 0;
     bassGrid(st, bass.nextT + sw);
@@ -3838,7 +3853,7 @@ function stressTick() {
   if (!stress.on || !rhy.run) return;
   if (stressNextT < ac.currentTime) { stressNext = rhy.next; stressNextT = rhy.nextT; }
   while (stressNextT < ac.currentTime - 0.05) { stressNextT += stepDur(); stressNext = (stressNext + 1) % 16; }
-  const ahead = ac.currentTime + 0.14;
+  const ahead = ac.currentTime + LOOKAHEAD;
   while (stressNextT < ahead) {
     for (const G of stress.ghosts) ghostStep(G, stressNext, stressNextT);
     stressNextT += stepDur(); stressNext = (stressNext + 1) % 16;
@@ -3865,12 +3880,13 @@ function stageSummary(S) {
   const fps = secs.map((x) => x.fps), ratio = secs.map((x) => x.ratio), gap = secs.map((x) => x.gap);
   const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
   const r = { fps: Math.round(avg(fps)), fpsMin: Math.min(...fps), ratioMin: Math.min(...ratio), gapMax: Math.round(Math.max(...gap)), heard: S.heard || 0 };
-  r.ok = r.ratioMin > 0.985 && r.gapMax < 130 && r.heard === 0;
+  r.ok = r.ratioMin > 0.985 && r.gapMax < LOOKAHEAD * 900 && r.heard === 0;
   return r;
 }
 function stressReport() {
   const lines = ['Sound Gallery stress test', new Date().toISOString(),
     `Device: ${navigator.userAgent}`, `Cores ${navigator.hardwareConcurrency || '?'} · memory ${navigator.deviceMemory || '?'} GB · screen ${screen.width}x${screen.height} @${devicePixelRatio}`,
+    `Drawing sharpness ${perfGov.pr.toFixed(2)} of ${PR_MAX.toFixed(2)} · note queue ${LOOKAHEAD * 1000} ms`,
     `Audio: ${ac.sampleRate} Hz · base latency ${Math.round((ac.baseLatency || 0) * 1000)} ms · output latency ${Math.round((ac.outputLatency || 0) * 1000)} ms · panning ${PANNING} · touch ${isTouch}`,
     'machines | fps avg/min | audio clock min | scheduler worst gap | crackle taps | verdict'];
   let best = 0;
@@ -3925,6 +3941,7 @@ if (STRESS) {
 
 function loop() {
   requestAnimationFrame(loop);
+  governFrame();
   const dt = Math.min(clock.getDelta(), 0.05);
   update(dt);
   renderer.render(scene, camera);
