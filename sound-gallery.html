@@ -1985,6 +1985,7 @@ const DRUM = {
 function stepDur() { return 60 / rhy.bpm / 4; }
 function scheduleRhythm() {
   if (!ac || !rhyAudio || !rhy.run) return;
+  while (rhy.nextT < ac.currentTime - 0.05) { rhy.nextT += stepDur(); rhy.next = (rhy.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
   const ahead = ac.currentTime + 0.14;
   while (rhy.nextT < ahead) {
     const st = rhy.next, sw = st % 2 ? rhy.swing * stepDur() * 0.66 : 0, t = rhy.nextT + sw;
@@ -2573,6 +2574,7 @@ function schedBrush(t, accent) {
 }
 function scheduleOptigan() {
   if (!ac || !melAudio || !mel.style || mel.chord === null) return;
+  while (mel.nextT < ac.currentTime - 0.05) { mel.nextT += stepDur(); mel.next = (mel.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
   const ahead = ac.currentTime + 0.14, P = OPT_PAT[mel.style];
   while (mel.nextT < ahead) {
     const st = mel.next, t = mel.nextT, sd = stepDur(), cm = chordMidis(mel.chord), bassRoot = cm[0] - 24;
@@ -3233,6 +3235,7 @@ function bassGrid(st, t) {
 }
 function bassTick() {
   if (!ac || !bassAudio || !bass.pat || rhy.run) return;
+  while (bass.nextT < ac.currentTime - 0.05) { bass.nextT += stepDur(); bass.next = (bass.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
   const ahead = ac.currentTime + 0.14;
   while (bass.nextT < ahead) {
     const st = bass.next, sw = st % 2 ? rhy.swing * stepDur() * 0.66 : 0;
@@ -3510,6 +3513,7 @@ function update(dt) {
   updateRhythm(dt);
   updateMelody(dt);
   updateBass(dt);
+  updateStress(dt);
   updateProjector(dt);
 
   // --- door
@@ -3760,6 +3764,164 @@ function toWav(buf) {                                     // 16-bit stereo PCM
   return new Blob([ab], { type: 'audio/wav' });
 }
 function fmt(s) { s = Math.ceil(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+/* ------------------------------------------------------------------ STRESS TEST (open with ?stress)
+   Measures how much sound this device can make before it falls behind. Tap Enter and it walks you
+   straight into the hall, starts all four real machines playing together, then adds stand-in
+   "ghost" machines one at a time, every 20 seconds, up to the full eleven. Each ghost is placed in
+   its own empty alcove with its own 3D panner, echo send and microphone feed, and plays a typical
+   machine's worth of notes (a pad, an arpeggio or a drum part), so the load is like a real one.
+   It watches the audio clock, the frame rate and the timer that schedules notes, and has a
+   button for your ears: tap it whenever you hear crackle. At the end it says how many machines
+   this device handled cleanly, with a Copy button for the numbers. */
+const STRESS = params.has('stress');
+const stress = { on: false, stage: 0, stageT: 0, ghosts: [], sec: [], stages: [], heard: 0, timer: null, chordT: 0, chordI: 0, melT: 0, last: null, ticks: [], frames: 0, done: false };
+const STAGE_SEC = (params.get("stage") ? +params.get("stage") : 20), GHOST_ALCOVES = [1, 2, 3, 5, 9, 10, 11];
+function ghostMachine(k) {
+  const al = alcoves[GHOST_ALCOVES[k]], pos = al.g.localToWorld(new THREE.Vector3(0, 1.2, A + 1.4));
+  const out = ac.createGain(); out.gain.value = 0.35;
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, pos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.2; out.connect(send); send.connect(reverbIn);
+  micTap(out, pos, 1);
+  return { kind: ['pad', 'arp', 'drums'][k % 3], out, notes: 0 };
+}
+function ghostStep(G, st, t) {
+  const sc = galleryScale(), home = NOTE_SEMI[org.root], deg = triad(mel.chord ?? mel.plateChord);
+  const pitch = (d, oct) => 12 * oct + home + d;
+  const note = (m, dur, type, oscs, q) => {                        // a typical synth note: oscillators, a filter, an envelope
+    const g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = q;
+    f.frequency.setValueAtTime(3000, t); f.frequency.setTargetAtTime(800, t, dur * 0.4);
+    f.connect(g); g.connect(G.out);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.01); g.gain.setTargetAtTime(0, t + dur * 0.6, dur * 0.3);
+    for (let i = 0; i < oscs; i++) { const o = mkOsc(type, mf(m), (i - 1) * 6); o.connect(f); o.start(t); o.stop(t + dur * 2.2); }
+    G.notes++;
+  };
+  if (G.kind === 'pad' && st % 8 === 0) deg.forEach((d) => note(pitch(d, 4), stepDur() * 8, 'sawtooth', 3, 0.7));
+  if (G.kind === 'arp') note(pitch(deg[st % 3] + (st % 6 > 2 ? 12 : 0), 5), stepDur() * 3, 'square', 2, 3);
+  if (G.kind === 'drums' && st % 2 === 0) {
+    const n = ac.createBufferSource(); n.buffer = bassAudio.noise; const f = ac.createBiquadFilter(); f.type = st % 8 === 4 ? 'bandpass' : 'highpass'; f.frequency.value = st % 8 === 4 ? 1800 : 7000;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.12, t); g.gain.setTargetAtTime(0, t, st % 8 === 4 ? 0.06 : 0.02);
+    n.connect(f); f.connect(g); g.connect(G.out); n.start(t, Math.random() * 0.5); n.stop(t + 0.3); G.notes++;
+    if (st % 8 === 0) note(pitch(deg[0], 2), stepDur() * 2, 'sine', 1, 0.5);
+  }
+}
+function stressStart() {
+  stress.on = true; stress.stage = 0; stress.stageT = 0;
+  player.pos.set(0, 0, A - 5); player.yaw = 0;
+  state = 'hall'; stateT = 0; recStart = time; startRecording(); $('rec').classList.remove('hidden');
+  // the four real machines, all at once
+  setRun(true);
+  mel.style = 1; mel.disc = 1; chordDown(0, 'stress'); chordUp('stress');
+  bass.pat = 2; bass.root = null; bassSync();
+  drawMelButtons(); drawBassButtons();
+  // the measuring panel (a test readout, not part of the gallery)
+  const p = document.createElement('div'); p.id = 'stressPanel';
+  p.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));z-index:50;width:min(92vw,520px);background:rgba(251,248,242,.96);color:#1d1b18;border:3px solid #1d1b18;border-radius:18px;padding:12px 14px;font:600 13px/1.35 system-ui,sans-serif';
+  p.innerHTML = '<div id="stTitle" style="font-weight:800;font-size:16px">Stress test</div><div id="stBody" style="white-space:pre-wrap;margin:6px 0 8px;font-family:ui-monospace,monospace;font-size:12px"></div>'
+    + '<button id="stHear" style="width:100%;font:800 17px system-ui;padding:12px;border-radius:999px;border:0;background:#e8262b;color:#fff">I hear crackle</button>'
+    + '<button id="stCopy" style="display:none;width:100%;margin-top:8px;font:800 15px system-ui;padding:10px;border-radius:999px;border:3px solid #1d1b18;background:#fff">Copy results</button>';
+  document.body.appendChild(p);
+  $('stHear').onclick = (e) => { e.stopPropagation(); stress.heard++; (stress.stages[stress.stage] ||= {}).heard = ((stress.stages[stress.stage] || {}).heard || 0) + 1; $('stHear').textContent = `Noted at ${4 + stress.stage} machines · tap again if it continues`; };
+  $('stCopy').onclick = (e) => { e.stopPropagation(); const txt = stressReport(); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { $('stCopy').textContent = 'Copied. Paste it to Claude.'; }).catch(() => { prompt('Copy these results:', txt); }); };
+  for (const id of ['stHear', 'stCopy']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+  // the ghosts follow the wheel's grid
+  stress.timer = setInterval(stressTick, 25);
+  stress.last = { perf: performance.now(), ctx: ac.currentTime, out: ac.getOutputTimestamp ? ac.getOutputTimestamp() : null };
+  stressNewSecond();
+  stress.secTimer = setInterval(stressEverySecond, 1000);
+}
+let stressNext = 0, stressNextT = 0;
+function stressTick() {
+  const now = performance.now();
+  stress.ticks.push(now);
+  if (!stress.on || !rhy.run) return;
+  if (stressNextT < ac.currentTime) { stressNext = rhy.next; stressNextT = rhy.nextT; }
+  while (stressNextT < ac.currentTime - 0.05) { stressNextT += stepDur(); stressNext = (stressNext + 1) % 16; }
+  const ahead = ac.currentTime + 0.14;
+  while (stressNextT < ahead) {
+    for (const G of stress.ghosts) ghostStep(G, stressNext, stressNextT);
+    stressNextT += stepDur(); stressNext = (stressNext + 1) % 16;
+  }
+}
+function stressNewSecond() { stress.cur = { frames: 0, ticks0: stress.ticks.length }; }
+function stressSecond() {
+  // the audio clock against the wall clock: under 1.0 means the sound fell behind (dropouts)
+  const perf = performance.now(), ctx = ac.currentTime, last = stress.last;
+  let ratio = (ctx - last.ctx) / ((perf - last.perf) / 1000);
+  if (ac.getOutputTimestamp) { const o = ac.getOutputTimestamp(); if (last.out && o.performanceTime > last.out.performanceTime) ratio = (o.contextTime - last.out.contextTime) / ((o.performanceTime - last.out.performanceTime) / 1000); stress.last.out = o; }
+  stress.last.perf = perf; stress.last.ctx = ctx;
+  // the note scheduler's worst wait this second (over ~140 ms and notes come out late)
+  let gap = 0; const tk = stress.ticks; for (let i = Math.max(1, stress.cur.ticks0); i < tk.length; i++) gap = Math.max(gap, tk[i] - tk[i - 1]);
+  stress.ticks = tk.slice(-1);
+  const s = { fps: stress.cur.frames, ratio, gap, cap: ac.renderCapacity ? ac.renderCapacity : null };
+  const S = (stress.stages[stress.stage] ||= {}); (S.secs ||= []).push(s);
+  stressNewSecond();
+  return s;
+}
+function stageSummary(S) {
+  const secs = (S && S.secs || []).slice(2);                       // skip the first two seconds of each stage (warm-up)
+  if (!secs.length) return null;
+  const fps = secs.map((x) => x.fps), ratio = secs.map((x) => x.ratio), gap = secs.map((x) => x.gap);
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const r = { fps: Math.round(avg(fps)), fpsMin: Math.min(...fps), ratioMin: Math.min(...ratio), gapMax: Math.round(Math.max(...gap)), heard: S.heard || 0 };
+  r.ok = r.ratioMin > 0.985 && r.gapMax < 130 && r.heard === 0;
+  return r;
+}
+function stressReport() {
+  const lines = ['Sound Gallery stress test', new Date().toISOString(),
+    `Device: ${navigator.userAgent}`, `Cores ${navigator.hardwareConcurrency || '?'} · memory ${navigator.deviceMemory || '?'} GB · screen ${screen.width}x${screen.height} @${devicePixelRatio}`,
+    `Audio: ${ac.sampleRate} Hz · base latency ${Math.round((ac.baseLatency || 0) * 1000)} ms · output latency ${Math.round((ac.outputLatency || 0) * 1000)} ms · panning ${PANNING} · touch ${isTouch}`,
+    'machines | fps avg/min | audio clock min | scheduler worst gap | crackle taps | verdict'];
+  let best = 0;
+  stress.stages.forEach((S, k) => {
+    const r = stageSummary(S); if (!r) return;
+    lines.push(`${4 + k} | ${r.fps}/${r.fpsMin} | ${r.ratioMin.toFixed(3)} | ${r.gapMax} ms | ${r.heard} | ${r.ok ? 'clean' : 'TROUBLE'}`);
+    if (r.ok && best === k) best = k + 1;
+  });
+  lines.push(best ? `Clean up to ${3 + best} machines.` : 'Trouble even with the four real machines.');
+  return lines.join('\n');
+}
+function updateStress(dt) {
+  if (!stress.on) return;
+  // real time, not game time: game time is capped per frame and would slow down on a struggling device
+  const nowR = performance.now(); dt = Math.min(2, (nowR - (stress.lastR || nowR)) / 1000); stress.lastR = nowR;
+  stress.cur.frames++;
+  player.yaw += dt * 0.25;                                        // look around the hall, as a visitor would
+  // keep the music moving: a new chord every two bars, a strum every bar, a few Optigan notes
+  const bar = stepDur() * 16;
+  stress.chordT += dt; if (stress.chordT > bar * 2) { stress.chordT = 0; stress.chordI = (stress.chordI + 1) % 4; chordDown([0, 3, 4, 0][stress.chordI], 'stress'); chordUp('stress'); }
+  stress.strumT = (stress.strumT || 0) + dt; if (stress.strumT > bar) { stress.strumT = 0; strumRun(stress.chordI % 2 ? -1 : 1); }
+  stress.melT += dt; if (stress.melT > stepDur() * 4) { stress.melT = 0; noteOff('stressMel'); const sc = galleryScale(); noteOn('stressMel', 1, 60 + sc[Math.floor(Math.random() * 7)]); }
+}
+function stressEverySecond() {                                    // on its own timer, so a slow frame can't hide a second
+  stressSecond(); stress.stageT += 1;
+  if (!stress.done && stress.stageT >= STAGE_SEC) {
+    stress.stageT = 0;
+    if (stress.ghosts.length < GHOST_ALCOVES.length) { stress.ghosts.push(ghostMachine(stress.ghosts.length)); stress.stage++; $('stHear').textContent = 'I hear crackle'; }
+    else stressFinish();
+  }
+  stressShow();
+}
+function stressShow() {
+  const S = stress.stages[stress.stage], secs = (S && S.secs) || [], s = secs[secs.length - 1];
+  const left = Math.max(0, Math.round(STAGE_SEC - stress.stageT));
+  $('stTitle').textContent = stress.done ? 'Stress test · finished' : `Stress test · ${4 + stress.stage} of 11 machines playing · next in ${left}s`;
+  if (!s) return;
+  const prev = stress.stages.slice(0, stress.stage).map((x, k) => { const r = stageSummary(x); return r ? `${4 + k} machines: ${r.ok ? 'clean' : 'TROUBLE'} (fps ${r.fps}, audio ${r.ratioMin.toFixed(3)}, gap ${r.gapMax} ms${r.heard ? ', crackle heard' : ''})` : ''; }).join('\n');
+  $('stBody').textContent = (stress.done ? stressReport().split('\n').slice(5).join('\n') : `now: fps ${s.fps} · audio clock ${s.ratio.toFixed(3)} · scheduler gap ${Math.round(s.gap)} ms\n` + prev);
+}
+function stressFinish() {
+  stress.done = true; clearInterval(stress.secTimer); clearInterval(stress.timer);
+  setRun(false); mel.style = 0; syncOptigan(); bass.pat = 0; bassSync(); noteOff('stressMel'); stress.ghosts = [];
+  drawMelButtons(); drawBassButtons();
+  $('stHear').style.display = 'none'; $('stCopy').style.display = 'block';
+  stressShow();
+}
+if (STRESS) {
+  $('enterBtn').addEventListener('click', () => setTimeout(stressStart, 400));
+  const s0 = $('title').querySelector('.sub'); if (s0) s0.innerHTML = '<b>Stress test.</b> Press Enter and listen for about 2½ minutes. Tap “I hear crackle” whenever you hear it.';
+}
 
 function loop() {
   requestAnimationFrame(loop);
