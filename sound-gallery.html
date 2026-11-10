@@ -1328,7 +1328,7 @@ const ORG_HELP = {
   wheel: 'Key wheel: the home note of the whole gallery. Neighbours on the wheel always sound related, so small turns sound smooth.',
   mood: 'Mood: Bright is major, Dark is minor, Floating is suspended, Ancient is an open fifth with no third.',
   mmute: 'Mute: silences the organ at once. Press again to bring it back, just as it was.',
-  vol: 'Volume: how loud the organ is in the room. The middle of the slot is its normal level.',
+  vol: 'Volume: how loud the organ is in the room. 70% is its normal level, and it goes about twice as loud.',
   bright: 'Brightness: opens the tone from soft and muffled to bright and reedy.',
   breath: 'Breath: slow swelling and movement, so the drone feels alive. Also adds a little air.',
   glide: 'Glide: how slowly notes slide to a new key or chord. Long glides make smooth, cinematic changes.',
@@ -1893,7 +1893,7 @@ let playMat, playLbl, knobs = {}, muteMats = [], clearMat, rhyDispL, playheadArm
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.145, 0.11, 40), mat); cap.position.y = 0.06; g.add(cap);
     const notch = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.012, 0.1), new THREE.MeshBasicMaterial({ color: '#f6f2ea', toneMapped: false })); notch.position.set(0, 0.118, -0.07); g.add(notch);
     cap.userData = { t: 'knob', key }; rhyCtrls.push(cap);
-    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 16), hitMat); hit.position.y = 0.06; g.add(hit); hit.userData = { t: 'knob', key }; rhyCtrls.push(hit);
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.2, 16), hitMat); hit.position.y = 0.06; g.add(hit); hit.userData = { t: 'knob', key }; rhyCtrls.push(hit);
     const lb = flatLabel(0.56, 0.11, 384, 76, wheelT, -1.42, 0.005, z + 0.31);
     knobs[key] = { g, mat, dial, lb, label };
   });
@@ -2002,7 +2002,7 @@ const RHY_HELP = {
   play: 'Start and stop the wheel. It keeps playing for everyone in the room after you step away.',
   tempo: 'Tempo: how fast the wheel turns, 60 to 160 beats a minute.',
   mmute: 'Mute: silences the whole wheel at once; it keeps turning. Press again to bring it back.',
-  vol: 'Volume: how loud the wheel is in the room. Straight up is its normal level.',
+  vol: 'Volume: how loud the wheel is in the room. 70% is its normal level, and it goes about twice as loud.',
   swing: 'Swing: delays every other step for a looser, shuffling groove.',
   mute: 'Mute: silences one ring without losing its pattern.',
   clear: 'Clear: press twice to empty every ring and start fresh.',
@@ -2074,7 +2074,7 @@ function rhyDown(e) {
 }
 function rhyMove(e) {
   if (!rGrab || e.pointerId !== rGrab.id) return;
-  if (rGrab.u.t === 'knob') { const d = (rGrab.y - e.clientY) + (e.clientX - rGrab.x); rGrab.y = e.clientY; rGrab.x = e.clientX; knobBy(rGrab.u.key, d / 260); return; }
+  if (rGrab.u.t === 'knob') { const d = (rGrab.y - e.clientY) + (e.clientX - rGrab.x); rGrab.y = e.clientY; rGrab.x = e.clientX; knobBy(rGrab.u.key, d / (e.pointerType === 'touch' ? 170 : 260)); return; }
   if (rGrab.u.t === 'pad') { const h = rhyRay(e); if (h && h.object.userData.t === 'pad') { const u = h.object.userData; if (rhy.steps[u.k][u.s] !== rGrab.paint) rhyAct(u, rGrab.paint); } }
 }
 function rhyUp(e) { if (rGrab && e.pointerId === rGrab.id) rGrab = null; }
@@ -2205,26 +2205,36 @@ const mWalnut = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.
 const mCream = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
 const keyboards = [];                                   // [1] Optigan (raised, behind); the front tier is the strum plate
 const melVolK = {};
-function volKnob(key, x, y, z) {
-  const g = new THREE.Group(); g.position.set(x, y, z); melG.add(g);
-  const dial = flatLabel(0.22, 0.22, 256, 256, melG, x, y + 0.002, z);
+// a volume slider: a long horizontal fader on a ledge in front of each instrument, easy to catch on a phone.
+// Put a finger anywhere on it and the handle jumps there.
+const VS = { x0: -0.22, len: 1.3 };
+function volSlider(key, y, z, label) {
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(VS.len + 0.04, 0.012, 0.026), mDark); slot.position.set(VS.x0 + VS.len / 2, y + 0.006, z); melG.add(slot);
+  const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.018), new THREE.MeshBasicMaterial({ color: key === 'strum' ? '#e8902b' : '#2b8fd8', toneMapped: false })); melG.add(fill);
   const mat = capMat('#2a2724');
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.068, 0.06, 32), mat); cap.position.y = 0.03; g.add(cap);
-  const notch = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.008, 0.05), new THREE.MeshBasicMaterial({ color: '#f6f2ea', toneMapped: false })); notch.position.set(0, 0.062, -0.032); g.add(notch);
-  const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 16), hitMat); hit.position.y = 0.04; g.add(hit);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.085), mat); melG.add(cap);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(VS.len + 0.14, 0.1, 0.13), hitMat); hit.position.set(VS.x0 + VS.len / 2, y + 0.03, z); melG.add(hit);
   for (const o of [cap, hit]) { o.userData = { t: 'vol', key }; melCtrls.push(o); }
-  const lb = flatLabel(0.26, 0.05, 300, 58, melG, x, y + 0.002, z + 0.135);
-  melVolK[key] = { g, mat, dial, lb };
+  const lb = flatLabel(0.86, 0.06, 700, 49, melG, -0.72, y + 0.002, z);
+  melVolK[key] = { mat, cap, fill, lb, y, z, label };
 }
 function drawVolKnob(key) {
-  const K = melVolK[key], { g, c, t } = K.dial, cx = c.width / 2, v = VOL[key];
-  g.clearRect(0, 0, c.width, c.height); g.lineWidth = 16; g.lineCap = 'round';
-  g.strokeStyle = 'rgba(29,27,24,0.18)'; g.beginPath(); g.arc(cx, cx, 104, Math.PI * 0.75, Math.PI * 2.25); g.stroke();
-  g.strokeStyle = key === 'strum' ? '#e8902b' : '#2b8fd8'; g.beginPath(); g.arc(cx, cx, 104, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * v)); g.stroke();
-  t.needsUpdate = true;
-  K.g.rotation.y = -(-0.75 * Math.PI + 1.5 * Math.PI * v);
-  printText(K.lb, [[`VOLUME ${Math.round(v * 100)}%`, 34, '#3a3630']]);
+  const K = melVolK[key], v = VOL[key], x = VS.x0 + v * VS.len;
+  K.cap.position.set(x, K.y + 0.025, K.z);
+  K.fill.scale.x = Math.max(0.001, v * VS.len); K.fill.position.set(VS.x0 + v * VS.len / 2, K.y + 0.008, K.z);
+  printText(K.lb, [[`${K.label} ${Math.round(v * 100)}%`, 34, '#3a3630']], { align: 'left' });
 }
+// where a pointer meets a horizontal plane at height y in the console's own space
+const _melPl = new THREE.Plane(), _melV = new THREE.Vector3();
+function melLocalAt(e, y) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+  melG.updateMatrixWorld();
+  const o = melG.localToWorld(new THREE.Vector3(0, y, 0)), n = new THREE.Vector3(0, 1, 0).transformDirection(melG.matrixWorld);
+  _melPl.setFromNormalAndCoplanarPoint(n, o);
+  if (!ray.ray.intersectPlane(_melPl, _melV)) return null;
+  return melG.worldToLocal(_melV.clone());
+}
+function melVolTo(key, e) { const p = melLocalAt(e, melVolK[key].y + 0.03); if (p) { setVol(key, (p.x - VS.x0) / VS.len); drawVolKnob(key); melValue = volText(key); drawMelDisplay(); } }
 let voiceBtns = [], susBtns = [], styleBtns = [], chordBtns = [], plateSegs = [], plateNamesL, melDispL, optDisc;
 function buildKeys(kb, parent, y, z) {
   const g = new THREE.Group(); g.position.set(0, y, z); parent.add(g);
@@ -2261,8 +2271,12 @@ function buildKeys(kb, parent, y, z) {
   melHits.push(box(2.4, 0.3, 0.44, mWalnut, 0, 0.97, -0.43, melG));
   melHits.push(box(2.42, 0.04, 0.36, mCream, 0, 1.13, -0.4, melG));
   // a volume knob at the right end of each tier: strum plate in front, Optigan behind
-  volKnob('strum', 1.09, 0.82, 0.1);
-  volKnob('optigan', 1.09, 1.15, -0.43);
+  // ledges for the volume sliders: one along the front of the cabinet, one in front of the Optigan's keys
+  melHits.push(box(2.4, 0.78, 0.14, mWalnut, 0, 0.39, 0.33, melG));
+  melHits.push(box(2.42, 0.04, 0.13, mCream, 0, 0.8, 0.345, melG));
+  melHits.push(box(2.42, 0.03, 0.11, mCream, 0, 1.12, -0.165, melG));
+  volSlider('strum', 0.82, 0.345, 'STRUM PLATE VOLUME');
+  volSlider('optigan', 1.135, -0.165, 'OPTIGAN VOLUME');
   keyboards[1] = buildKeys(1, melG, 1.15, -0.38);
   // strum plate voice buttons on the left cheek, sustain on the right
   SP_VOICES.forEach(([name, col], k) => {
@@ -2301,7 +2315,7 @@ function buildKeys(kb, parent, y, z) {
       const face = new THREE.Mesh(new THREE.CircleGeometry(0.148, 64), new THREE.MeshBasicMaterial({ map: L.t, transparent: true, toneMapped: false }));
       face.rotation.x = -Math.PI / 2; face.position.y = 0.0075; optDisc.add(face); face.userData = { t: 'disc' }; melCtrls.push(face); }
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 16), mChrome); optDisc.add(hub);
-    mel.discL = flatLabel(0.4, 0.06, 400, 60, melG, 0.84, 1.153, -0.2); }
+     }
   // the chord panel: a row of seven buttons, leaning back toward you
   const chordG = new THREE.Group(); chordG.position.set(0, 1.36, -0.66); chordG.rotation.x = 0.95; melG.add(chordG);
   melHits.push(box(2.4, 0.04, 0.3, mWalnut, 0, -0.03, 0, chordG));
@@ -2574,7 +2588,7 @@ const MEL_HELP = {
   voice: 'Strum plate voice: PLAIN is the steady tone, WAVY adds vibrato, BLEND mixes the two for a shimmer.',
   mmute: 'Mute: silences the whole console, strum plate and Optigan, at once. Press again to bring it back.',
   disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. Chords you hold on the chord buttons play in it too; the rhythm backings stay the same.',
-  vol: 'Volume: turn the knob, or drag up and down on it. Each instrument has its own; straight up is the normal level.',
+  vol: 'Volume: slide it, or touch anywhere along it. Each instrument has its own; 70% is its normal level, and it goes about twice as loud.',
   sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
   plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
   style: 'Optigan backing: pick a style, then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
@@ -2606,8 +2620,7 @@ function drawMelButtons() {
     g.fillStyle = '#f6f2ea'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 76, -0.45, 0.45); g.fill();
     g.fillStyle = '#1d1b18'; g.font = `bold ${name.length > 8 ? 17 : 22}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.save(); g.translate(cx, cx); g.rotate(Math.PI / 2); g.fillStyle = '#f6f2ea'; g.fillText(name, 0, -42); g.restore();
-    t.needsUpdate = true;
-    printText(mel.discL, [[`TAP DISC \u00B7 ${name}`, 30, '#5a554d']]); }
+    t.needsUpdate = true; }
   susBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.sus ? '#ffffff' : '#1d1b18']], k === mel.sus ? { bg: '#1d1b18' } : {}));
   // each zone's note for the current chord, printed behind the plate
   { const { g, c, t } = plateNamesL, sw = c.width / SP_N; g.clearRect(0, 0, c.width, c.height);
@@ -2685,13 +2698,14 @@ function melDown(e) {
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   mFocus = -1;
   const u = h.object.userData;
-  melPtr.set(e.pointerId, u.t === 'plate' ? { t: 'plate', i: u.i } : u.t === 'vol' ? { t: 'vol', key: u.key, x: e.clientX, y: e.clientY } : u);
+  melPtr.set(e.pointerId, u.t === 'plate' ? { t: 'plate', i: u.i } : u);
+  if (u.t === 'vol') melVolTo(u.key, e);
   if (u.t === 'key') { melHelp = MEL_HELP.key; noteOn('p' + e.pointerId, u.kb, u.m); drawMelDisplay(); }
   else melButton(u, 'p' + e.pointerId);
 }
 function melMove(e) {
   const u = melPtr.get(e.pointerId); if (!u) return;
-  if (u.t === 'vol') { const d = (u.y - e.clientY) + (e.clientX - u.x); u.x = e.clientX; u.y = e.clientY; melVolBy(u.key, d / 260); return; }
+  if (u.t === 'vol') { melVolTo(u.key, e); return; }
   if (u.t === 'plate') {                                   // strumming: sound every zone the finger crosses, in order
     const h = melRay(e), v = h && h.object.userData;
     if (v && v.t === 'plate' && v.i !== u.i) {
@@ -2747,11 +2761,11 @@ function melPress(down) {
 }
 function makeMelodyMachine() {
   const fit = [];
-  for (const x of [-1.2, 1.2]) { fit.push([melG, new THREE.Vector3(x, 0.84, 0.26)]); fit.push([melG, new THREE.Vector3(x, 1.17, -0.62)]); }
+  for (const x of [-1.2, 1.2]) { fit.push([melG, new THREE.Vector3(x, 0.84, 0.4)]); fit.push([melG, new THREE.Vector3(x, 1.17, -0.62)]); }
   for (const x of [-1.0, 1.0]) for (const y of [1.48, 2.55]) fit.push([melG, new THREE.Vector3(x, y, -0.96)]);
   // landscape: only the strum plate, the Optigan and the chord buttons; the glass above may crop
   const fitL = [];
-  for (const x of [-1.2, 1.2]) { fitL.push([melG, new THREE.Vector3(x, 0.84, 0.25)]); fitL.push([melG, new THREE.Vector3(x * 0.85, 1.49, -0.75)]); }
+  for (const x of [-1.2, 1.2]) { fitL.push([melG, new THREE.Vector3(x, 0.84, 0.4)]); fitL.push([melG, new THREE.Vector3(x * 0.85, 1.49, -0.75)]); }
   return {
     al: MEL_I, base: melG, fit, fitL, elev: [0.95, 0.72], stand: 1.0,
     down: melDown, move: melMove, up: melUp, step: melStep, adjust: melAdjust, press: melPress,
