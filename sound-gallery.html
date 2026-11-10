@@ -949,11 +949,19 @@ function initAudio() {
   // a larger audio buffer on phones and tablets: a hair more delay, but no crackle when the device is busy drawing 3D
   const AC = window.AudioContext || window.webkitAudioContext;
   try { ac = new AC({ latencyHint: isTouch ? 'playback' : 'balanced' }); } catch (e) { ac = new AC(); }
-  master = ac.createGain(); master.gain.value = 0.9;
+  master = ac.createGain(); master.gain.value = 0.78;
+  // with several machines playing at once the mix can pile up past full scale, and the speaker's hard
+  // clipping is heard as crackle. A firmer compressor, then a soft safety limiter that rounds off
+  // anything that still gets through instead of clipping it.
   const comp = ac.createDynamicsCompressor();
-  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 8; comp.attack.value = 0.02; comp.release.value = 0.3;   // slow enough not to crunch the organ's low notes
+  comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 12; comp.attack.value = 0.004; comp.release.value = 0.25;
+  const pre = ac.createGain(); pre.gain.value = 0.5;
+  const safe = ac.createWaveShaper(); safe.oversample = 'none';
+  { const n = 2048, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = Math.abs((i / (n - 1)) * 4 - 2), y = x < 0.75 ? x : 0.75 + 0.24 * Math.tanh((x - 0.75) / 0.24); c[i] = Math.sign((i / (n - 1)) * 2 - 1) * y; }
+    safe.curve = c; }
   analyser = ac.createAnalyser(); analyser.fftSize = 512; freqData = new Uint8Array(analyser.frequencyBinCount);
-  master.connect(comp); comp.connect(ac.destination); comp.connect(analyser);
+  master.connect(comp); comp.connect(pre); pre.connect(safe); safe.connect(ac.destination); comp.connect(analyser);
   // room tone: soft brown-noise air plus a low drone, heard muffled from the corridor
   const len = ac.sampleRate * 6, buf = ac.createBuffer(2, len, ac.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
@@ -2361,7 +2369,7 @@ function initMelodyAudio() {
   const spHP = ac.createBiquadFilter(); spHP.type = 'highpass'; spHP.frequency.value = 120; spHP.Q.value = 0.5;
   const spLP = ac.createBiquadFilter(); spLP.type = 'lowpass'; spLP.frequency.value = 3000; spLP.Q.value = 0.55;
   const spLP2 = ac.createBiquadFilter(); spLP2.type = 'lowpass'; spLP2.frequency.value = 7000; spLP2.Q.value = 0.5;
-  const spSat = ac.createWaveShaper(); spSat.curve = softClipCurve(); spSat.oversample = '2x';
+  const spSat = ac.createWaveShaper(); spSat.curve = softClipCurve(); spSat.oversample = isTouch ? 'none' : '2x';
   spIn.connect(spHP); spHP.connect(spLP); spLP.connect(spLP2); const spVol = ac.createGain(); volRegister('strum', spVol, 1);
   spLP2.connect(spSat); spSat.connect(spVol); spVol.connect(out);
   const vib = ac.createOscillator(); vib.frequency.value = 5.6; const vibG = ac.createGain(); vibG.gain.value = 16; vib.connect(vibG); vib.start();
@@ -2400,7 +2408,7 @@ function strumZone(i, delay = 0) {
     o.connect(og); og.connect(g); oscs.push(o);
   });
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(pk, t + 0.0025); g.gain.setTargetAtTime(0, t + 0.0025, tau);
-  const end = t + tau * 8 + 0.05;
+  const end = t + Math.min(tau * 6.5, 6) + 0.05;
   oscs.forEach((o) => { o.start(t); o.stop(end); });
   let done = false;
   const h = { stop(at) { if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime); g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, 0.004); oscs.forEach((o) => { try { o.stop(tt + 0.04); } catch (e) {} }); } };
@@ -3160,7 +3168,7 @@ function initBassAudio() {
   const an = ac.createAnalyser(); an.fftSize = 512; out.connect(an);
   const nlen = ac.sampleRate, nb = ac.createBuffer(1, nlen, ac.sampleRate), nd = nb.getChannelData(0);
   for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
-  const drive = ac.createWaveShaper(); drive.curve = softClipCurve(); drive.oversample = '2x'; drive.connect(out);
+  const drive = ac.createWaveShaper(); drive.curve = softClipCurve(); drive.oversample = isTouch ? 'none' : '2x'; drive.connect(out);
   bassAudio = { out, in: drive, an, buf: new Float32Array(512), noise: nb };
 }
 const bassCut = (f) => Math.min(12000, 90 * Math.pow(2, bass.tone * 6.6) + f * 1.5);
