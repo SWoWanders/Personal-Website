@@ -904,10 +904,44 @@ const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
-function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volGain(VOL[key]); }
+function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
+// a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
+const MUTED = { organ: false, rhythm: false, melody: false };
+const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
+const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
+const muteBtns = {};
+function makeMuteBtn(grp, parent, x, y, z, w, d) {
+  const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), mat);
+  b.position.set(x, y, z); parent.add(b);
+  const L = flatLabel(w * 0.96, d * 0.92, 256, Math.round(256 * d / w), b, 0, 0.0205, 0);
+  muteBtns[grp] = { mat, L, b }; drawMuteBtn(grp);
+  return b;
+}
+function drawMuteBtn(grp) {
+  const B = muteBtns[grp]; if (!B) return;
+  const on = MUTED[grp], { g, c, t } = B.L, h = c.height, cx = c.width / 2;
+  B.mat.color.set(on ? '#e8262b' : '#f6f2ea');
+  g.clearRect(0, 0, c.width, h);
+  const ink = on ? '#ffffff' : '#1d1b18', sz = h * 0.32, x0 = cx - sz * 1.25, y0 = h * 0.4;
+  g.fillStyle = ink; g.strokeStyle = ink; g.lineWidth = sz * 0.16; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(x0 - sz * 0.5, y0 - sz * 0.28); g.lineTo(x0 - sz * 0.1, y0 - sz * 0.28); g.lineTo(x0 + sz * 0.35, y0 - sz * 0.62);
+  g.lineTo(x0 + sz * 0.35, y0 + sz * 0.62); g.lineTo(x0 - sz * 0.1, y0 + sz * 0.28); g.lineTo(x0 - sz * 0.5, y0 + sz * 0.28); g.closePath(); g.fill();
+  const ax = x0 + sz * 0.95;
+  if (on) { g.beginPath(); g.moveTo(ax - sz * 0.3, y0 - sz * 0.3); g.lineTo(ax + sz * 0.3, y0 + sz * 0.3); g.moveTo(ax + sz * 0.3, y0 - sz * 0.3); g.lineTo(ax - sz * 0.3, y0 + sz * 0.3); g.stroke(); }
+  else for (const r of [0.35, 0.65]) { g.beginPath(); g.arc(x0 + sz * 0.45, y0, sz * r + sz * 0.2, -0.8, 0.8); g.stroke(); }
+  g.font = `bold ${Math.round(h * 0.2)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(on ? 'MUTED' : 'MUTE', cx, h * 0.8);
+  t.needsUpdate = true;
+}
+function machineMute(grp) {
+  MUTED[grp] = !MUTED[grp];
+  for (const key in VOL) if (volGroup(key) === grp) { const n = volNodes[key]; if (n && ac) n[0].gain.setTargetAtTime(n[1] * volLevel(key), ac.currentTime, 0.015); }
+  drawMuteBtn(grp); buzz(10);
+  return MUTED[grp];
+}
 function setVol(key, v) {
   VOL[key] = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
-  const n = volNodes[key]; if (n && ac) n[0].gain.setTargetAtTime(n[1] * volGain(VOL[key]), ac.currentTime, 0.03);
+  const n = volNodes[key]; if (n && ac) n[0].gain.setTargetAtTime(n[1] * volLevel(key), ac.currentTime, 0.03);
   try { localStorage.setItem('sg-vol', JSON.stringify(VOL)); } catch (e) {}
 }
 let ac = null, reverbIn = null, hallBus = null, master, roomFilter, analyser, freqData, muted = false, level = 0, roomOut = null;
@@ -1293,6 +1327,7 @@ const ORG_HELP = {
   start: 'Push the coloured drawbars away from you to bring voices in, then turn the key wheel. Keys: ← → choose a control, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ press, Ⓑ leave.',
   wheel: 'Key wheel: the home note of the whole gallery. Neighbours on the wheel always sound related, so small turns sound smooth.',
   mood: 'Mood: Bright is major, Dark is minor, Floating is suspended, Ancient is an open fifth with no third.',
+  mmute: 'Mute: silences the organ at once. Press again to bring it back, just as it was.',
   vol: 'Volume: how loud the organ is in the room. The middle of the slot is its normal level.',
   bright: 'Brightness: opens the tone from soft and muffled to bright and reedy.',
   breath: 'Breath: slow swelling and movement, so the drone feels alive. Also adds a little air.',
@@ -1455,6 +1490,8 @@ SLIDERS.forEach(([key, label, z]) => {
   const L = flatLabel(SL.len, 0.055, 512, 50, tiltG, SL.x0 + SL.len / 2, 0.004, z - 0.085); printText(L, [[label, 34, '#5a554d']], { align: 'left' });
   sliderKnobs[key] = knob;
 });
+// quick mute: top-left corner of the desk
+{ const b = makeMuteBtn('organ', tiltG, -1.45, 0.02, -0.43, 0.24, 0.14); addCtrl(b, { t: 'mmute' }, muteBtns.organ.mat); }
 // chord memory
 const memCaps = [], memLbls = [];
 const memTitle = flatLabel(0.62, 0.05, 512, 44, tiltG, 1.15, 0.004, 0.27); printText(memTitle, [['CHORD MEMORY', 30, '#5a554d']], { align: 'left' });
@@ -1672,6 +1709,7 @@ function beginCtrl(u, obj, id, e) {                  // a hand closes on a contr
   else if (u.t === 'wheel') { dispHelp = ORG_HELP.wheel; dispValue = ''; drawDisplay(); if (e) dragTo(e); }
   else if (u.t === 'lever') { dispHelp = ORG_VOICES[u.i].help; if (e) dragTo(e); else { dispValue = valueText('lever', null, u.i); drawDisplay(); } }
   else if (u.t === 'slider') { dispHelp = ORG_HELP[u.key]; if (e) dragTo(e); else { dispValue = valueText('slider', u.key); drawDisplay(); } }
+  else if (u.t === 'mmute') { const on = machineMute('organ'); dispHelp = ORG_HELP.mmute; dispValue = on ? 'Muted' : 'Sound on'; drawDisplay(); }
   else if (u.t === 'mem') {
     dispHelp = ORG_HELP.mem; dispValue = 'Hold to save…'; drawDisplay();
     const s = u.i;
@@ -1749,7 +1787,7 @@ function pressFocus(down) {                          // Enter / Space / Ⓐ
     if (grab) return;
     if (focusI < 0) { setFocus(0); return; }
     const st = STATIONS[focusI];
-    if (['mood', 'colour', 'mem'].includes(st.t)) beginCtrl({ t: st.t, i: st.i, key: st.key, mat: st.mat }, st.obj, 'kb', null);
+    if (['mood', 'colour', 'mem', 'mmute'].includes(st.t)) beginCtrl({ t: st.t, i: st.i, key: st.key, mat: st.mat }, st.obj, 'kb', null);
   } else if (grab && grab.id === 'kb') endCtrl();
 }
 function playKey(e, down) {
@@ -1859,6 +1897,7 @@ let playMat, playLbl, knobs = {}, muteMats = [], clearMat, rhyDispL, playheadArm
     const lb = flatLabel(0.56, 0.11, 384, 76, wheelT, -1.42, 0.005, z + 0.31);
     knobs[key] = { g, mat, dial, lb, label };
   });
+  { const b = makeMuteBtn('rhythm', wheelT, -1.02, 0.02, 0.98, 0.3, 0.18); b.userData = { t: 'mmute' }; rhyCtrls.push(b); }
   // buttons (right of the wheel): a mute for each ring, then clear
   RINGS.slice().reverse().forEach((R) => {
     const k = RINGS.indexOf(R), z = -0.72 + (3 - k) * 0.33;
@@ -1962,6 +2001,7 @@ const RHY_HELP = {
   pad: 'Tap pads to light them, or drag across the ring to paint a pattern. The playhead goes once round per bar; the white marks are the four beats.',
   play: 'Start and stop the wheel. It keeps playing for everyone in the room after you step away.',
   tempo: 'Tempo: how fast the wheel turns, 60 to 160 beats a minute.',
+  mmute: 'Mute: silences the whole wheel at once; it keeps turning. Press again to bring it back.',
   vol: 'Volume: how loud the wheel is in the room. Straight up is its normal level.',
   swing: 'Swing: delays every other step for a looser, shuffling groove.',
   mute: 'Mute: silences one ring without losing its pattern.',
@@ -2006,6 +2046,7 @@ function rhyAct(u, ext) {                              // press / toggle a contr
   if (u.t === 'pad') { const v = ext !== undefined ? ext : !rhy.steps[u.k][u.s]; rhy.steps[u.k][u.s] = v; rhyHelp = RHY_HELP.pad; rhyValue = `${RINGS[u.k].name} step ${u.s + 1} ${v ? 'on' : 'off'}`; if (v && ac && rhyAudio && !rhy.mute[u.k]) DRUM[RINGS[u.k].key](ac.currentTime + 0.005, 0.7, u.s); buzz(6); drawRhyDisplay(); return v; }
   if (u.t === 'play') { setRun(!rhy.run); rhyHelp = RHY_HELP.play; rhyValue = ''; drawRhyDisplay(); }
   if (u.t === 'mute') { rhy.mute[u.k] = !rhy.mute[u.k]; rhyHelp = RHY_HELP.mute; rhyValue = `${RINGS[u.k].name} ${rhy.mute[u.k] ? 'muted' : 'on'}`; drawRhyAll(); buzz(8); }
+  if (u.t === 'mmute') { const on = machineMute('rhythm'); rhyHelp = RHY_HELP.mmute; rhyValue = on ? 'Wheel muted' : 'Sound on'; drawRhyDisplay(); }
   if (u.t === 'clear') {
     if (rhy.clearArm > 0) { rhy.steps.forEach((r) => r.fill(false)); rhy.clearArm = 0; rhyValue = 'Cleared'; buzz(25); }
     else { rhy.clearArm = 2.5; rhyValue = 'Press again to clear'; }
@@ -2038,7 +2079,7 @@ function rhyMove(e) {
 }
 function rhyUp(e) { if (rGrab && e.pointerId === rGrab.id) rGrab = null; }
 // keyboard / controller: the controls in order, then every pad ring by ring (kick first)
-const R_STATIONS = [{ t: 'play' }, { t: 'knob', key: 'tempo' }, { t: 'knob', key: 'swing' }, { t: 'knob', key: 'vol' }, ...[3, 2, 1, 0].map((k) => ({ t: 'mute', k })), { t: 'clear' }];
+const R_STATIONS = [{ t: 'play' }, { t: 'knob', key: 'tempo' }, { t: 'knob', key: 'swing' }, { t: 'knob', key: 'vol' }, { t: 'mmute' }, ...[3, 2, 1, 0].map((k) => ({ t: 'mute', k })), { t: 'clear' }];
 for (const k of [3, 2, 1, 0]) for (let st = 0; st < 16; st++) R_STATIONS.push({ t: 'pad', k, s: st });
 let rFocus = -1;
 function rFocusSet(i) {
@@ -2098,6 +2139,7 @@ function updateRhythm(dt) {
   const glow = (mat, f) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = f ? 0.3 : 0; };
   glow(playMat, foc && foc.t === 'play'); glow(clearMat, foc && foc.t === 'clear');
   for (const key of ['tempo', 'swing', 'vol']) glow(knobs[key].mat, foc && foc.t === 'knob' && foc.key === key);
+  glow(muteBtns.rhythm.mat, foc && foc.t === 'mmute');
   muteMats.forEach(({ mat, R }, k) => { mat.emissive.set(foc && foc.t === 'mute' && foc.k === k ? '#ffffff' : '#000000'); mat.emissiveIntensity = 0.3; mat.color.set(rhy.mute[k] ? '#5a554d' : R.col); });
   speakers.forEach((sp, k) => {
     const f = rhy.flash[k]; sp.mat.emissiveIntensity = 0.1 + f * 0.9;
@@ -2262,7 +2304,8 @@ function buildKeys(kb, parent, y, z) {
     mel.discL = flatLabel(0.4, 0.06, 400, 60, melG, 0.84, 1.153, -0.2); }
   // the chord panel: a row of seven buttons, leaning back toward you
   const chordG = new THREE.Group(); chordG.position.set(0, 1.36, -0.66); chordG.rotation.x = 0.95; melG.add(chordG);
-  melHits.push(box(2.0, 0.04, 0.3, mWalnut, 0, -0.03, 0, chordG));
+  melHits.push(box(2.4, 0.04, 0.3, mWalnut, 0, -0.03, 0, chordG));
+  { const b = makeMuteBtn('melody', chordG, 1.04, 0.0, 0.0, 0.24, 0.19); b.userData = { t: 'mmute' }; melCtrls.push(b); }
   for (let d = 0; d < 7; d++) {
     const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.05, 0.19), mat);
     b.position.set(-0.75 + d * 0.25, 0.02, 0.0); chordG.add(b); b.userData = { t: 'chord', i: d }; melCtrls.push(b);
@@ -2529,6 +2572,7 @@ let melHelp = '', melValue = '';
 const MEL_HELP = {
   start: 'Strum across the metal plate, or tap single zones: it plays the chord picked on the Optigan’s chord buttons. The raised keyboard is the Optigan organ. Keys: ← → choose, Enter play, ↑ ↓ strum. Controller: d-pad, Ⓐ, Ⓑ leave.',
   voice: 'Strum plate voice: PLAIN is the steady tone, WAVY adds vibrato, BLEND mixes the two for a shimmer.',
+  mmute: 'Mute: silences the whole console, strum plate and Optigan, at once. Press again to bring it back.',
   disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. Chords you hold on the chord buttons play in it too; the rhythm backings stay the same.',
   vol: 'Volume: turn the knob, or drag up and down on it. Each instrument has its own; straight up is the normal level.',
   sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
@@ -2623,6 +2667,7 @@ function melButton(u, id) {
   if (u.t === 'sus') { mel.sus = u.i; melHelp = MEL_HELP.sus; melValue = 'sustain ' + SP_SUS[u.i][0].toLowerCase(); buzz(8); }
   if (u.t === 'plate') { melHelp = MEL_HELP.plate; strumZone(u.i); buzz(6); drawMelDisplay(); return; }
   if (u.t === 'disc') { setDisc(mel.disc + 1); return; }
+  if (u.t === 'mmute') { const on = machineMute('melody'); melHelp = MEL_HELP.mmute; melValue = on ? 'console muted' : 'sound on'; drawMelDisplay(); return; }
   if (u.t === 'vol') { melHelp = MEL_HELP.vol; melValue = volText(u.key); drawMelDisplay(); return; }
   if (u.t === 'style') {
     mel.style = u.i; melHelp = MEL_HELP.style; melValue = OPT_STYLES[u.i];
@@ -2669,7 +2714,7 @@ function melUp(e) {
   if (u.t === 'key') noteOff('p' + e.pointerId);
   if (u.t === 'chord') chordUp('p' + e.pointerId);
 }
-const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i }))];
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i })), { t: 'mmute' }];
 for (let i = 0; i < SP_N; i++) M_STATIONS.push({ t: 'plate', i });
 for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb: 1, m });
 let mFocus = -1;
@@ -2677,7 +2722,7 @@ function mFocusSet(i) {
   mFocus = i; if (i < 0) return;
   const f = M_STATIONS[i]; melHelp = MEL_HELP[f.t];
   melValue = f.t === 'key' ? `Optigan ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}`
-    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : f.t === 'disc' ? `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}` : OPT_STYLES[f.i];
+    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : f.t === 'disc' ? `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}` : f.t === 'mmute' ? (MUTED.melody ? 'muted' : 'mute') : OPT_STYLES[f.i];
   drawMelDisplay(); blip(660, 0.04, 0.03);
 }
 function melStep(d) { mFocusSet(mFocus < 0 ? (d > 0 ? 0 : M_STATIONS.length - 1) : (mFocus + d + M_STATIONS.length) % M_STATIONS.length); }
@@ -2819,6 +2864,7 @@ function updateMelody(dt) {
   voiceBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'voice' && foc.i === k));
   susBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'sus' && foc.i === k));
   for (const key in melVolK) glow(melVolK[key].mat, foc && foc.t === 'vol' && foc.key === key);
+  glow(muteBtns.melody.mat, foc && foc.t === 'mmute');
   // plate zones glow as they ring and fade with the sound
   const now = ac ? ac.currentTime : 0; let ring = 0;
   plateSegs.forEach((s, i) => {
@@ -2902,6 +2948,7 @@ function ctrlPoint(st, out) {                        // where on a control the f
   if (st.t === 'mood') return moodCaps[st.i].localToWorld(out.set(0, 0.03, 0));
   if (st.t === 'mem') return memCaps[st.i].localToWorld(out.set(0, 0.025, 0));
   if (st.t === 'colour') return colourBtn.localToWorld(out.set(0, 0.025, 0));
+  if (st.t === 'mmute') return muteBtns.organ.b.localToWorld(out.set(0, 0.025, 0));
   return null;
 }
 function updateHand(dt) {
