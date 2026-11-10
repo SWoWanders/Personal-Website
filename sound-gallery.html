@@ -2355,16 +2355,16 @@ function strumRun(dir) {
 }
 function plateLevel(i, now) { const z = mel.plates[i]; return now < z.t0 ? 0 : Math.exp(-(now - z.t0) / z.tau); }
 // an Optigan note: a reedy chord-organ tone
-// the keyboard voice set by the disc. The chord buttons' own chords stay on the reed organ.
-function keyNote(m) {
+// the keyboard voice set by the disc; chords held on the chord buttons use it too.
+function keyNote(m, vel = 1) {
   switch (OPT_DISCS[mel.disc][0]) {
-    case 'HAMMOND': return hammondNote(m);
-    case 'HARPSICHORD': return harpsiNote(m);
-    case 'VIBES': return vibesNote(m);
-    case 'ACCORDION': return accordionNote(m);
-    case 'E.PIANO': return epianoNote(m);
-    case 'THEATRE': return theatreNote(m);
-    default: return reedNote(m);
+    case 'HAMMOND': return hammondNote(m, vel);
+    case 'HARPSICHORD': return harpsiNote(m, vel);
+    case 'VIBES': return vibesNote(m, vel);
+    case 'ACCORDION': return accordionNote(m, vel);
+    case 'E.PIANO': return epianoNote(m, vel);
+    case 'THEATRE': return theatreNote(m, vel);
+    default: return reedNote(m, vel);
   }
 }
 const waveCache = {};
@@ -2389,20 +2389,20 @@ function clickNoise(t, dest, freq, q, amp, len) {          // a short filtered n
 }
 // Hammond: drawbars 88 8400 000 (16', 5⅓', 8', 4') as one wave an octave down, a decaying third-harmonic
 // percussion, the key click, and every note through the shared Leslie (pitch and level wobble)
-function hammondNote(m) {
+function hammondNote(m, vel = 1) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.leslie);
   const o = waveOsc('ham', [0, 1, 1, 1, 0.5, 0, 0, 0, 0.12], f / 2); melAudio.lesDet.connect(o.detune);
   const og = ac.createGain(); og.gain.value = 1; o.connect(og); og.connect(g);
   const p = mkOsc('sine', f * 3), pg = ac.createGain(); p.connect(pg); pg.connect(g);
   pg.gain.setValueAtTime(0.5, t); pg.gain.setTargetAtTime(0, t, 0.22);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09, t + 0.005);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09 * vel, t + 0.005);
   clickNoise(t, g, 2600, 0.8, 0.35, 0.003);
   o.start(t); p.start(t);
   return voiceHandle(g, [o, p], 0.012);
 }
 // harpsichord: a bright plucked string (the quill near the end makes a thin, nasal tone), 8' and 4' choirs,
 // a filter that closes after the pluck, and a damper that stops it when the key comes up
-function harpsiNote(m) {
+function harpsiNote(m, vel = 1) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
   lp.type = 'lowpass'; lp.Q.value = 0.6; lp.connect(g); g.connect(melAudio.opt);
   const amps = [0]; for (let n = 1; n < 40; n++) amps.push(Math.abs(Math.sin(Math.PI * n * 0.11)) / Math.pow(n, 0.8));
@@ -2410,14 +2410,14 @@ function harpsiNote(m) {
   const g2 = ac.createGain(); g2.gain.value = 0.4; o1.connect(lp); o2.connect(g2); g2.connect(lp);
   lp.frequency.setValueAtTime(Math.min(16000, f * 22), t); lp.frequency.setTargetAtTime(Math.min(9000, f * 6), t, 0.12);
   const tau = 1.4 * Math.pow(220 / f, 0.45);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.096, t + 0.0015); g.gain.setTargetAtTime(0, t + 0.0015, tau);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.096 * vel, t + 0.0015); g.gain.setTargetAtTime(0, t + 0.0015, tau);
   clickNoise(t, g, 4000, 1.2, 0.5, 0.004);
   o1.start(t); o2.start(t); o1.stop(t + tau * 8); o2.stop(t + tau * 8);
   return voiceHandle(g, [o1, o2], 0.045, (tt) => clickNoise(tt, melAudio.opt, 900, 1.5, 0.012, 0.01));   // the damper's soft thud
 }
 // vibraphone: a sine bar with its tuned partials at 4× and 10×, a soft mallet, the rotating-fan tremolo,
 // long ring while held (pedal down) and damped on release
-function vibesNote(m) {
+function vibesNote(m, vel = 1) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.vibBus);
   const parts = [[1, 1, 3.2], [4, 0.22, 0.5], [10, 0.05, 0.12]], srcs = [];
   for (const [r, a, tau] of parts) {
@@ -2426,23 +2426,23 @@ function vibesNote(m) {
     og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(a, t + 0.002); og.gain.setTargetAtTime(0, t + 0.002, tau * Math.pow(440 / f, 0.3));
     o.start(t); o.stop(t + 14); srcs.push(o);
   }
-  g.gain.value = 0.068;
+  g.gain.value = 0.068 * vel;
   clickNoise(t, g, 1800, 1, 0.12, 0.004);
   return voiceHandle(g, srcs, 0.12);
 }
 // accordion: two reeds per note tuned a little apart (the "wet" musette beat), a bellows swell,
 // shaped by the reed chamber
-function accordionNote(m) {
+function accordionNote(m, vel = 1) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), bp = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
   bp.type = 'peaking'; bp.frequency.value = 1300; bp.Q.value = 1.2; bp.gain.value = 6;
   lp.type = 'lowpass'; lp.frequency.value = 3800; lp.Q.value = 0.5; bp.connect(lp); lp.connect(g); g.connect(melAudio.opt);
   const amps = [0]; for (let n = 1; n < 30; n++) amps.push((n % 2 ? 1 : 0.55) / n);
   const srcs = [-9, 0, 9].map((det, k) => { const o = waveOsc('acc', amps, f); o.detune.value = det; const og = ac.createGain(); og.gain.value = k === 1 ? 0.5 : 0.35; o.connect(og); og.connect(bp); o.start(t); return o; });
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.095, t + 0.045);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.095 * vel, t + 0.045);
   return voiceHandle(g, srcs, 0.05);
 }
 // electric piano: an FM tine, bright and bell-like at the strike, mellowing as it rings
-function epianoNote(m) {
+function epianoNote(m, vel = 1) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.opt);
   const car = mkOsc('sine', f), mod = mkOsc('sine', f), mg = ac.createGain(); mod.connect(mg); mg.connect(car.frequency);
   mg.gain.setValueAtTime(f * 2.2, t); mg.gain.setTargetAtTime(f * 0.25, t, 0.25);
@@ -2450,18 +2450,18 @@ function epianoNote(m) {
   bm.gain.setValueAtTime(f * 0.8, t); bm.gain.setTargetAtTime(0, t, 0.03);
   car.connect(g); bg.gain.value = 0;
   const tau = 1.8 * Math.pow(220 / f, 0.35);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.077, t + 0.002); g.gain.setTargetAtTime(0.014, t + 0.002, tau);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.077 * vel, t + 0.002); g.gain.setTargetAtTime(0.014 * vel, t + 0.002, tau);
   for (const o of [car, mod, bell]) o.start(t);
   return voiceHandle(g, [car, mod, bell], 0.09);
 }
 // theatre organ: a tibia flute with octave couplers, deep tremulant on pitch and level
-function theatreNote(m) {
+function theatreNote(m, vel = 1) {
   const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.tremBus);
   const srcs = [[0.5, 0.45], [1, 1], [2, 0.38], [4, 0.1]].map(([r, a]) => {
     const o = waveOsc('tibia', [0, 1, 0.12, 0.05, 0.02], f * r); melAudio.tremDet.connect(o.detune);
     const og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(g); o.start(t); return o;
   });
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.052, t + 0.035);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.052 * vel, t + 0.035);
   return voiceHandle(g, srcs, 0.11);
 }
 function reedNote(m, vel = 1, dur = 0) {
@@ -2529,7 +2529,7 @@ let melHelp = '', melValue = '';
 const MEL_HELP = {
   start: 'Strum across the metal plate, or tap single zones: it plays the chord picked on the Optigan’s chord buttons. The raised keyboard is the Optigan organ. Keys: ← → choose, Enter play, ↑ ↓ strum. Controller: d-pad, Ⓐ, Ⓑ leave.',
   voice: 'Strum plate voice: PLAIN is the steady tone, WAVY adds vibrato, BLEND mixes the two for a shimmer.',
-  disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. The chord buttons and rhythm stay the same.',
+  disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. Chords you hold on the chord buttons play in it too; the rhythm backings stay the same.',
   vol: 'Volume: turn the knob, or drag up and down on it. Each instrument has its own; straight up is the normal level.',
   sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
   plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
@@ -2602,7 +2602,7 @@ function noteOff(id) {
 }
 function chordDown(d, id) {
   mel.chord = d; mel.plateChord = d; melHelp = MEL_HELP.chord; melValue = `${ROMANS[d]} · ${chordLabel(d)}`;
-  if (mel.style === 0 && ac && melAudio) { chordUp(); mel.holdChord = { id, notes: chordMidis(d).map((m) => reedNote(m, 0.9)) }; }
+  if (mel.style === 0 && ac && melAudio) { chordUp(); mel.holdChord = { id, notes: chordMidis(d).map((m) => keyNote(m, 0.9)) }; }   // held chords use the disc's voice
   syncOptigan(); drawMelButtons(); drawMelDisplay(); buzz(8);
 }
 function chordUp(id) {
