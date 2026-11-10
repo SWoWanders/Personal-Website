@@ -208,11 +208,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -900,13 +900,13 @@ function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15
 const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 /* ---------- a volume control for every machine. 0..1 on the dial; 0.7 is the normal level,
    full turn is about twice as loud. Remembered in this browser. */
-const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7 };
+const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
 function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
 // a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
-const MUTED = { organ: false, rhythm: false, melody: false };
+const MUTED = { organ: false, rhythm: false, melody: false, bass: false };
 const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
 const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
 const muteBtns = {};
@@ -985,6 +985,7 @@ function initAudio() {
   initOrganAudio();
   initRhythmAudio();
   initMelodyAudio();
+  initBassAudio();
 }
 /* ---------- THE CENTRE MICROPHONE
    The two giant ears on the turning stage are a stereo pair: left ear, right
@@ -1276,15 +1277,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -1983,6 +1984,7 @@ function scheduleRhythm() {
       if (rhy.steps[k][st] && !rhy.mute[k]) { DRUM[R.key](t, st % 4 === 0 ? 1 : 0.78, st); rhy.queue.push({ t, k, st }); }
     });
     rhy.queue.push({ t, st, head: true });
+    bassGrid(st, t);                                     // the Bass Pedals' patterns ride the wheel's clock
     rhy.nextT += stepDur(); rhy.next = (rhy.next + 1) % 16;
   }
 }
@@ -1991,7 +1993,7 @@ function setRun(on) {
   rhy.run = on;
   if (on && ac) { rhy.next = 0; rhy.nextT = ac.currentTime + 0.06; rhy.queue = []; scheduleRhythm(); rhy.timer = setInterval(scheduleRhythm, 25); }
   else { clearInterval(rhy.timer); rhy.timer = null; rhy.step = -1; rhy.queue = []; }
-  drawRhyAll(); buzz(10);
+  bassSync(); drawRhyAll(); buzz(10);
 }
 
 /* ---------- labels and display */
@@ -2660,6 +2662,7 @@ function noteOff(id) {
 function chordDown(d, id) {
   mel.chord = d; mel.plateChord = d; melHelp = MEL_HELP.chord; melValue = `${ROMANS[d]} · ${chordLabel(d)}`;
   if (mel.style === 0 && ac && melAudio) { chordUp(); mel.holdChord = { id, notes: chordMidis(d).map((m) => keyNote(m, 0.9)) }; }   // held chords use the disc's voice
+  if (bass.pat) { bass.root = null; drawBassDisplay(); }     // a bass pattern follows the new chord
   syncOptigan(); drawMelButtons(); drawMelDisplay(); buzz(8);
 }
 function chordUp(id) {
@@ -3030,6 +3033,407 @@ function updatePlayCamera(dt) {
   camera.position.lerpVectors(camFrom, fitPos, e);
   camera.quaternion.slerpQuaternions(camFromQ, fitQ, e);
 }
+/* ------------------------------------------------------------------ VII · THE BASS PEDALS
+   Thirteen long pedals, one octave from C2, laid out like a Moog Taurus pedalboard and raised to
+   hand height. Play them live, or pick a pattern and the machine plays a bass line in time with
+   the Rhythm Wheel (or on its own clock at the wheel's tempo when the wheel is stopped). A pattern
+   follows the chord last picked on the Optigan's chord buttons; press a pedal to move it yourself.
+   Four synthesised voices: TAURUS (two detuned saws and a sub through a 24 dB filter), UPRIGHT
+   (a plucked, woody note), SUB (a round low tone with just enough overtones for small speakers)
+   and ACID (a resonant squelch that slides between held notes). A big woofer pumps with the sound. */
+const BASS_I = 7;
+const bassAl = alcoves[BASS_I];
+bassAl.g.remove(bassAl.plinth); bassAl.g.remove(bassAl.beam);
+plinths.splice(plinths.indexOf(bassAl.plinth), 1);
+const bassHits = [], bassCtrls = [];
+const BS_VOICES = [['TAURUS', '#e8262b'], ['UPRIGHT', '#c08a2b'], ['SUB', '#1f6bff'], ['ACID', '#66c000']];
+const BS_PATS = ['LIVE', 'PULSE', 'ROOT·5TH', 'OCTAVES', 'WALK'];
+const BP_LO = 36, BP_N = 13;                                 // pedals C2 to C3
+// patterns: per 16th step, [interval, length in steps, velocity]. R root, 8 octave, 5 fifth above,
+// -5 fifth below, 3 and 6 the third and sixth from the gallery's scale.
+const BPAT = [null,
+  { 0: ['R', 1.7, 1], 2: ['R', 1.6, 0.7], 4: ['R', 1.6, 0.8], 6: ['R', 1.6, 0.7], 8: ['R', 1.7, 0.95], 10: ['R', 1.6, 0.7], 12: ['R', 1.6, 0.8], 14: ['R', 1.6, 0.7] },
+  { 0: ['R', 2.8, 1], 3: ['R', 0.9, 0.7], 6: ['R', 1.4, 0.8], 8: ['-5', 2.8, 0.95], 11: ['-5', 0.9, 0.7], 14: ['8', 1.4, 0.8] },
+  { 0: ['R', 0.9, 1], 2: ['8', 0.9, 0.75], 4: ['R', 0.9, 0.9], 6: ['8', 0.9, 0.75], 8: ['R', 0.9, 1], 10: ['8', 0.9, 0.75], 12: ['R', 0.9, 0.9], 14: ['8', 0.9, 0.75] },
+  { 0: ['R', 3.6, 1], 4: ['3', 3.6, 0.85], 8: ['5', 3.6, 0.9], 12: ['6', 3.6, 0.85] },
+];
+const bass = { voice: 0, pat: 0, tone: 0.55, root: null, cur: null, curM: BP_LO, held: new Map(), next: 0, nextT: 0, timer: null, lvl: 0, notes: [], sig: '' };
+function bassChordRoot() { const pc = (NOTE_SEMI[org.root] + triad(mel.chord ?? mel.plateChord)[0]) % 12; return BP_LO + pc; }
+function bassInterval(root, sym) {
+  if (sym === 'R') return 0; if (sym === '8') return 12; if (sym === '-5') return -5;
+  const sc = galleryScale(), i = sc.indexOf(root % 12), step = (k) => (sc[(i + k) % 7] - sc[i] + 12) % 12;
+  if (sym === '5') return i < 0 ? 7 : step(4);
+  if (sym === '3') return i < 0 ? 4 : step(2);
+  if (sym === '6') return i < 0 ? 9 : step(5);
+  return 0;
+}
+const noteName = (m) => `${PC_NAMES[((m % 12) + 12) % 12]}${Math.floor(m / 12) - 1}`;
+
+// bG: x = player's right, +z = toward the player, y = up
+const bassG = new THREE.Group(); bassG.position.set(0, 0.15, A + 1.25); bassG.rotation.y = Math.PI; bassAl.g.add(bassG);
+const bassPedals = [], bassBtns = { voice: [], pat: [] }, bassSl = {};
+let bassDispL, bassCone, bassCap;
+{
+  const mW = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
+  const mC = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
+  const mInk = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.5 });
+  // the pedal cabinet, with a ledge along the front for the volume slider
+  bassHits.push(box(1.9, 0.72, 0.85, mW, 0, 0.36, 0.125, bassG));
+  bassHits.push(box(1.92, 0.04, 0.87, mC, 0, 0.74, 0.125, bassG));
+  // thirteen pedals: eight long naturals, five short raised sharps at the back, as on a Taurus
+  const NAT = [0, 2, 4, 5, 7, 9, 11, 12], SHARP = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+  for (let i = 0; i < BP_N; i++) {
+    const semi = i, black = !NAT.includes(semi), m = BP_LO + i;
+    const mat = new THREE.MeshStandardMaterial({ color: black ? '#1d1b18' : '#fbf8f2', roughness: 0.35, envMapIntensity: 0.6, emissive: '#000000' });
+    let mesh;
+    if (!black) { const k = NAT.indexOf(semi); mesh = new THREE.Mesh(new THREE.BoxGeometry(0.188, 0.05, 0.5), mat); mesh.position.set(-0.7 + k * 0.2, 0.785, 0.05); }
+    else { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.27), mat); mesh.position.set(-0.6 + SHARP[semi] * 0.2, 0.81, -0.085); }
+    mesh.userData = { t: 'pedal', m }; bassG.add(mesh); bassCtrls.push(mesh);
+    bassPedals.push({ m, mesh, mat, black, y0: mesh.position.y, down: 0 });
+  }
+  // the control tier behind the pedals
+  bassHits.push(box(1.9, 0.24, 0.36, mW, 0, 0.86, -0.47, bassG));
+  bassHits.push(box(1.92, 0.03, 0.38, mC, 0, 0.995, -0.47, bassG));
+  const btn = (list, k, name, col, x, z, t) => {
+    const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(0.185, 0.04, 0.12), mat);
+    b.position.set(x, 1.02, z); bassG.add(b); b.userData = { t, i: k }; bassCtrls.push(b);
+    const L = flatLabel(0.18, 0.115, 256, 164, b, 0, 0.0205, 0); list[k] = { mat, L, name, col };
+  };
+  BS_VOICES.forEach(([n, col], k) => btn(bassBtns.voice, k, n, col, -0.8 + k * 0.2, -0.375, 'voice'));
+  BS_PATS.forEach((n, k) => btn(bassBtns.pat, k, n, '#f6f2ea', -0.8 + k * 0.2, -0.565, 'pat'));
+  // sliders: tone on the control tier, volume on the front ledge
+  const slider = (key, x0, len, y, z, label, col, lx, lw) => {
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.012, 0.026), mDark); slot.position.set(x0 + len / 2, y + 0.006, z); bassG.add(slot);
+    const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.018), new THREE.MeshBasicMaterial({ color: col, toneMapped: false })); bassG.add(fill);
+    const mat = capMat('#2a2724'), cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.085), mat); bassG.add(cap);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(len + 0.14, 0.1, 0.13), hitMat); hit.position.set(x0 + len / 2, y + 0.03, z); bassG.add(hit);
+    for (const o of [cap, hit]) { o.userData = { t: 'slider', key }; bassCtrls.push(o); }
+    const lb = flatLabel(lw, 0.06, Math.round(lw * 800), 49, bassG, lx, y + 0.002, z);
+    bassSl[key] = { x0, len, y, z, mat, cap, fill, lb, label };
+  };
+  slider('tone', 0.22, 0.5, 1.01, -0.375, 'TONE', '#ffd000', 0.47, 0.5);
+  bassSl.tone.lb.m.position.z = -0.47;
+  slider('vol', -0.2, 1.1, 0.76, 0.445, 'BASS VOLUME', '#1f6bff', -0.6, 0.66);
+  // quick mute, right end of the pattern row
+  { const b = makeMuteBtn('bass', bassG, 0.84, 1.02, -0.565, 0.2, 0.12); b.userData = { t: 'mmute' }; bassCtrls.push(b); }
+  // the back board: a woofer in a Bauhaus field of colour, and the display strip under it
+  bassHits.push(box(1.9, 1.6, 0.08, mW, 0, 1.75, -0.72, bassG));
+  // a Mondrian field: the woofer in a cream square, a yellow block, a red block, black bars
+  const flat = (col) => new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 });
+  box(0.92, 1.22, 0.012, flat('#f6f2ea'), 0, 1.94, -0.674, bassG);
+  box(0.46, 0.47, 0.012, flat('#ffd000'), -0.71, 2.315, -0.674, bassG);
+  box(0.46, 0.36, 0.012, flat('#e8262b'), 0.71, 1.51, -0.674, bassG);
+  box(0.035, 1.22, 0.016, mInk, -0.475, 1.94, -0.671, bassG);
+  box(0.035, 1.22, 0.016, mInk, 0.475, 1.94, -0.671, bassG);
+  box(0.46, 0.035, 0.016, mInk, -0.71, 2.08, -0.671, bassG);
+  box(0.46, 0.035, 0.016, mInk, 0.71, 1.69, -0.671, bassG);
+  box(1.9, 0.035, 0.016, mInk, 0, 2.55, -0.671, bassG);
+  const wf = new THREE.Group(); wf.position.set(0, 1.86, -0.555); bassG.add(wf);      // stands proud of the board
+  const can = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.115, 64, 1, true), new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.6, side: THREE.DoubleSide }));
+  can.rotation.x = Math.PI / 2; can.position.z = -0.0575; wf.add(can);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 14, 64), new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.7 })); wf.add(ring);
+  const frame = new THREE.Mesh(new THREE.RingGeometry(0.39, 0.43, 64), new THREE.MeshStandardMaterial({ color: '#c9ccd0', metalness: 0.8, roughness: 0.35 })); frame.position.z = 0.002; wf.add(frame);
+  bassCone = new THREE.Group(); wf.add(bassCone);
+  const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.085, 0.1, 64, 1, true), new THREE.MeshStandardMaterial({ color: '#45423f', roughness: 0.9, side: THREE.DoubleSide }));
+  cone.rotation.x = Math.PI / 2; cone.position.z = -0.05; bassCone.add(cone);
+  for (let r = 0; r < 3; r++) {                                 // pressed ribs in the paper cone
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.14 + r * 0.065, 0.004, 6, 64), new THREE.MeshStandardMaterial({ color: '#2b2a29', roughness: 0.9 }));
+    rib.position.z = -0.1 + (0.14 + r * 0.065 - 0.085) / 0.255 * 0.1; bassCone.add(rib);
+  }
+  bassCap = new THREE.Mesh(new THREE.SphereGeometry(0.09, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#1f6bff', roughness: 0.4, emissive: '#1f6bff', emissiveIntensity: 0.1 }));
+  bassCap.rotation.x = Math.PI / 2; bassCap.position.z = -0.1; bassCone.add(bassCap);
+  // display
+  bassDispL = canvasTex(2048, 280);
+  const d = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.232), new THREE.MeshBasicMaterial({ map: bassDispL.t, toneMapped: false }));
+  d.position.set(0, 1.21, -0.672); bassG.add(d);
+}
+const bassPos = bassAl.g.localToWorld(new THREE.Vector3(0, 1.4, A + 1.5));
+
+/* ---------- sound */
+let bassAudio = null;
+function initBassAudio() {
+  const out = ac.createGain(); volRegister('bass', out, 1);
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, bassPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.1; out.connect(send); send.connect(reverbIn);
+  micTap(out, bassPos, 1.5);
+  const an = ac.createAnalyser(); an.fftSize = 512; out.connect(an);
+  const nlen = ac.sampleRate, nb = ac.createBuffer(1, nlen, ac.sampleRate), nd = nb.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+  const drive = ac.createWaveShaper(); drive.curve = softClipCurve(); drive.oversample = '2x'; drive.connect(out);
+  bassAudio = { out, in: drive, an, buf: new Float32Array(512), noise: nb };
+}
+const bassCut = (f) => Math.min(12000, 90 * Math.pow(2, bass.tone * 6.6) + f * 1.5);
+function lp(f, q) { const b = ac.createBiquadFilter(); b.type = 'lowpass'; b.frequency.value = f; b.Q.value = q; return b; }
+// one bass note starting at t; returns { stop(at), glide(m, at) }
+function bassVoice(m, vel, t) {
+  const f = mf(m), g = ac.createGain(), srcs = [], v = BS_VOICES[bass.voice][0], cut = bassCut(f);
+  g.connect(bassAudio.in); g.gain.setValueAtTime(0, t);
+  let filters = [], rel = 0.1, glideOsc = [];
+  if (v === 'TAURUS') {
+    const f1 = lp(cut, 2.2), f2 = lp(cut, 0.7); f1.connect(f2); f2.connect(g); filters = [f1, f2];
+    for (const [type, mul, det, a] of [['sawtooth', 1, 0, 0.5], ['sawtooth', 1, 9, 0.5], ['square', 0.5, 0, 0.32]]) {
+      const o = mkOsc(type, f * mul, det), og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(f1); srcs.push(o); glideOsc.push([o, mul]);
+    }
+    for (const fl of filters) { fl.frequency.setValueAtTime(Math.min(14000, cut * 2.4), t); fl.frequency.setTargetAtTime(cut * 0.75, t, 0.16); }
+    g.gain.linearRampToValueAtTime(0.11 * vel, t + 0.006); rel = 0.11;
+  } else if (v === 'UPRIGHT') {
+    const f1 = lp(Math.min(2400, cut), 0.8); f1.connect(g); filters = [f1];
+    const o = mkOsc('triangle', f), o2 = mkOsc('sine', f * 2), o2g = ac.createGain(); o2g.gain.value = 0.3;
+    o.connect(f1); o2.connect(o2g); o2g.connect(f1); srcs.push(o, o2); glideOsc.push([o, 1], [o2, 2]);
+    f1.frequency.setValueAtTime(Math.min(5000, cut * 1.6), t); f1.frequency.setTargetAtTime(Math.min(1400, cut * 0.45), t, 0.07);
+    g.gain.linearRampToValueAtTime(0.19 * vel, t + 0.003); g.gain.setTargetAtTime(0, t + 0.003, 0.6);
+    const n = ac.createBufferSource(); n.buffer = bassAudio.noise; const nf = lp(320, 1), ng = ac.createGain();
+    ng.gain.setValueAtTime(0.5 * vel, t); ng.gain.setTargetAtTime(0, t, 0.012); n.connect(nf); nf.connect(ng); ng.connect(g); n.start(t, Math.random() * 0.5); n.stop(t + 0.1);
+    rel = 0.07;
+  } else if (v === 'SUB') {
+    const f1 = lp(Math.min(1800, cut), 0.5); f1.connect(g); filters = [f1];
+    const o = waveOsc('sub', [0, 1, 0.42, 0.16, 0.06], f); o.connect(f1); srcs.push(o); glideOsc.push([o, 1]);
+    g.gain.linearRampToValueAtTime(0.13 * vel, t + 0.012); rel = 0.09;
+  } else {                                                     // ACID
+    const f1 = lp(cut, 4 + bass.tone * 12); f1.connect(g); filters = [f1];
+    const o = mkOsc('sawtooth', f); o.connect(f1); srcs.push(o); glideOsc.push([o, 1]);
+    f1.frequency.setValueAtTime(Math.min(12000, cut * (2.2 + 2 * vel)), t); f1.frequency.setTargetAtTime(cut * 0.3 + f, t, 0.085);
+    g.gain.linearRampToValueAtTime(0.1 * vel, t + 0.003); rel = 0.04;
+  }
+  srcs.forEach((o) => o.start(t));
+  let done = false;
+  return {
+    stop(at) {
+      if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime);
+      g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, rel);
+      srcs.forEach((o) => { try { o.stop(tt + rel * 8 + 0.05); } catch (e) {} });
+    },
+    glide(m2, at) {                                            // slide the held note to a new pitch
+      const tt = Math.max(at || 0, ac.currentTime), f2 = mf(m2);
+      for (const [o, mul] of glideOsc) o.frequency.setTargetAtTime(f2 * mul, tt, v === 'ACID' ? 0.035 : 0.05);
+      if (v === 'ACID') for (const fl of filters) fl.frequency.setTargetAtTime(bassCut(f2) * 0.3 + f2, tt, 0.05);
+    },
+  };
+}
+function bassPlay(m, vel, t, dur) {                              // a pattern note: mono, so it cuts the last one
+  if (bass.cur) bass.cur.stop(t);
+  bass.cur = bassVoice(m, vel, t); bass.cur.stop(t + dur); bass.curM = m;
+  bass.notes.push({ m, t, end: t + dur });
+}
+// patterns: driven by the Rhythm Wheel's clock when it runs, otherwise by our own at its tempo
+function bassGrid(st, t) {
+  if (!bass.pat || !bassAudio) return;
+  const P = BPAT[bass.pat][st]; if (!P) return;
+  const root = bass.root ?? bassChordRoot();
+  bassPlay(root + bassInterval(root, P[0]), P[2], t, P[1] * stepDur());
+}
+function bassTick() {
+  if (!ac || !bassAudio || !bass.pat || rhy.run) return;
+  const ahead = ac.currentTime + 0.14;
+  while (bass.nextT < ahead) {
+    const st = bass.next, sw = st % 2 ? rhy.swing * stepDur() * 0.66 : 0;
+    bassGrid(st, bass.nextT + sw);
+    bass.nextT += stepDur(); bass.next = (bass.next + 1) % 16;
+  }
+}
+function bassSync() {
+  const want = bass.pat > 0 && !rhy.run && !!ac && !!bassAudio;
+  if (want && !bass.timer) { bass.next = 0; bass.nextT = ac.currentTime + 0.05; bassTick(); bass.timer = setInterval(bassTick, 25); }
+  else if (!want && bass.timer) { clearInterval(bass.timer); bass.timer = null; }
+  if (!bass.pat && bass.cur && !bass.held.size) { bass.cur.stop(); bass.cur = null; }
+}
+// live playing: one note at a time; a new pedal while one is held slides (TAURUS, ACID) or re-strikes
+function bassLiveDown(id, m) {
+  if (!ac || !bassAudio) return;
+  const v = BS_VOICES[bass.voice][0], legato = bass.held.size > 0 && bass.cur && (v === 'TAURUS' || v === 'ACID');
+  bass.held.set(id, m);
+  if (legato) bass.cur.glide(m);
+  else { if (bass.cur) bass.cur.stop(); bass.cur = bassVoice(m, 1, ac.currentTime + 0.003); }
+  bass.curM = m; bass.notes.push({ m, t: ac.currentTime, end: Infinity });
+}
+function bassLiveUp(id) {
+  if (!bass.held.has(id)) return;
+  bass.held.delete(id);
+  const last = [...bass.held.values()].pop();
+  if (last !== undefined) { if (bass.cur) bass.cur.glide(last); bass.curM = last; bass.notes.push({ m: last, t: ac.currentTime, end: Infinity }); }
+  else { if (bass.cur) bass.cur.stop(); bass.cur = null; for (const n of bass.notes) if (n.end === Infinity) n.end = ac.currentTime; }
+}
+
+/* ---------- labels and display */
+let bassHelp = '', bassValue = '';
+const BASS_HELP = {
+  start: 'Press the pedals to play a bass line, or pick a pattern and it plays in time with the Rhythm Wheel, following the Optigan’s chords. Lit pedals belong to the gallery’s key; green is home. Keys: ← → choose, Enter play. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  voice: 'Voice: TAURUS is the big analogue synth pedal bass, UPRIGHT a plucked double bass, SUB a deep round tone, ACID a squelchy resonant synth that slides between held pedals.',
+  pat: 'Pattern: LIVE lets you play the pedals yourself. The others play a bass line on the beat: press a chord on the Optigan and the line follows it, or press a pedal to set the root yourself.',
+  tone: 'Tone: dark and soft to the left, bright and growling to the right. On ACID it also turns up the squelch.',
+  vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
+  mmute: 'Mute: silences the bass at once. Press again to bring it back.',
+  pedal: 'Thirteen pedals, one octave from C. Lit pedals belong to the gallery’s key and green is home, so those always sound right. In a pattern, a pedal moves the bass line to that note.',
+};
+function drawBassDisplay() {
+  const { g, c, t } = bassDispL;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = ALCOVE_COL[BASS_I]; g.fillRect(0, 0, c.width, 10);
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 72px ${FONT}`;
+  const head = bass.pat ? PC_NAMES[(bass.root ?? bassChordRoot()) % 12] : PC_NAMES[bass.curM % 12] || '';
+  g.fillText(head, 34, 84);
+  const hw = g.measureText(head).width;
+  g.fillStyle = '#5a554d'; g.font = `bold 38px ${FONT}`;
+  g.fillText(`VOICE: ${BS_VOICES[bass.voice][0]}   ·   PATTERN: ${BS_PATS[bass.pat]}${bass.pat ? (bass.root === null ? ' (FOLLOWING THE OPTIGAN)' : ' (ON YOUR PEDAL)') : ''}`, 70 + hw, 80);
+  if (bassValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 46px ${FONT}`; g.fillText(bassValue, c.width - 34, 82); g.textAlign = 'left'; }
+  g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
+  const words = bassHelp.split(' '); let line = '', y = 142;
+  for (const wd of words) { if (g.measureText(line + wd).width > c.width - 68) { g.fillText(line, 34, y); line = ''; y += 44; } line += wd + ' '; }
+  g.fillText(line, 34, y); t.needsUpdate = true;
+}
+function drawBassSlider(key) {
+  const S = bassSl[key], v = key === 'vol' ? VOL.bass : bass.tone, x = S.x0 + v * S.len;
+  S.cap.position.set(x, S.y + 0.025, S.z);
+  S.fill.scale.x = Math.max(0.001, v * S.len); S.fill.position.set(S.x0 + v * S.len / 2, S.y + 0.008, S.z);
+  printText(S.lb, [[`${S.label} ${Math.round(v * 100)}%`, 34, '#3a3630']], { align: key === 'vol' ? 'left' : 'center' });
+}
+function drawBassButtons() {
+  bassBtns.voice.forEach((b, k) => printText(b.L, [[b.name, 46, k === bass.voice ? '#ffffff' : '#1d1b18']], k === bass.voice ? { bg: '#1d1b18' } : {}));
+  bassBtns.pat.forEach((b, k) => printText(b.L, [[b.name, b.name.length > 7 ? 40 : 46, k === bass.pat ? '#ffffff' : '#1d1b18']], k === bass.pat ? { bg: '#1d1b18' } : {}));
+  drawBassSlider('tone'); drawBassSlider('vol');
+}
+function bassKeyChanged() {
+  const sc = galleryScale(), home = NOTE_SEMI[org.root];
+  for (const p of bassPedals) {
+    const pc = p.m % 12, inS = sc.includes(pc);
+    p.base = p.black ? (pc === home ? KEY_TINT.homeB : inS ? KEY_TINT.inB : KEY_TINT.outB) : (pc === home ? KEY_TINT.homeW : inS ? KEY_TINT.inW : KEY_TINT.outW);
+    p.mat.color.copy(p.base);
+  }
+  drawBassButtons(); drawBassDisplay();
+}
+bassKeyChanged();
+
+/* ---------- touch, mouse, keys, controller */
+function bassRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(bassCtrls, false)[0]; }
+function groupLocalAt(G, e, y) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+  G.updateMatrixWorld();
+  const o = G.localToWorld(new THREE.Vector3(0, y, 0)), n = new THREE.Vector3(0, 1, 0).transformDirection(G.matrixWorld);
+  const pl = new THREE.Plane().setFromNormalAndCoplanarPoint(n, o), hit = new THREE.Vector3();
+  return ray.ray.intersectPlane(pl, hit) ? G.worldToLocal(hit) : null;
+}
+function bassSet(key, v) {
+  if (key === 'vol') { setVol('bass', v); bassValue = `Volume ${Math.round(VOL.bass * 100)}%`; }
+  else { bass.tone = Math.max(0, Math.min(1, Math.round(v * 100) / 100)); bassValue = `Tone ${Math.round(bass.tone * 100)}%`; }
+  drawBassSlider(key); drawBassDisplay();
+}
+function bassSliderTo(key, e) { const S = bassSl[key], p = groupLocalAt(bassG, e, S.y + 0.03); if (p) bassSet(key, (p.x - S.x0) / S.len); }
+function bassPedalDown(id, m) {
+  bassHelp = BASS_HELP.pedal;
+  const p = bassPedals.find((q) => q.m === m); if (p) p.down++;
+  if (bass.pat) { bass.root = m; bassValue = `root ${noteName(m)}`; bass.held.set(id, m); }
+  else { bassLiveDown(id, m); bassValue = noteName(m); }
+  buzz(6); drawBassDisplay();
+}
+function bassPedalUp(id) {
+  const m = bass.held.get(id); if (m === undefined) return;
+  const p = bassPedals.find((q) => q.m === m); if (p) p.down = Math.max(0, p.down - 1);
+  if (bass.pat) bass.held.delete(id); else bassLiveUp(id);
+}
+function bassButton(u) {
+  if (u.t === 'voice') { bass.voice = u.i; bassHelp = BASS_HELP.voice; bassValue = BS_VOICES[u.i][0]; if (bass.cur && !bass.pat) { bass.cur.stop(); bass.cur = null; } }
+  if (u.t === 'pat') { bass.pat = u.i; bass.root = null; bassHelp = BASS_HELP.pat; bassValue = BS_PATS[u.i]; bassSync(); }
+  if (u.t === 'mmute') { const on = machineMute('bass'); bassHelp = BASS_HELP.mmute; bassValue = on ? 'bass muted' : 'sound on'; }
+  if (u.t === 'slider') { bassHelp = BASS_HELP[u.key]; }
+  buzz(8); drawBassButtons(); drawBassDisplay();
+}
+const bassPtr = new Map();
+function bassDown(e) {
+  const h = bassRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  bFocus = -1;
+  const u = h.object.userData, id = 'p' + e.pointerId;
+  bassPtr.set(e.pointerId, u);
+  if (u.t === 'pedal') bassPedalDown(id, u.m);
+  else { bassButton(u); if (u.t === 'slider') bassSliderTo(u.key, e); }
+}
+function bassMove(e) {
+  const u = bassPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'slider') { bassSliderTo(u.key, e); return; }
+  if (u.t !== 'pedal') return;
+  const h = bassRay(e), v = h && h.object.userData;                // slide along the pedals
+  if (v && v.t === 'pedal' && v.m !== bass.held.get('p' + e.pointerId)) {
+    const id = 'p' + e.pointerId;
+    if (!bass.pat && bass.held.size === 1 && bass.held.has(id)) {    // keep it legato while sliding
+      const old = bass.held.get(id), p0 = bassPedals.find((q) => q.m === old); if (p0) p0.down = Math.max(0, p0.down - 1);
+      bass.held.set(id, v.m); const p1 = bassPedals.find((q) => q.m === v.m); if (p1) p1.down++;
+      const vc = BS_VOICES[bass.voice][0];
+      if (vc === 'TAURUS' || vc === 'ACID') bass.cur.glide(v.m); else { bass.cur.stop(); bass.cur = bassVoice(v.m, 1, ac.currentTime + 0.003); }
+      bass.curM = v.m; bass.notes.push({ m: v.m, t: ac.currentTime, end: Infinity }); bassValue = noteName(v.m); drawBassDisplay();
+    } else { bassPedalUp(id); bassPedalDown(id, v.m); }
+  }
+}
+function bassUp(e) {
+  const u = bassPtr.get(e.pointerId); if (!u) return;
+  bassPtr.delete(e.pointerId);
+  if (u.t === 'pedal') bassPedalUp('p' + e.pointerId);
+}
+const B_STATIONS = [...[0, 1, 2, 3].map((i) => ({ t: 'voice', i })), ...[0, 1, 2, 3, 4].map((i) => ({ t: 'pat', i })), { t: 'slider', key: 'tone' }, { t: 'mmute' },
+  ...Array.from({ length: BP_N }, (_, i) => ({ t: 'pedal', m: BP_LO + i })), { t: 'slider', key: 'vol' }];
+let bFocus = -1;
+function bFocusSet(i) {
+  bFocus = i; if (i < 0) return;
+  const f = B_STATIONS[i]; bassHelp = BASS_HELP[f.t === 'slider' ? f.key : f.t];
+  bassValue = f.t === 'pedal' ? noteName(f.m) : f.t === 'voice' ? BS_VOICES[f.i][0] : f.t === 'pat' ? BS_PATS[f.i] : f.t === 'slider' ? (f.key === 'vol' ? `Volume ${Math.round(VOL.bass * 100)}%` : `Tone ${Math.round(bass.tone * 100)}%`) : (MUTED.bass ? 'muted' : 'mute');
+  drawBassDisplay(); blip(660, 0.04, 0.03);
+}
+function bassStepF(d) { bFocusSet(bFocus < 0 ? (d > 0 ? 0 : B_STATIONS.length - 1) : (bFocus + d + B_STATIONS.length) % B_STATIONS.length); }
+function bassAdjust(d) {
+  if (bFocus < 0) { bFocusSet(0); return; }
+  const f = B_STATIONS[bFocus];
+  if (f.t === 'slider') { bassSet(f.key, (f.key === 'vol' ? VOL.bass : bass.tone) + d * 0.05); return; }
+  bassStepF(-d);
+}
+function bassPress(down) {
+  if (bFocus < 0) { if (down) bFocusSet(0); return; }
+  const f = B_STATIONS[bFocus];
+  if (f.t === 'pedal') { if (down) bassPedalDown('kb', f.m); else bassPedalUp('kb'); return; }
+  if (down && f.t !== 'slider') bassButton(f);
+}
+function makeBassMachine() {
+  const fit = [], fitL = [];
+  for (const x of [-0.97, 0.97]) {
+    fit.push([bassG, new THREE.Vector3(x, 0.76, 0.56)]); fit.push([bassG, new THREE.Vector3(x, 1.0, -0.64)]); fit.push([bassG, new THREE.Vector3(x, 2.56, -0.7)]);
+    fitL.push([bassG, new THREE.Vector3(x, 0.76, 0.56)]); fitL.push([bassG, new THREE.Vector3(x, 1.0, -0.64)]); fitL.push([bassG, new THREE.Vector3(x * 0.9, 1.33, -0.68)]);
+  }
+  return {
+    al: BASS_I, base: bassG, fit, fitL, elev: [0.95, 0.78], stand: 1.0,
+    down: bassDown, move: bassMove, up: bassUp, step: bassStepF, adjust: bassAdjust, press: bassPress,
+    enter() { bFocus = -1; bassHelp = BASS_HELP.start; bassValue = ''; drawBassButtons(); drawBassDisplay(); },
+    exit() { for (const id of [...bass.held.keys()]) bassPedalUp(id); bass.held.clear(); bassPtr.clear(); bassPedals.forEach((p) => { p.down = 0; }); bFocus = -1; },
+  };
+}
+
+/* ---------- every frame: pedals, focus, the woofer */
+function updateBass(dt) {
+  const sig = org.root + ':' + org.mood;
+  if (sig !== bass.sig) { bass.sig = sig; bassKeyChanged(); }
+  const now = ac ? ac.currentTime : 0;
+  bass.notes = bass.notes.filter((n) => n.end > now - 0.2);
+  const sounding = bass.notes.filter((n) => n.t <= now && n.end > now).pop();
+  const foc = playing && curM === BASS_M && bFocus >= 0 ? B_STATIONS[bFocus] : null;
+  for (const p of bassPedals) {
+    const target = sounding ? (sounding.m >= BP_LO && sounding.m < BP_LO + BP_N ? sounding.m : BP_LO + ((sounding.m % 12) + 12) % 12) : -1;
+    const lit = p.m === target;
+    const isF = foc && foc.t === 'pedal' && foc.m === p.m;
+    const ty = p.y0 - (p.down > 0 ? 0.018 : 0);
+    p.mesh.position.y += (ty - p.mesh.position.y) * Math.min(1, dt * 30);
+    p.mat.emissive.set(lit ? ALCOVE_COL[BASS_I] : '#ffffff'); p.mat.emissiveIntensity = lit ? 0.55 : isF ? 0.3 : 0;
+  }
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  bassBtns.voice.forEach((b, k) => glow(b.mat, foc && foc.t === 'voice' && foc.i === k));
+  bassBtns.pat.forEach((b, k) => glow(b.mat, foc && foc.t === 'pat' && foc.i === k));
+  for (const key in bassSl) glow(bassSl[key].mat, foc && foc.t === 'slider' && foc.key === key);
+  glow(muteBtns.bass.mat, foc && foc.t === 'mmute');
+  // the woofer: how far the cone pushes follows the bass's loudness
+  let lvl = 0;
+  if (bassAudio) { bassAudio.an.getFloatTimeDomainData(bassAudio.buf); let s = 0; for (const x of bassAudio.buf) s += x * x; lvl = Math.min(1, Math.sqrt(s / bassAudio.buf.length) * 9); }
+  bass.lvl += (lvl - bass.lvl) * Math.min(1, dt * (lvl > bass.lvl ? 40 : 10));
+  bassCone.position.z = bass.lvl * 0.045 + Math.sin(time * 60) * bass.lvl * 0.004;
+  bassCap.material.emissiveIntensity = 0.1 + bass.lvl * 1.4;
+}
+
 const ORGAN_M = {
   al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
   down: organPointerDown, move: organPointerMove, up: organPointerUp,
@@ -3039,6 +3443,7 @@ const ORGAN_M = {
 };
 const RHY_M = makeRhythmMachine();
 const MEL_M = makeMelodyMachine();
+const BASS_M = makeBassMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -3096,6 +3501,7 @@ function update(dt) {
   updateOrgan(dt);
   updateRhythm(dt);
   updateMelody(dt);
+  updateBass(dt);
   updateProjector(dt);
 
   // --- door
@@ -3223,6 +3629,9 @@ function updateCaption() {
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
     c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === BASS_I) {
+    c.innerHTML = `<b>VII</b> · The Bass Pedals<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the pedals to play</span>`;
     c.classList.remove('hidden');
   } else if (show === RHY_I) {
     c.innerHTML = `<b>VIII</b> · The Rhythm Wheel<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the wheel to play</span>`;
