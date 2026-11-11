@@ -221,11 +221,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -913,13 +913,13 @@ function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15
 const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 /* ---------- a volume control for every machine. 0..1 on the dial; 0.7 is the normal level,
    full turn is about twice as loud. Remembered in this browser. */
-const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7 };
+const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
 function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
 // a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
-const MUTED = { organ: false, rhythm: false, melody: false, bass: false };
+const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false };
 const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
 const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
 const muteBtns = {};
@@ -1011,6 +1011,7 @@ function initAudio() {
   initRhythmAudio();
   initMelodyAudio();
   initBassAudio();
+  initPoolAudio();
 }
 /* ---------- THE CENTRE MICROPHONE
    The two giant ears on the turning stage are a stereo pair: left ear, right
@@ -1328,15 +1329,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -3497,6 +3498,362 @@ function updateBass(dt) {
   bassCap.material.emissiveIntensity = 0.1 + bass.lvl * 1.4;
 }
 
+/* ------------------------------------------------------------------ V · THE RIPPLE POOL
+   A round pool of still water set into a square cream plinth (a circle in a square). Touch the
+   water and a ripple spreads; when it reaches the twelve coloured chimes round the rim, each rings
+   a note, nearest first, so one touch becomes a little falling arpeggio. Touch twice and the
+   ripples cross and their notes interleave. The chimes are tuned to a pentatonic scale in the
+   gallery's key, so any mix of notes sounds right. IN TIME snaps each chime to the Rhythm Wheel's
+   beat; RAIN lets drops fall on their own. Built to the sound budget: two or three sine-type
+   oscillators per note, no sweeping filters, notes released as soon as they're quiet, at most
+   eight ripples and twenty notes at once. */
+const POOL_I = 5;
+const poolAl = alcoves[POOL_I];
+poolAl.g.remove(poolAl.plinth); poolAl.g.remove(poolAl.beam);
+plinths.splice(plinths.indexOf(poolAl.plinth), 1);
+const poolHits = [], poolCtrls = [];
+const PL = { cz: -0.2, r: 0.78, chimeR: 0.87, top: 0.8 };       // pool centre z, water radius, chime ring radius, plinth top
+const PL_VOICES = [['GLASS', '#00b7ff'], ['KALIMBA', '#c08a2b'], ['STEEL', '#e8262b'], ['BLOOP', '#00d0b0']];
+const pool = { voice: 0, speed: 0.45, rain: false, inTime: false, ripples: [], pend: [], voices: [], rainT: 1, cursor: 0, timer: null, sig: '' };
+const chimeAngle = (k) => Math.PI / 12 + k * Math.PI / 6;           // 0 front-left, round the back, 11 front-right
+const chimePos = (k, r = PL.chimeR) => new THREE.Vector2(-r * Math.sin(chimeAngle(k)), PL.cz + r * Math.cos(chimeAngle(k)));
+// twelve notes of the key's pentatonic scale, rising round the rim from the home note at C4–B4
+function poolNotes() {
+  const home = NOTE_SEMI[org.root], rel = galleryScale().map((pc) => (pc - home + 12) % 12).sort((a, b) => a - b);
+  const drop = org.mood === 1 || org.mood === 3 ? [1, 5] : [3, 6];  // major-ish: lose 4th and 7th; minor-ish: lose 2nd and 6th
+  const pent = rel.filter((_, i) => !drop.includes(i));
+  const out = []; for (let k = 0; k < 12; k++) out.push(60 + home + pent[k % 5] + 12 * Math.floor(k / 5));
+  return out;
+}
+const speedMS = () => 0.22 + pool.speed * 1.0;                     // ripple speed, metres a second
+
+const poolG = new THREE.Group(); poolG.position.set(0, 0.15, A + 1.25); poolG.rotation.y = Math.PI; poolAl.g.add(poolG);
+let poolWater, poolWaterPos, poolRingL, poolDispL, poolCursor;
+const chimes = [], poolBtns = { voice: [], tog: {} }, poolSl = {};
+{
+  const mW = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
+  const mC = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
+  // the plinth: walnut sides, and a cream top with a round hole for the water
+  poolHits.push(box(2.0, 0.7, 2.3, mW, 0, 0.35, 0.05, poolG));
+  const sq = new THREE.Shape(); sq.moveTo(-1.01, -1.1); sq.lineTo(1.01, -1.1); sq.lineTo(1.01, 1.2); sq.lineTo(-1.01, 1.2); sq.lineTo(-1.01, -1.1);
+  const hole = new THREE.Path(); hole.absarc(0, -PL.cz, PL.r + 0.02, 0, Math.PI * 2, true); sq.holes.push(hole);
+  const slab = new THREE.Mesh(new THREE.ExtrudeGeometry(sq, { depth: 0.1, bevelEnabled: false, curveSegments: 64 }), mC);
+  slab.rotation.x = -Math.PI / 2; slab.position.y = PL.top - 0.1; poolG.add(slab); poolHits.push(slab);
+  // basin: dark inner wall
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(PL.r + 0.02, PL.r + 0.02, 0.1, 64, 1, true), new THREE.MeshStandardMaterial({ color: '#0d2430', roughness: 0.6, side: THREE.BackSide }));
+  wall.position.set(0, PL.top - 0.05, PL.cz); poolG.add(wall);
+  // water: a fine disc whose vertices rise and fall with the ripples
+  const geo = new THREE.RingGeometry(0.001, PL.r + 0.02, 72, 26); geo.rotateX(-Math.PI / 2);
+  poolWaterPos = Float32Array.from(geo.attributes.position.array);
+  const rippleTex = canvasTex(256, 256);
+  poolWater = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#103a4c', roughness: 0.08, metalness: 0.35, envMapIntensity: 1.4, emissive: '#9fe8ff', emissiveMap: rippleTex.t, emissiveIntensity: 0.9 }));
+  poolWater.userData = { t: 'water' }; poolWater.position.set(0, PL.top - 0.025, PL.cz); poolG.add(poolWater); poolCtrls.push(poolWater);
+  poolWater.userData.tex = rippleTex;
+  // keyboard / controller drop cursor
+  poolCursor = new THREE.Mesh(new THREE.RingGeometry(0.045, 0.06, 32), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 }));
+  poolCursor.rotation.x = -Math.PI / 2; poolCursor.visible = false; poolG.add(poolCursor);
+  // twelve chimes on the rim, coloured round the gallery palette
+  for (let k = 0; k < 12; k++) {
+    const p = chimePos(k), col = ALCOVE_COL[1 + (k % 11)];
+    const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, emissive: col, emissiveIntensity: 0.05 });
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.07, 0.04), mat);
+    c.position.set(p.x, PL.top + 0.035, p.y); c.rotation.y = -chimeAngle(k); poolG.add(c);
+    chimes.push({ mesh: c, mat, lvl: 0, x: p.x, z: p.y });
+  }
+  // the chimes' notes, printed round the rim
+  poolRingL = canvasTex(1024, 1024);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(PL.chimeR + 0.045, PL.chimeR + 0.13, 96), new THREE.MeshBasicMaterial({ map: poolRingL.t, transparent: true, toneMapped: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, PL.top + 0.002, PL.cz); poolG.add(ring);
+  // front controls: voices, RAIN, IN TIME, CALM, mute; speed and volume sliders along the edge
+  const btn = (name, col, x, u) => {
+    const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.12), mat);
+    b.position.set(x, PL.top + 0.02, 0.8); poolG.add(b); b.userData = u; poolCtrls.push(b);
+    const L = flatLabel(0.19, 0.115, 256, 155, b, 0, 0.0205, 0); return { mat, L, name, col, b };
+  };
+  PL_VOICES.forEach(([n, col], k) => { poolBtns.voice[k] = btn(n, col, -0.86 + k * 0.22, { t: 'voice', i: k }); });
+  poolBtns.tog.rain = btn('RAIN', '#f6f2ea', 0.1, { t: 'rain' });
+  poolBtns.tog.time = btn('IN TIME', '#f6f2ea', 0.32, { t: 'time' });
+  poolBtns.tog.calm = btn('CALM', '#f6f2ea', 0.54, { t: 'calm' });
+  { const b = makeMuteBtn('pool', poolG, 0.86, PL.top + 0.02, 0.8, 0.2, 0.12); b.userData = { t: 'mmute' }; poolCtrls.push(b); }
+  const slider = (key, x0, len, label, col) => {
+    const y = PL.top, z = 1.08;
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.012, 0.026), mDark); slot.position.set(x0 + len / 2, y + 0.006, z); poolG.add(slot);
+    const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.018), new THREE.MeshBasicMaterial({ color: col, toneMapped: false })); poolG.add(fill);
+    const mat = capMat('#2a2724'), cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.085), mat); poolG.add(cap);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(len + 0.14, 0.1, 0.13), hitMat); hit.position.set(x0 + len / 2, y + 0.03, z); poolG.add(hit);
+    for (const o of [cap, hit]) { o.userData = { t: 'slider', key }; poolCtrls.push(o); }
+    const lb = flatLabel(len, 0.055, Math.round(len * 900), 50, poolG, x0 + len / 2, y + 0.002, 0.955);
+    poolSl[key] = { x0, len, y, z, mat, cap, fill, lb, label };
+  };
+  slider('speed', -0.92, 0.78, 'RIPPLE SPEED', '#00d0b0');
+  slider('vol', 0.14, 0.78, 'POOL VOLUME', '#00b7ff');
+  // a low back board carrying the display
+  poolHits.push(box(1.9, 0.62, 0.06, mW, 0, 1.06, -1.2, poolG));
+  poolDispL = canvasTex(2048, 280);
+  const d = new THREE.Mesh(new THREE.PlaneGeometry(1.76, 0.24), new THREE.MeshBasicMaterial({ map: poolDispL.t, toneMapped: false }));
+  d.position.set(0, 1.2, -1.165); poolG.add(d);
+  box(0.42, 0.18, 0.012, new THREE.MeshStandardMaterial({ color: '#ffd000', roughness: 0.6 }), -0.72, 0.9, -1.166, poolG);
+  box(0.6, 0.18, 0.012, new THREE.MeshStandardMaterial({ color: '#f6f2ea', roughness: 0.6 }), 0.0, 0.9, -1.166, poolG);
+  box(0.42, 0.18, 0.012, new THREE.MeshStandardMaterial({ color: '#1f6bff', roughness: 0.6 }), 0.72, 0.9, -1.166, poolG);
+}
+const poolPos = poolAl.g.localToWorld(new THREE.Vector3(0, 1.0, A + 1.4));
+
+/* ---------- sound */
+let poolAudio = null;
+function initPoolAudio() {
+  const out = ac.createGain(); volRegister('pool', out, 1);
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, poolPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.38; out.connect(send); send.connect(reverbIn);   // water likes a little more room
+  micTap(out, poolPos, 1.4);
+  poolAudio = { out };
+}
+// one chime: two or three sine-type partials with their own decays, the gain envelope does the rest
+function poolNote(m, vel, t) {
+  const f = mf(m), g = ac.createGain(), v = PL_VOICES[pool.voice][0], srcs = [];
+  g.connect(poolAudio.out);
+  const part = (mul, a, tau, type = 'sine') => {
+    if (f * mul > 15000) return;
+    const o = mkOsc(type, f * mul), og = ac.createGain(); o.connect(og); og.connect(g);
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(a, t + 0.002); og.gain.setTargetAtTime(0, t + 0.002, tau);
+    o.start(t); o.stop(t + tau * 6 + 0.05); srcs.push(o); return o;
+  };
+  const k = Math.pow(440 / f, 0.3);
+  if (v === 'GLASS') { part(1, 1, 1.5 * k); part(2.76, 0.32, 0.4 * k); part(5.4, 0.1, 0.12 * k); }
+  else if (v === 'KALIMBA') { part(1, 1, 0.8 * k, 'triangle'); part(5.9, 0.16, 0.05); part(1, 0.35, 0.02, 'square'); }
+  else if (v === 'STEEL') { const o = part(1, 1, 0.9 * k); part(2.01, 0.45, 0.5 * k); part(3.02, 0.18, 0.25 * k); if (o) { o.detune.setValueAtTime(-12, t); o.detune.linearRampToValueAtTime(0, t + 0.03); } }
+  else {                                                          // BLOOP: a water drop, the pitch rising as the bubble closes
+    const o = part(1, 1, 0.13); if (o) { o.frequency.setValueAtTime(f * 0.62, t); o.frequency.exponentialRampToValueAtTime(f * 1.25, t + 0.07); }
+    part(2, 0.12, 0.05);
+  }
+  g.gain.value = 0.11 * vel;
+  pool.voices.push({ t, srcs, end: t + 6 });
+  // budget: at most twenty chimes ringing; the oldest give way
+  while (pool.voices.length > 20) { const old = pool.voices.shift(); for (const o of old.srcs) { try { o.stop(Math.max(t, ac.currentTime) + 0.02); } catch (e) {} } }
+}
+// a ripple: work out when it reaches each chime, and how hard
+function poolDrop(x, z, amp = 1) {
+  if (!ac || !poolAudio) return;
+  const now = ac.currentTime, v = speedMS(), notes = poolNotes();
+  pool.ripples.push({ x, z, t0: now, amp });
+  if (pool.ripples.length > 8) pool.ripples.shift();
+  const hits = chimes.map((c, k) => { const d = Math.max(0, Math.hypot(c.x - x, c.z - z) - (PL.chimeR - PL.r)); return { k, d }; })
+    .map(({ k, d }) => ({ k, t: now + 0.02 + d / v, vel: amp * Math.exp(-d / 0.9) }))
+    .filter((h) => h.vel > 0.16).sort((a, b) => b.vel - a.vel).slice(0, 6);   // a touch in the middle doesn't ring all twelve
+  for (const h of hits) {
+    let t = h.t;
+    if (pool.inTime) {                                            // snap to the next sixteenth of the Rhythm Wheel's grid
+      const sd = stepDur(), o = rhy.run ? rhy.nextT : 0;
+      t = o + Math.ceil((t - o) / sd - 0.001) * sd;
+    }
+    pool.pend.push({ k: h.k, m: notes[h.k], vel: h.vel, t, ripple: h.t });
+  }
+  poolScheduleTick();
+}
+function poolScheduleTick() {
+  if (!ac || !poolAudio) return;
+  const ahead = ac.currentTime + LOOKAHEAD;
+  pool.pend = pool.pend.filter((p) => {
+    if (p.t < ac.currentTime - 0.05) return false;               // missed while busy: skip it
+    if (p.t <= ahead) { poolNote(p.m, p.vel, Math.max(p.t, ac.currentTime + 0.003)); chimes[p.k].due = p.t; chimes[p.k].dueVel = p.vel; return false; }
+    return true;
+  });
+}
+
+/* ---------- display, labels */
+let poolHelp = '', poolValue = '';
+const POOL_HELP = {
+  start: 'Touch the water. Ripples spread, and each chime they reach rings a note, nearest first. Touch again and the ripples cross. Keys: ← → choose, Enter drop. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  water: 'Touch near a chime for a quick bright note and a trickle of others; touch the middle for a soft chord. Drag a finger across the water to send a run of ripples.',
+  drop: 'A drop point on the water. Enter (or Ⓐ) drops a pebble here; ← → move round the pool.',
+  voice: 'Voice: GLASS bells, a KALIMBA thumb piano, a STEEL drum, or BLOOP, the sound of the drops themselves.',
+  rain: 'Rain: drops fall on their own, now and then, so the pool plays while you listen or play something else.',
+  time: 'In time: each chime waits for the next beat of the Rhythm Wheel, so the pool locks into the groove.',
+  calm: 'Calm: stills the water and stops every ripple.',
+  speed: 'Ripple speed: slow ripples spread notes out into long arpeggios; fast ones bunch them together.',
+  vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
+  mmute: 'Mute: silences the pool at once. Press again to bring it back.',
+};
+function drawPoolDisplay() {
+  const { g, c, t } = poolDispL;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = ALCOVE_COL[POOL_I]; g.fillRect(0, 0, c.width, 10);
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 64px ${FONT}`;
+  g.fillText('POOL', 34, 82); const hw = g.measureText('POOL').width;
+  g.fillStyle = '#5a554d'; g.font = `bold 38px ${FONT}`;
+  g.fillText(`VOICE: ${PL_VOICES[pool.voice][0]}   ·   ${pool.rain ? 'RAIN ON' : 'RAIN OFF'}   ·   ${pool.inTime ? 'IN TIME' : 'FREE'}`, 70 + hw, 80);
+  if (poolValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 46px ${FONT}`; g.fillText(poolValue, c.width - 34, 82); g.textAlign = 'left'; }
+  g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
+  const words = poolHelp.split(' '); let line = '', y = 142;
+  for (const wd of words) { if (g.measureText(line + wd).width > c.width - 68) { g.fillText(line, 34, y); line = ''; y += 44; } line += wd + ' '; }
+  g.fillText(line, 34, y); t.needsUpdate = true;
+}
+function drawPoolSlider(key) {
+  const S = poolSl[key], v = key === 'vol' ? VOL.pool : pool.speed, x = S.x0 + v * S.len;
+  S.cap.position.set(x, S.y + 0.025, S.z);
+  S.fill.scale.x = Math.max(0.001, v * S.len); S.fill.position.set(S.x0 + v * S.len / 2, S.y + 0.008, S.z);
+  printText(S.lb, [[`${S.label} ${Math.round(v * 100)}%`, 34, '#3a3630']]);
+}
+function drawPoolRing() {
+  const { g, c, t } = poolRingL, cx = c.width / 2, notes = poolNotes();
+  g.clearRect(0, 0, c.width, c.height);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold 30px ${FONT}`; g.fillStyle = '#5a554d';
+  const rr = cx * ((PL.chimeR + 0.0875) / (PL.chimeR + 0.13));
+  for (let k = 0; k < 12; k++) {
+    // canvas x right = pool x right; canvas y down = towards the player (+z)
+    const a = chimeAngle(k), px = cx - rr * Math.sin(a), py = cx + rr * Math.cos(a);
+    g.fillText(noteName(notes[k]), px, py);                       // kept upright, so they read from where you stand
+  }
+  t.needsUpdate = true;
+}
+function drawPoolButtons() {
+  poolBtns.voice.forEach((b, k) => printText(b.L, [[b.name, b.name.length > 6 ? 36 : 42, k === pool.voice ? '#ffffff' : '#1d1b18']], k === pool.voice ? { bg: '#1d1b18' } : {}));
+  const tog = (b, on) => printText(b.L, [[b.name, 40, on ? '#ffffff' : '#1d1b18']], on ? { bg: '#1d1b18' } : {});
+  tog(poolBtns.tog.rain, pool.rain); tog(poolBtns.tog.time, pool.inTime); tog(poolBtns.tog.calm, false);
+  drawPoolSlider('speed'); drawPoolSlider('vol');
+}
+function poolKeyChanged() { drawPoolRing(); drawPoolButtons(); drawPoolDisplay(); }
+poolKeyChanged();
+
+/* ---------- touch, mouse, keys, controller */
+function poolRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(poolCtrls, false)[0]; }
+function poolWaterAt(e) { const p = groupLocalAt(poolG, e, PL.top - 0.025); return p && Math.hypot(p.x, p.z - PL.cz) < PL.r ? p : null; }
+function poolSet(key, v) {
+  if (key === 'vol') { setVol('pool', v); poolValue = `Volume ${Math.round(VOL.pool * 100)}%`; }
+  else { pool.speed = Math.max(0, Math.min(1, Math.round(v * 100) / 100)); poolValue = `Speed ${Math.round(pool.speed * 100)}%`; }
+  drawPoolSlider(key); drawPoolDisplay();
+}
+function poolButton(u) {
+  if (u.t === 'voice') { pool.voice = u.i; poolHelp = POOL_HELP.voice; poolValue = PL_VOICES[u.i][0]; }
+  if (u.t === 'rain') { pool.rain = !pool.rain; poolHelp = POOL_HELP.rain; poolValue = pool.rain ? 'rain on' : 'rain off'; }
+  if (u.t === 'time') { pool.inTime = !pool.inTime; poolHelp = POOL_HELP.time; poolValue = pool.inTime ? 'in time' : 'free'; }
+  if (u.t === 'calm') { pool.ripples = []; pool.pend = []; poolHelp = POOL_HELP.calm; poolValue = 'calm'; }
+  if (u.t === 'mmute') { const on = machineMute('pool'); poolHelp = POOL_HELP.mmute; poolValue = on ? 'pool muted' : 'sound on'; }
+  if (u.t === 'slider') poolHelp = POOL_HELP[u.key];
+  buzz(8); drawPoolButtons(); drawPoolDisplay();
+}
+const poolPtr = new Map();
+function poolDown(e) {
+  const h = poolRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  pFocus = -1; poolCursor.visible = false;
+  const u = h.object.userData;
+  if (u.t === 'water') {
+    const p = poolWaterAt(e); if (!p) return;
+    poolDrop(p.x, p.z); poolPtr.set(e.pointerId, { t: 'water', x: p.x, z: p.z });
+    poolHelp = POOL_HELP.water; poolValue = ''; buzz(6); drawPoolDisplay(); return;
+  }
+  poolPtr.set(e.pointerId, u);
+  poolButton(u); if (u.t === 'slider') poolSliderTo(u.key, e);
+}
+function poolSliderTo(key, e) { const S = poolSl[key], p = groupLocalAt(poolG, e, S.y + 0.03); if (p) poolSet(key, (p.x - S.x0) / S.len); }
+function poolMove(e) {
+  const u = poolPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'slider') { poolSliderTo(u.key, e); return; }
+  if (u.t === 'water') {                                          // a finger drawn across the water drops a pebble every 15 cm
+    const p = poolWaterAt(e); if (!p) return;
+    if (Math.hypot(p.x - u.x, p.z - u.z) > 0.15) { poolDrop(p.x, p.z, 0.8); u.x = p.x; u.z = p.z; }
+  }
+}
+function poolUp(e) { poolPtr.delete(e.pointerId); }
+// stations: thirteen drop points (the middle, then one in front of each chime), then the controls
+const dropPoint = (i) => (i === 0 ? new THREE.Vector2(0, PL.cz) : chimePos(i - 1, 0.5));
+const P_STATIONS = [...Array.from({ length: 13 }, (_, i) => ({ t: 'drop', i })), ...[0, 1, 2, 3].map((i) => ({ t: 'voice', i })),
+  { t: 'rain' }, { t: 'time' }, { t: 'calm' }, { t: 'mmute' }, { t: 'slider', key: 'speed' }, { t: 'slider', key: 'vol' }];
+let pFocus = -1;
+function pFocusSet(i) {
+  pFocus = i; if (i < 0) { poolCursor.visible = false; return; }
+  const f = P_STATIONS[i];
+  poolHelp = POOL_HELP[f.t === 'slider' ? f.key : f.t];
+  poolValue = f.t === 'drop' ? (f.i ? `by ${noteName(poolNotes()[f.i - 1])}` : 'the middle') : f.t === 'voice' ? PL_VOICES[f.i][0] : f.t === 'slider' ? (f.key === 'vol' ? `Volume ${Math.round(VOL.pool * 100)}%` : `Speed ${Math.round(pool.speed * 100)}%`) : f.t === 'mmute' ? (MUTED.pool ? 'muted' : 'mute') : f.t;
+  poolCursor.visible = f.t === 'drop';
+  if (f.t === 'drop') { const p = dropPoint(f.i); poolCursor.position.set(p.x, PL.top - 0.01, p.y); }
+  drawPoolDisplay(); blip(660, 0.04, 0.03);
+}
+function poolStepF(d) { pFocusSet(pFocus < 0 ? (d > 0 ? 0 : P_STATIONS.length - 1) : (pFocus + d + P_STATIONS.length) % P_STATIONS.length); }
+function poolAdjust(d) {
+  if (pFocus < 0) { pFocusSet(0); return; }
+  const f = P_STATIONS[pFocus];
+  if (f.t === 'slider') { poolSet(f.key, (f.key === 'vol' ? VOL.pool : pool.speed) + d * 0.05); return; }
+  poolStepF(-d);
+}
+function poolPress(down) {
+  if (!down) return;
+  if (pFocus < 0) { pFocusSet(0); return; }
+  const f = P_STATIONS[pFocus];
+  if (f.t === 'drop') { const p = dropPoint(f.i); poolDrop(p.x, p.y); buzz(6); return; }
+  if (f.t !== 'slider') poolButton(f);
+}
+function makePoolMachine() {
+  const fit = [], fitL = [];
+  for (const x of [-1.02, 1.02]) {
+    fit.push([poolG, new THREE.Vector3(x, PL.top, 1.2)]); fit.push([poolG, new THREE.Vector3(x, PL.top, -1.1)]); fit.push([poolG, new THREE.Vector3(x * 0.9, 1.34, -1.2)]);
+    fitL.push([poolG, new THREE.Vector3(x, PL.top, 1.2)]); fitL.push([poolG, new THREE.Vector3(x, PL.top, -1.1)]);
+  }
+  return {
+    al: POOL_I, base: poolG, fit, fitL, elev: [1.05, 0.95], stand: 1.1,
+    down: poolDown, move: poolMove, up: poolUp, step: poolStepF, adjust: poolAdjust, press: poolPress,
+    enter() { pFocus = -1; poolHelp = POOL_HELP.start; poolValue = ''; drawPoolButtons(); drawPoolDisplay(); },
+    exit() { poolPtr.clear(); pFocus = -1; poolCursor.visible = false; },
+  };
+}
+
+/* ---------- every frame: the water, the chimes, the rain */
+const _rv = new THREE.Vector3();
+function updatePool(dt) {
+  const sig = org.root + ':' + org.mood;
+  if (sig !== pool.sig) { pool.sig = sig; poolKeyChanged(); }
+  if (ac && poolAudio) {
+    if (!pool.timer) pool.timer = setInterval(poolScheduleTick, 25);
+    if (pool.rain && (pool.rainT -= dt) <= 0) {                   // a drop now and then, somewhere on the water
+      pool.rainT = 0.7 + Math.random() * 1.6;
+      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * PL.r * 0.92;
+      poolDrop(r * Math.cos(a), PL.cz + r * Math.sin(a), 0.6 + Math.random() * 0.3);
+    }
+  }
+  const now = ac ? ac.currentTime : 0, v = speedMS();
+  pool.ripples = pool.ripples.filter((R) => (now - R.t0) * v < 2.4);
+  // the water surface: each ripple a ring-shaped wave packet that weakens as it spreads
+  const pos = poolWater.geometry.attributes.position, src = poolWaterPos, n = pos.count;
+  const near = playing && curM === POOL_M || player.pos.distanceToSquared(poolPos) < 100;
+  if (near) {
+    const Rs = pool.ripples.map((R) => ({ x: R.x, z: R.z - PL.cz, rad: (now - R.t0) * v, a: 0.016 * R.amp / (1 + (now - R.t0) * 1.4) }));
+    for (let i = 0; i < n; i++) {
+      const x = src[i * 3], z = src[i * 3 + 2]; let h = 0;
+      for (const R of Rs) { const d = Math.hypot(x - R.x, z - R.z) - R.rad; if (d > -0.25 && d < 0.25) h += R.a * Math.exp(-d * d * 60) * Math.cos(d * 55); }
+      pos.array[i * 3 + 1] = h;
+    }
+    pos.needsUpdate = true; poolWater.geometry.computeVertexNormals();
+    // the bright rings drawn on the surface
+    const { g, c, t } = poolWater.userData.tex, S = c.width;
+    g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g.lineWidth = 3;
+    for (const R of Rs) {
+      const age = R.rad / v, al = Math.max(0, 0.9 - age * 0.35);
+      if (al <= 0) continue;
+      g.strokeStyle = `rgba(255,255,255,${al})`;
+      // the ring geometry's UVs map the disc's bounding square onto the texture
+      const cx = (R.x / (PL.r + 0.02) + 1) / 2 * S, cy = (1 - (-R.z / (PL.r + 0.02) + 1) / 2) * S;
+      g.beginPath(); g.arc(cx, cy, Math.max(0.5, R.rad / (PL.r + 0.02) / 2 * S), 0, Math.PI * 2); g.stroke();
+    }
+    t.needsUpdate = true;
+  }
+  // chimes light and nod when their note sounds
+  for (const c of chimes) {
+    if (c.due && now >= c.due) { c.lvl = Math.max(c.lvl, Math.min(1, 0.4 + c.dueVel)); c.due = 0; }
+    c.lvl = Math.max(0, c.lvl - dt * 1.6);
+    c.mat.emissiveIntensity = 0.05 + c.lvl * 1.4;
+    c.mesh.position.y = PL.top + 0.035 + c.lvl * 0.015;
+  }
+  const foc = playing && curM === POOL_M && pFocus >= 0 ? P_STATIONS[pFocus] : null;
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  poolBtns.voice.forEach((b, k) => glow(b.mat, foc && foc.t === 'voice' && foc.i === k));
+  for (const key of ['rain', 'time', 'calm']) glow(poolBtns.tog[key].mat, foc && foc.t === key);
+  for (const key in poolSl) glow(poolSl[key].mat, foc && foc.t === 'slider' && foc.key === key);
+  glow(muteBtns.pool.mat, foc && foc.t === 'mmute');
+  if (poolCursor.visible) poolCursor.material.opacity = 0.55 + 0.35 * Math.sin(time * 5);
+  pool.voices = pool.voices.filter((x) => x.end > now);
+}
+
 const ORGAN_M = {
   al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
   down: organPointerDown, move: organPointerMove, up: organPointerUp,
@@ -3507,6 +3864,7 @@ const ORGAN_M = {
 const RHY_M = makeRhythmMachine();
 const MEL_M = makeMelodyMachine();
 const BASS_M = makeBassMachine();
+const POOL_M = makePoolMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -3565,6 +3923,7 @@ function update(dt) {
   updateRhythm(dt);
   updateMelody(dt);
   updateBass(dt);
+  updatePool(dt);
   updateStress(dt);
   updateProjector(dt);
 
@@ -3699,6 +4058,9 @@ function updateCaption() {
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
     c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === POOL_I) {
+    c.innerHTML = `<b>V</b> · The Ripple Pool<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the pool to play</span>`;
     c.classList.remove('hidden');
   } else if (show === BASS_I) {
     c.innerHTML = `<b>VII</b> · The Bass Pedals<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the pedals to play</span>`;
