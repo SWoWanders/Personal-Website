@@ -223,11 +223,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -915,13 +915,13 @@ function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15
 const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 /* ---------- a volume control for every machine. 0..1 on the dial; 0.7 is the normal level,
    full turn is about twice as loud. Remembered in this browser. */
-const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7 };
+const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
 function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
 // a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
-const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false };
+const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false };
 const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
 const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
 const muteBtns = {};
@@ -1014,6 +1014,7 @@ function initAudio() {
   initMelodyAudio();
   initBassAudio();
   initPoolAudio();
+  initEchoAudio();                                       // last: it listens to the others
 }
 /* ---------- THE CENTRE MICROPHONE
    The two giant ears on the turning stage are a stereo pair: left ear, right
@@ -1331,15 +1332,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -3856,6 +3857,296 @@ function updatePool(dt) {
   pool.voices = pool.voices.filter((x) => x.end > now);
 }
 
+/* ------------------------------------------------------------------ IX · THE TAPE ECHO
+   After the Roland Space Echo and the tape delays of dub: a loop of brown tape runs round six posts
+   on an open deck, past a red record head and three playback heads. Pick which machines it listens
+   to; each playback head you switch on repeats what was recorded a little later (1, 2 and 3 times
+   the delay). REPEAT feeds the echoes back for more; RATE is the tape speed (moving it bends the
+   pitch of the echoes as real tape does); TONE darkens or brightens each repeat; WOW makes the
+   tape waver. SYNC locks the delay to the Rhythm Wheel's tempo. Hold THROW for a dub-style swell
+   that feeds on itself until you let go. A VU meter shows what's on the tape.
+   Cheap by design: three delay lines, two still filters and a soft saturator, whatever is playing. */
+const ECHO_I = 9;
+const echoAl = alcoves[ECHO_I];
+echoAl.g.remove(echoAl.plinth); echoAl.g.remove(echoAl.beam);
+plinths.splice(plinths.indexOf(echoAl.plinth), 1);
+const echoHits = [], echoCtrls = [];
+const EC_INPUTS = [['ORGAN', ['organ'], '#8a4bff'], ['WHEEL', ['rhythm'], '#ff3030'], ['CONSOLE', ['strum', 'optigan'], '#66e000'], ['BASS', ['bass'], '#1f6bff'], ['POOL', ['pool'], '#00d0b0']];
+const EC_SYNC = [['1/16', 1], ['1/8', 2], ['3/16', 3], ['1/4', 4]];        // base delay in sixteenths when synced
+const echo = { ins: [false, false, true, false, true], heads: [true, false, true], repeat: 0.45, rate: 0.45, tone: 0.5, wow: 0.25, sync: false, throw: false, vu: 0, tapeOff: 0, sig: '' };
+function echoBase() {                                                     // seconds between the record head and head 1
+  if (echo.sync) return stepDur() * EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][1];
+  return 0.09 + echo.rate * 0.33;
+}
+
+const echoG = new THREE.Group(); echoG.position.set(0, 0.15, A + 1.25); echoG.rotation.y = Math.PI; echoAl.g.add(echoG);
+const echoBtns = { in: [], head: [] }, echoSl = {};
+let echoTape, echoDispL, echoHeadMats = [], echoThrow;
+{
+  const mW = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
+  const mC = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
+  const mMetal = new THREE.MeshStandardMaterial({ color: '#c9ccd0', metalness: 0.85, roughness: 0.3 });
+  // the control desk
+  echoHits.push(box(1.9, 0.78, 0.92, mW, 0, 0.39, 0.15, echoG));
+  echoHits.push(box(1.92, 0.04, 0.94, mC, 0, 0.8, 0.15, echoG));
+  const top = 0.82;
+  const btn = (name, col, x, z, w, u, list, k) => {
+    const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, 0.12), mat);
+    b.position.set(x, top + 0.02, z); echoG.add(b); b.userData = u; echoCtrls.push(b);
+    const L = flatLabel(w * 0.95, 0.115, Math.round(256 * w / 0.2), 155, b, 0, 0.0205, 0);
+    const o = { mat, L, name, col, b }; if (list) list[k] = o; return o;
+  };
+  // back row: what the echo listens to
+  EC_INPUTS.forEach(([n, , col], k) => btn(n, col, -0.8 + k * 0.215, -0.2, 0.2, { t: 'in', i: k }, echoBtns.in, k));
+  { const L = flatLabel(0.62, 0.06, 560, 54, echoG, 0.55, top + 0.002, -0.2); printText(L, [['◂ LISTENS TO', 36, '#5a554d']], { align: 'left' }); }
+  // sliders: REPEAT and RATE, then TONE and WOW, each with its name to the left
+  const slider = (key, x0, len, z, label, col, lx, lw) => {
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.012, 0.026), mDark); slot.position.set(x0 + len / 2, top + 0.006, z); echoG.add(slot);
+    const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.018), new THREE.MeshBasicMaterial({ color: col, toneMapped: false })); echoG.add(fill);
+    const mat = capMat('#2a2724'), cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.085), mat); echoG.add(cap);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(len + 0.12, 0.1, 0.13), hitMat); hit.position.set(x0 + len / 2, top + 0.03, z); echoG.add(hit);
+    for (const o of [cap, hit]) { o.userData = { t: 'slider', key }; echoCtrls.push(o); }
+    const lb = flatLabel(lw, 0.06, Math.round(lw * 800), 49, echoG, lx, top + 0.002, z);
+    echoSl[key] = { x0, len, z, mat, cap, fill, lb, label };
+  };
+  slider('repeat', -0.52, 0.48, -0.02, 'REPEAT', '#ff3030', -0.76, 0.32);
+  slider('rate', 0.46, 0.44, -0.02, 'RATE', '#ffd000', 0.28, 0.26);
+  slider('tone', -0.52, 0.48, 0.15, 'TONE', '#00b7ff', -0.76, 0.32);
+  slider('wow', 0.46, 0.44, 0.15, 'WOW', '#c400ff', 0.28, 0.26);
+  // front row: THROW, SYNC, the three heads, mute
+  echoThrow = btn('THROW', '#e8262b', -0.74, 0.34, 0.34, { t: 'throw' });
+  btn('SYNC', '#f6f2ea', -0.43, 0.34, 0.2, { t: 'sync' }, echoBtns, 'sync');
+  [0, 1, 2].forEach((k) => btn(`HEAD ${k + 1}`, '#f6f2ea', -0.16 + k * 0.215, 0.34, 0.2, { t: 'head', i: k }, echoBtns.head, k));
+  { const b = makeMuteBtn('echo', echoG, 0.84, top + 0.02, 0.34, 0.2, 0.12); b.userData = { t: 'mmute' }; echoCtrls.push(b); }
+  slider('vol', -0.2, 1.1, 0.52, 'ECHO VOLUME', '#00b7ff', -0.6, 0.66);
+  // the open tape deck behind the desk: six posts, the heads, and the loop of tape
+  echoHits.push(box(1.9, 0.36, 0.62, mW, 0, 0.98, -0.62, echoG));
+  echoHits.push(box(1.92, 0.03, 0.64, mC, 0, 1.175, -0.62, echoG));
+  const deckY = 1.19;
+  const posts = [[-0.78, -0.42], [-0.6, -0.86], [0.0, -0.9], [0.62, -0.84], [0.8, -0.44], [0.0, -0.62]];
+  for (const [x, z] of posts) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.09, 20), mMetal); p.position.set(x, deckY + 0.045, z); echoG.add(p); }
+  // tape path: along the front past the heads, round the posts, with a tension loop round the middle post
+  const path = new THREE.CatmullRomCurve3([[-0.75, -0.39], [-0.4, -0.37], [0, -0.37], [0.4, -0.37], [0.77, -0.41], [0.83, -0.5], [0.66, -0.8], [0.3, -0.86], [0.04, -0.67], [-0.04, -0.67],
+    [-0.3, -0.86], [-0.6, -0.89], [-0.82, -0.64]].map(([x, z]) => new THREE.Vector3(x, deckY + 0.045, z)), true, 'centripetal');
+  const N2 = 220, pts = path.getSpacedPoints(N2), pos = [], uv = [], idx = [];
+  let acc = 0; const len = path.getLength();
+  for (let i = 0; i <= N2; i++) {
+    const p = pts[i % N2]; if (i) acc += pts[i % N2].distanceTo(pts[i - 1]);
+    pos.push(p.x, p.y - 0.022, p.z, p.x, p.y + 0.022, p.z); uv.push(acc / 0.25, 0, acc / 0.25, 1);
+    if (i < N2) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  }
+  const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setIndex(idx); tg.computeVertexNormals();
+  const tapeL = canvasTex(256, 32);
+  { const { g } = tapeL; g.fillStyle = '#4a2f1c'; g.fillRect(0, 0, 256, 32); g.fillStyle = '#6b4529'; for (let i = 0; i < 256; i += 64) g.fillRect(i, 0, 22, 32); g.fillStyle = '#2b1a0f'; g.fillRect(0, 13, 256, 6); tapeL.t.needsUpdate = true; }
+  tapeL.t.wrapS = THREE.RepeatWrapping;
+  echoTape = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: tapeL.t, roughness: 0.55, side: THREE.DoubleSide }));
+  echoTape.userData.len = len; echoG.add(echoTape);
+  // heads: red record head, then three chrome playback heads that glow when switched on and echoing
+  [[-0.4, '#e8262b'], [-0.08, '#c9ccd0'], [0.22, '#c9ccd0'], [0.52, '#c9ccd0']].forEach(([x, col], k) => {
+    const mat = new THREE.MeshStandardMaterial({ color: col, metalness: k ? 0.85 : 0.2, roughness: 0.3, emissive: k ? '#00b7ff' : '#e8262b', emissiveIntensity: 0 });
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.07), mat); h.position.set(x, deckY + 0.035, -0.3); echoG.add(h);
+    echoHeadMats[k] = mat;
+    if (k) { const L = flatLabel(0.12, 0.04, 140, 46, echoG, x, deckY + 0.002, -0.235); printText(L, [[`${k}`, 34, '#5a554d']]); }
+  });
+  // back board: the display with a VU meter
+  echoHits.push(box(1.9, 0.52, 0.06, mW, 0, 1.44, -0.95, echoG));
+  echoDispL = canvasTex(2048, 360);
+  const d = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.316), new THREE.MeshBasicMaterial({ map: echoDispL.t, toneMapped: false }));
+  d.position.set(0, 1.47, -0.915); echoG.add(d);
+}
+const echoPos = echoAl.g.localToWorld(new THREE.Vector3(0, 1.3, A + 1.4));
+
+/* ---------- sound: sends from each machine, three heads, a feedback loop through tone and a soft saturator */
+let echoAudio = null;
+function initEchoAudio() {
+  const out = ac.createGain(); volRegister('echo', out, 1);
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, echoPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.25; out.connect(send); send.connect(reverbIn);
+  micTap(out, echoPos, 1.3);
+  const rec = ac.createGain();                                   // what reaches the record head
+  const sends = EC_INPUTS.map(([, keys]) => { const g = ac.createGain(); g.gain.value = 0; g.connect(rec); for (const k of keys) if (volNodes[k]) volNodes[k][0].connect(g); return g; });
+  const wobble = ac.createGain();                                 // tape wow and flutter, applied to all three heads
+  const w1 = ac.createOscillator(); w1.frequency.value = 0.55; const w1g = ac.createGain(); w1.connect(w1g); w1g.connect(wobble); w1.start();
+  const w2 = ac.createOscillator(); w2.frequency.value = 6.8; const w2g = ac.createGain(); w2.connect(w2g); w2g.connect(wobble); w2.start();
+  const heads = [1, 2, 3].map((mul) => {
+    const d = ac.createDelay(4); d.delayTime.value = echoBase() * mul; rec.connect(d);
+    const wg = ac.createGain(); wg.gain.value = mul; wobble.connect(wg); wg.connect(d.delayTime);
+    const hg = ac.createGain(); hg.gain.value = 0; d.connect(hg);
+    return { d, hg, mul };
+  });
+  const sum = ac.createGain(); heads.forEach((h) => h.hg.connect(sum));
+  sum.connect(out);
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.Q.value = 0.5;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.6;
+  const fb = ac.createGain(); fb.gain.value = 0;
+  const sat = ac.createWaveShaper(); sat.curve = softClipCurve(); sat.oversample = 'none';
+  sum.connect(hp); hp.connect(lp); lp.connect(fb); fb.connect(sat); sat.connect(rec);
+  const an = ac.createAnalyser(); an.fftSize = 512; sum.connect(an);
+  echoAudio = { out, rec, sends, heads, hp, lp, fb, w1g, w2g, an, buf: new Float32Array(512), sum };
+  applyEcho(true);
+}
+function applyEcho(instant) {
+  if (!echoAudio) return;
+  const t = ac.currentTime, E = echoAudio, base = echoBase();
+  E.sends.forEach((g, k) => g.gain.setTargetAtTime(echo.ins[k] ? 0.8 : 0, t, 0.05));
+  const on = echo.heads.filter(Boolean).length || 1;
+  E.heads.forEach((h, k) => {
+    h.hg.gain.setTargetAtTime(echo.heads[k] ? 1 / Math.sqrt(on) : 0, t, 0.03);
+    if (instant) h.d.delayTime.value = base * h.mul; else h.d.delayTime.setTargetAtTime(base * h.mul, t, 0.25);   // tape speeding up or slowing: the echoes bend
+  });
+  // feedback: below 1 the echoes fade away; THROW pushes it just past 1 and the saturator keeps it in hand
+  const fbAmt = echo.throw ? 1.08 : echo.repeat * 0.88;
+  E.fb.gain.setTargetAtTime(fbAmt / Math.sqrt(on), t, echo.throw ? 0.15 : 0.05);
+  E.lp.frequency.value = 900 + echo.tone * echo.tone * 9000;
+  E.hp.frequency.value = 260 - echo.tone * 180;
+  E.w1g.gain.value = 0.0035 * echo.wow; E.w2g.gain.value = 0.0005 * echo.wow;
+}
+
+/* ---------- display */
+let echoHelp = '', echoValue = '';
+const ECHO_HELP = {
+  start: 'Pick what the echo listens to (back row), switch on some playback heads, and the tape repeats the other machines. Hold THROW for a dub swell. Keys: ← → choose, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  in: 'Listens to: the machines whose sound goes onto the tape. Their own volume and mute still apply.',
+  head: 'Playback heads: head 1 repeats after one delay, head 2 after two, head 3 after three. Mix them for rhythmic patterns.',
+  repeat: 'Repeat: how much of each echo goes back onto the tape. Low gives one or two echoes; high gives long trails.',
+  rate: 'Rate: the tape speed, so the length of the echo. Move it while echoes play and they bend in pitch, like real tape. With SYNC on it picks a note length.',
+  tone: 'Tone: each repeat gets darker to the left, brighter to the right.',
+  wow: 'Wow: the tape wavers, as an old machine would.',
+  sync: 'Sync: the delay locks to the Rhythm Wheel’s tempo: a sixteenth, an eighth, a dotted eighth or a quarter note.',
+  throw: 'Throw: hold it and the echoes feed on themselves and swell; let go and they fade. A dub trick.',
+  vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
+  mmute: 'Mute: silences the echo at once. Press again to bring it back.',
+};
+function drawEchoDisplay() {
+  const { g, c, t } = echoDispL, W = c.width, H = c.height;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, W, H);
+  g.fillStyle = ALCOVE_COL[ECHO_I]; g.fillRect(0, 0, W, 10);
+  // VU meter on the left
+  const mx = 230, my = 300, R = 210;
+  g.fillStyle = '#f3e7c4'; g.fillRect(24, 24, 412, 316); g.strokeStyle = '#1d1b18'; g.lineWidth = 6; g.strokeRect(24, 24, 412, 316);
+  g.lineWidth = 4; g.strokeStyle = '#3a3630'; g.beginPath(); g.arc(mx, my, R, Math.PI * 1.22, Math.PI * 1.78); g.stroke();
+  g.strokeStyle = '#e8262b'; g.lineWidth = 10; g.beginPath(); g.arc(mx, my, R, Math.PI * 1.65, Math.PI * 1.78); g.stroke();
+  g.fillStyle = '#3a3630'; g.font = `bold 34px ${FONT}`; g.textAlign = 'center'; g.fillText('VU', mx, my - 60);
+  const a = Math.PI * (1.22 + 0.56 * Math.min(1, echo.vu));
+  g.strokeStyle = '#1d1b18'; g.lineWidth = 5; g.beginPath(); g.moveTo(mx, my); g.lineTo(mx + Math.cos(a) * (R + 10), my + Math.sin(a) * (R + 10)); g.stroke();
+  g.fillStyle = '#1d1b18'; g.beginPath(); g.arc(mx, my, 14, 0, Math.PI * 2); g.fill();
+  // text
+  const x0 = 480; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#1d1b18'; g.font = `bold 64px ${FONT}`; g.fillText('ECHO', x0, 92);
+  const hw = g.measureText('ECHO').width; g.fillStyle = '#5a554d'; g.font = `bold 36px ${FONT}`;
+  const delay = echo.sync ? EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][0] + ' NOTE' : `${Math.round(echoBase() * 1000)} MS`;
+  g.fillText(`DELAY ${delay}   ·   HEADS ${echo.heads.map((h, k) => (h ? k + 1 : '–')).join(' ')}   ·   REPEAT ${Math.round(echo.repeat * 100)}%`, x0 + hw + 36, 88);
+  if (echoValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 44px ${FONT}`; g.fillText(echoValue, W - 34, 160); g.textAlign = 'left'; }
+  g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
+  const words = echoHelp.split(' '); let line = '', y = 214;
+  for (const wd of words) { if (g.measureText(line + wd).width > W - x0 - 40) { g.fillText(line, x0, y); line = ''; y += 44; } line += wd + ' '; }
+  g.fillText(line, x0, y); t.needsUpdate = true;
+}
+function drawEchoSlider(key) {
+  const S = echoSl[key], v = key === 'vol' ? VOL.echo : echo[key], x = S.x0 + v * S.len;
+  S.cap.position.set(x, 0.82 + 0.025, S.z);
+  S.fill.scale.x = Math.max(0.001, v * S.len); S.fill.position.set(S.x0 + v * S.len / 2, 0.82 + 0.008, S.z);
+  const txt = key === 'rate' && echo.sync ? `${S.label} ${EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][0]}` : `${S.label} ${Math.round(v * 100)}%`;
+  printText(S.lb, [[txt, 34, '#3a3630']], { align: 'left' });
+}
+function drawEchoButtons() {
+  const tog = (b, on, size = 36) => printText(b.L, [[b.name, size, on ? '#ffffff' : '#1d1b18']], on ? { bg: '#1d1b18' } : {});
+  echoBtns.in.forEach((b, k) => tog(b, echo.ins[k], b.name.length > 6 ? 30 : 36));
+  echoBtns.head.forEach((b, k) => tog(b, echo.heads[k], 32));
+  tog(echoBtns.sync, echo.sync); tog(echoThrow, echo.throw, 44);
+  for (const key in echoSl) drawEchoSlider(key);
+}
+drawEchoButtons();
+
+/* ---------- touch, mouse, keys, controller */
+function echoRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(echoCtrls, false)[0]; }
+function echoSet(key, v) {
+  v = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+  if (key === 'vol') { setVol('echo', v); echoValue = `Volume ${Math.round(VOL.echo * 100)}%`; }
+  else { echo[key] = v; echoValue = key === 'rate' ? (echo.sync ? EC_SYNC[Math.min(3, Math.floor(v * 4))][0] + ' note' : `${Math.round(echoBase() * 1000)} ms`) : `${ECHO_HELP[key] ? key[0].toUpperCase() + key.slice(1) : key} ${Math.round(v * 100)}%`; applyEcho(); }
+  drawEchoSlider(key); drawEchoDisplay();
+}
+function echoThrowSet(on) { if (echo.throw === on) return; echo.throw = on; echoHelp = ECHO_HELP.throw; echoValue = on ? 'THROW!' : ''; applyEcho(); drawEchoButtons(); drawEchoDisplay(); if (on) buzz(15); }
+function echoButton(u) {
+  if (u.t === 'in') { echo.ins[u.i] = !echo.ins[u.i]; echoHelp = ECHO_HELP.in; echoValue = `${EC_INPUTS[u.i][0].toLowerCase()} ${echo.ins[u.i] ? 'on' : 'off'}`; }
+  if (u.t === 'head') { echo.heads[u.i] = !echo.heads[u.i]; echoHelp = ECHO_HELP.head; echoValue = `head ${u.i + 1} ${echo.heads[u.i] ? 'on' : 'off'}`; }
+  if (u.t === 'sync') { echo.sync = !echo.sync; echoHelp = ECHO_HELP.sync; echoValue = echo.sync ? 'synced' : 'free'; }
+  if (u.t === 'mmute') { const on = machineMute('echo'); echoHelp = ECHO_HELP.mmute; echoValue = on ? 'echo muted' : 'sound on'; }
+  if (u.t === 'slider') echoHelp = ECHO_HELP[u.key];
+  applyEcho(); buzz(8); drawEchoButtons(); drawEchoDisplay();
+}
+function echoSliderTo(key, e) { const S = echoSl[key], p = groupLocalAt(echoG, e, 0.85); if (p) echoSet(key, (p.x - S.x0) / S.len); }
+const echoPtr = new Map();
+function echoDown(e) {
+  const h = echoRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  eFocus = -1;
+  const u = h.object.userData; echoPtr.set(e.pointerId, u);
+  if (u.t === 'throw') { echoThrowSet(true); return; }
+  echoButton(u); if (u.t === 'slider') echoSliderTo(u.key, e);
+}
+function echoMove(e) { const u = echoPtr.get(e.pointerId); if (u && u.t === 'slider') echoSliderTo(u.key, e); }
+function echoUp(e) { const u = echoPtr.get(e.pointerId); echoPtr.delete(e.pointerId); if (u && u.t === 'throw' && ![...echoPtr.values()].some((v) => v.t === 'throw')) echoThrowSet(false); }
+const E_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'in', i })), { t: 'slider', key: 'repeat' }, { t: 'slider', key: 'rate' }, { t: 'slider', key: 'tone' }, { t: 'slider', key: 'wow' },
+  { t: 'throw' }, { t: 'sync' }, ...[0, 1, 2].map((i) => ({ t: 'head', i })), { t: 'mmute' }, { t: 'slider', key: 'vol' }];
+let eFocus = -1;
+function eFocusSet(i) {
+  eFocus = i; if (i < 0) return;
+  const f = E_STATIONS[i]; echoHelp = ECHO_HELP[f.t === 'slider' ? f.key : f.t];
+  echoValue = f.t === 'in' ? EC_INPUTS[f.i][0].toLowerCase() : f.t === 'head' ? `head ${f.i + 1}` : f.t === 'slider' ? `${f.key} ${Math.round((f.key === 'vol' ? VOL.echo : echo[f.key]) * 100)}%` : f.t;
+  drawEchoDisplay(); blip(660, 0.04, 0.03);
+}
+function echoStepF(d) { eFocusSet(eFocus < 0 ? (d > 0 ? 0 : E_STATIONS.length - 1) : (eFocus + d + E_STATIONS.length) % E_STATIONS.length); }
+function echoAdjust(d) {
+  if (eFocus < 0) { eFocusSet(0); return; }
+  const f = E_STATIONS[eFocus];
+  if (f.t === 'slider') { echoSet(f.key, (f.key === 'vol' ? VOL.echo : echo[f.key]) + d * 0.05); return; }
+  echoStepF(-d);
+}
+function echoPress(down) {
+  if (eFocus < 0) { if (down) eFocusSet(0); return; }
+  const f = E_STATIONS[eFocus];
+  if (f.t === 'throw') { echoThrowSet(down); return; }
+  if (down && f.t !== 'slider') echoButton(f);
+}
+function makeEchoMachine() {
+  const fit = [], fitL = [];
+  for (const x of [-0.97, 0.97]) {
+    fit.push([echoG, new THREE.Vector3(x, 0.82, 0.62)]); fit.push([echoG, new THREE.Vector3(x, 1.2, -0.9)]); fit.push([echoG, new THREE.Vector3(x, 1.7, -0.95)]);
+    fitL.push([echoG, new THREE.Vector3(x, 0.82, 0.62)]); fitL.push([echoG, new THREE.Vector3(x, 1.2, -0.9)]); fitL.push([echoG, new THREE.Vector3(x * 0.9, 1.5, -0.95)]);
+  }
+  return {
+    al: ECHO_I, base: echoG, fit, fitL, elev: [1.0, 0.85], stand: 1.05,
+    down: echoDown, move: echoMove, up: echoUp, step: echoStepF, adjust: echoAdjust, press: echoPress,
+    enter() { eFocus = -1; echoHelp = ECHO_HELP.start; echoValue = ''; drawEchoButtons(); drawEchoDisplay(); },
+    exit() { echoPtr.clear(); echoThrowSet(false); eFocus = -1; },
+  };
+}
+
+/* ---------- every frame: the tape runs, heads glow, the VU needle swings */
+function updateEcho(dt) {
+  if (echo.sync && echoAudio) { const b = echoBase(); if (Math.abs(b - (echo.lastBase || 0)) > 0.001) { echo.lastBase = b; applyEcho(); } }
+  echo.tapeOff += dt * (0.06 / echoBase());                         // faster tape for shorter delays
+  echoTape.material.map.offset.x = -echo.tapeOff;
+  let lvl = 0;
+  if (echoAudio) { echoAudio.an.getFloatTimeDomainData(echoAudio.buf); let s = 0; for (const x of echoAudio.buf) s += x * x; lvl = Math.min(1.2, Math.sqrt(s / echoAudio.buf.length) * 6); }
+  echo.vu += (lvl - echo.vu) * Math.min(1, dt * (lvl > echo.vu ? 12 : 3));
+  const anyIn = echo.ins.some(Boolean);
+  echoHeadMats[0].emissiveIntensity = anyIn ? 0.25 + 0.3 * Math.sin(time * 4) ** 2 : 0;
+  for (let k = 0; k < 3; k++) echoHeadMats[k + 1].emissiveIntensity = echo.heads[k] ? 0.15 + echo.vu * 1.6 : 0;
+  echo.dispT = (echo.dispT || 0) + dt;
+  const near = playing && curM === ECHO_M || player.pos.distanceToSquared(echoPos) < 100;
+  if (near && echo.dispT > 0.06) { echo.dispT = 0; drawEchoDisplay(); }
+  const foc = playing && curM === ECHO_M && eFocus >= 0 ? E_STATIONS[eFocus] : null;
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  echoBtns.in.forEach((b, k) => glow(b.mat, foc && foc.t === 'in' && foc.i === k));
+  echoBtns.head.forEach((b, k) => glow(b.mat, foc && foc.t === 'head' && foc.i === k));
+  glow(echoBtns.sync.mat, foc && foc.t === 'sync'); glow(echoThrow.mat, (foc && foc.t === 'throw') || echo.throw);
+  for (const key in echoSl) glow(echoSl[key].mat, foc && foc.t === 'slider' && foc.key === key);
+  glow(muteBtns.echo.mat, foc && foc.t === 'mmute');
+}
+
 const ORGAN_M = {
   al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
   down: organPointerDown, move: organPointerMove, up: organPointerUp,
@@ -3867,6 +4158,7 @@ const RHY_M = makeRhythmMachine();
 const MEL_M = makeMelodyMachine();
 const BASS_M = makeBassMachine();
 const POOL_M = makePoolMachine();
+const ECHO_M = makeEchoMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -3926,6 +4218,7 @@ function update(dt) {
   updateMelody(dt);
   updateBass(dt);
   updatePool(dt);
+  updateEcho(dt);
   updateStress(dt);
   updateProjector(dt);
 
@@ -4060,6 +4353,9 @@ function updateCaption() {
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
     c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === ECHO_I) {
+    c.innerHTML = `<b>IX</b> · The Tape Echo<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the echo to play</span>`;
     c.classList.remove('hidden');
   } else if (show === POOL_I) {
     c.innerHTML = `<b>V</b> · The Ripple Pool<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the pool to play</span>`;
