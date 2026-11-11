@@ -184,7 +184,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
 camera.rotation.order = 'YXZ';
 
-scene.add(new THREE.HemisphereLight('#fff6e8', '#cbb89c', 0.38));   // soft fill, kept low so the spotlights model the room
+const hemi = new THREE.HemisphereLight('#fff6e8', '#cbb89c', 0.38); scene.add(hemi);   // soft fill, kept low so the spotlights model the room
 
 /* ------------------------------------------------------------------ textures */
 function rng(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
@@ -741,7 +741,7 @@ const mic = new THREE.Group(); mic.position.set(0, MIC_Y, 0); scene.add(mic);
   rose.position.set(0, DOME_TOP - 0.25, 0); scene.add(rose);
 }
 // three moving stage spotlights with visible beams
-const spots = [];
+const spots = [], _flashCol = new THREE.Color('#dfe8ff');
 {
   const cone = new THREE.ConeGeometry(1, 1, 24, 1, true); cone.translate(0, -0.5, 0);
   for (let k = 0; k < 3; k++) {
@@ -4188,10 +4188,10 @@ const texAl = alcoves[TEX_I];
 texAl.g.remove(texAl.plinth); texAl.g.remove(texAl.beam);
 plinths.splice(plinths.indexOf(texAl.plinth), 1);
 const texHits = [], texCtrls = [];
-const TX_LAYERS = [['WIND', '#00b7ff'], ['RAIN', '#1f6bff'], ['SEA', '#00d0b0'], ['CRACKLE', '#ff9a5a'], ['HISS', '#c9ccd0'], ['SHIMMER', '#ffd000']];
-const TX_SCENES = [['STILL', [0.1, 0, 0, 0, 0.05, 0.35]], ['SEASIDE', [0.35, 0, 0.75, 0, 0, 0.3]], ['RAINY NIGHT', [0.25, 0.7, 0, 0.1, 0.1, 0.25]],
-  ['OLD RECORD', [0, 0, 0, 0.75, 0.45, 0.3]], ['STORM', [0.85, 0.85, 0.45, 0, 0, 0.15]]];
-const tex = { lv: [0, 0, 0, 0, 0, 0], glide: null, drift: false, scene: -1, sig: '', breath: [0, 0, 0, 0, 0, 0] };
+const TX_LAYERS = [['WIND', '#00b7ff'], ['RAIN', '#1f6bff'], ['SEA', '#00d0b0'], ['CRACKLE', '#ff9a5a'], ['HISS', '#c9ccd0'], ['SHIMMER', '#ffd000'], ['THUNDER', '#6a4fc4']];
+const TX_SCENES = [['STILL', [0.1, 0, 0, 0, 0.05, 0.35, 0]], ['SEASIDE', [0.35, 0, 0.75, 0, 0, 0.3, 0]], ['RAINY NIGHT', [0.25, 0.7, 0, 0.1, 0.1, 0.25, 0.2]],
+  ['OLD RECORD', [0, 0, 0, 0.75, 0.45, 0.3, 0]], ['STORM', [0.85, 0.85, 0.45, 0, 0, 0.15, 0.8]]];
+const tex = { lv: [0, 0, 0, 0, 0, 0, 0], glide: null, drift: false, scene: -1, sig: '', breath: [0, 0, 0, 0, 0, 0, 0], thunderT: 3, claps: [], dim: 0, flash: 0 };
 
 const texG = new THREE.Group(); texG.position.set(0, 0.15, A + 1.25); texG.rotation.y = Math.PI; texAl.g.add(texG);
 const texSl = {}, texBtns = { scene: [] }, texPanels = [];
@@ -4215,8 +4215,8 @@ let texDispL, texDrift;
   };
   // six layer sliders, back to front, each with a swatch of its panel's colour
   TX_LAYERS.forEach(([n, col], k) => {
-    const z = -0.27 + k * 0.12;
-    slider(k, -0.36, 1.22, z, n, col, -0.6, 0.4, 0.11);
+    const z = -0.31 + k * 0.105;
+    slider(k, -0.36, 1.22, z, n, col, -0.6, 0.4, 0.1);
     box(0.05, 0.006, 0.05, new THREE.MeshBasicMaterial({ color: col, toneMapped: false }), -0.9, top + 0.003, z, texG);
   });
   // scene buttons, DRIFT and the quick mute
@@ -4232,13 +4232,13 @@ let texDispL, texDrift;
   // the Mondrian cabinet: six coloured panels in a black grid, each glowing with its layer
   texHits.push(box(1.9, 1.62, 0.12, mW, 0, 1.62, -0.52, texG));
   const face = -0.455;
-  const cells = [[-0.6, 2.06, 0.62, 0.68], [0.12, 2.18, 0.78, 0.44], [0.71, 1.83, 0.36, 0.7], [-0.6, 1.45, 0.62, 0.5], [0.12, 1.66, 0.78, 0.56], [0.47, 1.29, 0.86, 0.2]];
+  const cells = [[-0.6, 2.06, 0.62, 0.68], [0.12, 2.18, 0.78, 0.44], [0.71, 1.83, 0.36, 0.7], [-0.6, 1.45, 0.62, 0.5], [0.12, 1.66, 0.78, 0.56], [0.47, 1.29, 0.86, 0.2], [0.71, 2.29, 0.36, 0.2]];
   box(1.84, 1.18, 0.01, mInk, 0, 1.79, face - 0.006, texG);
   cells.forEach(([x, y, w, h], k) => {
     const col = TX_LAYERS[k][1], mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.05 });
     const p = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, h - 0.04, 0.02), mat); p.position.set(x, y, face); texG.add(p);
     const L = flatLabel(Math.min(w - 0.1, 0.4), 0.07, 360, 63, texG, x - (w - 0.1) / 2 + Math.min(w - 0.1, 0.4) / 2, y - h / 2 + 0.07, face + 0.012);
-    L.m.rotation.x = 0; printText(L, [[TX_LAYERS[k][0], 40, k === 4 ? '#1d1b18' : '#fbf8f2']], { align: 'left' });
+    L.m.rotation.x = 0; printText(L, [[TX_LAYERS[k][0], k === 6 ? 34 : 40, k === 4 ? '#1d1b18' : '#fbf8f2']], { align: 'left' });
     texPanels[k] = { mat };
   });
   texDispL = canvasTex(2048, 280);
@@ -4256,7 +4256,7 @@ function biq(type, f, q, sr) {                                    // a one-shot 
   return (x) => { const y = (b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
 }
 function renderTexture(kind, sr) {
-  const secs = { wind: 8, rain: 6, sea: 12, crackle: 5, hiss: 4 }[kind], n = Math.floor(sr * secs), d = new Float32Array(n);
+  const secs = { wind: 8, rain: 9, sea: 12, crackle: 5, hiss: 4 }[kind], n = Math.floor(sr * secs), d = new Float32Array(n);
   const R = Math.random, T = (i) => i / sr;
   let br = 0;
   if (kind === 'wind') {
@@ -4267,12 +4267,28 @@ function renderTexture(kind, sr) {
       d[i] = bp(br * 6 + (R() * 2 - 1) * 0.15) * gust + wh(R() * 2 - 1) * 0.35 * gust * gust * gust;
     }
   } else if (kind === 'rain') {
-    const hp = biq('hp', 1400, 0.6, sr), lp = biq('lp', 6500, 0.6, sr);
-    for (let i = 0; i < n; i++) d[i] = lp(hp(R() * 2 - 1)) * 0.22;
-    const drops = secs * 45;
-    for (let k = 0; k < drops; k++) {                               // droplets: tiny decaying pings, a few deeper plops
-      const at = Math.floor(R() * n), big = R() < 0.12, f = big ? 500 + R() * 700 : 2200 + R() * 4000, tau = (big ? 0.016 : 0.005) * sr, a = (big ? 0.5 : 0.3) * (0.3 + R() * 0.7);
-      for (let j = 0; j < tau * 6; j++) d[(at + j) % n] += a * Math.exp(-j / tau) * Math.sin(2 * Math.PI * f * j / sr);
+    // a bed of pink noise (rain is soft and full, not a bright white hiss) that thickens and thins, then
+    // thousands of individual drops: each a tiny burst of noise with its own dullness, mostly quiet with
+    // a few close ones, some tapping on surfaces, and the odd bubble 'plink' in a puddle
+    const hp = biq('hp', 300, 0.6, sr), lp = biq('lp', 7000, 0.5, sr);
+    let p0 = 0, p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
+    for (let i = 0; i < n; i++) {
+      const w = R() * 2 - 1;
+      p0 = 0.99886 * p0 + w * 0.0555179; p1 = 0.99332 * p1 + w * 0.0750759; p2 = 0.969 * p2 + w * 0.153852;
+      p3 = 0.8665 * p3 + w * 0.3104856; p4 = 0.55 * p4 + w * 0.5329522; p5 = -0.7616 * p5 - w * 0.016898;
+      const pink = (p0 + p1 + p2 + p3 + p4 + p5 + w * 0.5362) * 0.11, t = T(i);
+      const dens = 0.82 + 0.1 * Math.sin(2 * Math.PI * t / secs + 1.3) + 0.08 * Math.sin(2 * Math.PI * 3 * t / secs);
+      d[i] = lp(hp(pink)) * 0.55 * dens;
+    }
+    const drop = (at, len, amp, cut) => {                           // a single drop: noise burst through its own low-pass
+      const f = biq('lp', cut, 0.7, sr), h = biq('hp', 250, 0.7, sr);
+      for (let j = 0; j < len * 5; j++) d[(at + j) % n] += h(f((R() * 2 - 1) * amp * Math.exp(-j / len)));
+    };
+    for (let k = 0; k < secs * 320; k++) { const a2 = R(); drop(Math.floor(R() * n), Math.floor(sr * (0.0004 + R() * 0.0012)), 0.12 * a2 * a2 * a2 + 0.02, 1800 + R() * 7000); }
+    for (let k = 0; k < secs * 9; k++) drop(Math.floor(R() * n), Math.floor(sr * (0.0015 + R() * 0.003)), 0.35 + R() * 0.4, 1200 + R() * 3500);   // close ones, tapping
+    for (let k = 0; k < secs * 2.5; k++) {                         // bubbles: a sine that rises as it rings
+      const at = Math.floor(R() * n), f0 = 900 + R() * 2600, tau = sr * (0.004 + R() * 0.006), a3 = 0.05 + R() * 0.08;
+      let ph = 0; for (let j = 0; j < tau * 5; j++) { ph += 2 * Math.PI * f0 * (1 + 0.25 * j / (tau * 5)) / sr; d[(at + j) % n] += a3 * Math.exp(-j / tau) * Math.sin(ph); }
     }
   } else if (kind === 'sea') {
     const lp = biq('lp', 850, 0.6, sr), hp = biq('hp', 2200, 0.6, sr);
@@ -4303,6 +4319,41 @@ function renderTexture(kind, sr) {
   const em = Math.max(...env) || 1;
   return { data: out.map((v) => v * g), env: env.map((v) => v / em) };
 }
+// thunder: three takes (near with a crack, middle, far and dull), each a crack or a soft start and then
+// a long roll made of several overlapping rumbles, with a loudness envelope the lights follow
+function renderThunder(kind, sr) {
+  const secs = 9, n = Math.floor(sr * secs), d = new Float32Array(n), R = Math.random;
+  const cut = [1100, 520, 260][kind], lp1 = biq('lp', cut, 0.7, sr), lp2 = biq('lp', cut * 0.6, 0.7, sr), hp = biq('hp', 28, 0.7, sr);
+  const rolls = []; let t = kind === 0 ? 0.05 : 0.25 + R() * 0.6;
+  for (let k = 0, nr = 5 + Math.floor(R() * 5); k < nr; k++) { rolls.push({ t, w: 0.25 + R() * 0.7, a: (0.45 + R() * 0.55) * Math.exp(-t / 2.6) }); t += 0.3 + R() * 1.1; }
+  let br = 0;
+  for (let i = 0; i < n; i++) {
+    br = (br + 0.02 * (R() * 2 - 1)) / 1.02;
+    const tt = i / sr; let e = 0;
+    for (const r of rolls) { const x = (tt - r.t) / r.w; if (x > -4 && x < 4) e += r.a * Math.exp(-x * x); }
+    e += tt > rolls[0].t ? 0.18 * Math.exp(-(tt - rolls[0].t) / 2.8) : 0;
+    d[i] = hp(lp2(lp1(br * 9))) * e;
+  }
+  if (kind === 0) {                                                   // the crack of a near strike, stuttering
+    const h = biq('hp', 380, 0.7, sr), l = biq('lp', 5200, 0.7, sr);
+    for (let j = 0; j < sr * 0.7; j++) { const tt = j / sr, st = Math.sin(tt * 2 * Math.PI * 34) > 0.2 ? 1 : 0.35; d[j] += l(h(R() * 2 - 1)) * 1.1 * Math.exp(-tt / 0.13) * st; }
+  }
+  for (let i = 0; i < sr * 0.005; i++) d[i] *= i / (sr * 0.005);
+  for (let i = 0; i < sr * 0.5; i++) d[n - 1 - i] *= i / (sr * 0.5);
+  let pk = 0; for (const v of d) pk = Math.max(pk, Math.abs(v)); const g = 0.95 / (pk || 1);
+  const blk = Math.floor(sr * 0.05), env = [];
+  for (let i = 0; i < n; i += blk) { let s2 = 0; for (let j = i; j < Math.min(n, i + blk); j++) s2 += d[j] * d[j]; env.push(Math.sqrt(s2 / blk)); }
+  const em = Math.max(...env) || 1;
+  return { data: d.map((v) => v * g), env: env.map((v) => v / em), dur: secs };
+}
+function thunderClap() {
+  const L = texAudio.layers[6], lv = tex.lv[6], R = Math.random;
+  const v = L.takes[R() < 0.15 + lv * 0.55 ? 0 : R() < 0.6 ? 1 : 2];
+  const src = ac.createBufferSource(), g = ac.createGain(), rate = 0.85 + R() * 0.25, amp = 0.55 + 0.45 * R();
+  src.buffer = v.buf; src.playbackRate.value = rate; g.gain.value = amp; src.connect(g); g.connect(L.g);
+  const t0 = ac.currentTime + 0.02; src.start(t0);
+  tex.claps.push({ t0, rate, env: v.env, end: t0 + v.dur / rate, amp });
+}
 let texAudio = null;
 function initTextureAudio() {
   const out = ac.createGain(); volRegister('texture', out, 1);
@@ -4320,6 +4371,8 @@ function initTextureAudio() {
   // shimmer: a slow pad of five soft partials in the key, each swelling at its own pace
   const sg = ac.createGain(); sg.gain.value = 0; sg.connect(out);
   layers[5] = { g: sg, oscs: null };
+  const tg = ac.createGain(); tg.gain.value = 0; tg.connect(out);
+  layers[6] = { g: tg, takes: [0, 1, 2].map((k) => { const r = renderThunder(k, ac.sampleRate), b = ac.createBuffer(1, r.data.length, ac.sampleRate); b.copyToChannel(r.data, 0); return { buf: b, env: r.env, dur: r.dur }; }) };
   texAudio = { out, layers };
   texRetune();
 }
@@ -4338,13 +4391,13 @@ function shimmerOn(on) {                                            // its oscil
     });
   } else if (!on && L.oscs) { const os = L.oscs; L.oscs = null; const t = ac.currentTime + 1.2; os.forEach(({ o, l }) => { o.stop(t); l.stop(t); }); }
 }
-const texLevel = (k) => Math.pow(tex.lv[k], 2) * (k === 5 ? 1.1 : 0.55);
+const texLevel = (k) => (k === 6 ? Math.pow(tex.lv[k], 1.3) * 1.1 : Math.pow(tex.lv[k], 2) * (k === 5 ? 1.1 : 0.55));
 
 /* ---------- display */
 let texHelp = '', texValue = '';
 const TEX_HELP = {
   start: 'Slide up the sounds you want under the music, or press a scene. DRIFT lets the mix wander like weather. Keys: ← → choose, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
-  layer: 'Each slider brings up one sound: wind, rain, the sea, vinyl crackle, tape hiss, and a shimmering drone in the gallery’s key.',
+  layer: 'Each slider brings up one sound: wind, rain, the sea, vinyl crackle, tape hiss, a shimmering drone in the gallery’s key, and thunder. The higher the thunder, the darker the room and the nearer and more often the storm.',
   scene: 'Scenes glide every slider to a mood. Change any slider afterwards to make it your own.',
   drift: 'Drift: the sounds you’ve brought up wander slowly louder and softer on their own, like changing weather.',
   vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
@@ -4408,7 +4461,7 @@ function texDown(e) {
 }
 function texMove(e) { const u = texPtr.get(e.pointerId); if (u && u.t === 'slider') texSliderTo(u.key, e); }
 function texUp(e) { texPtr.delete(e.pointerId); }
-const T_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'scene', i })), { t: 'drift' }, { t: 'mmute' }, ...[0, 1, 2, 3, 4, 5].map((k) => ({ t: 'slider', key: k })), { t: 'slider', key: 'vol' }];
+const T_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'scene', i })), { t: 'drift' }, { t: 'mmute' }, ...[0, 1, 2, 3, 4, 5, 6].map((k) => ({ t: 'slider', key: k })), { t: 'slider', key: 'vol' }];
 let tFocus = -1;
 function tFocusSet(i) {
   tFocus = i; if (i < 0) return;
@@ -4444,7 +4497,7 @@ function updateTexture(dt) {
   if (sig !== tex.sig) { tex.sig = sig; texRetune(); }
   if (tex.glide) {                                                    // a scene: the sliders glide over two seconds
     const G = tex.glide; G.t = Math.min(1, G.t + dt / 2); const e = G.t * G.t * (3 - 2 * G.t);
-    for (let k = 0; k < 6; k++) { tex.lv[k] = G.from[k] + (G.to[k] - G.from[k]) * e; drawTexSlider(k); }
+    for (let k = 0; k < 7; k++) { tex.lv[k] = G.from[k] + (G.to[k] - G.from[k]) * e; drawTexSlider(k); }
     if (G.t >= 1) { tex.glide = null; drawTexDisplay(); }
   }
   const now = ac ? ac.currentTime : 0;
@@ -4453,19 +4506,31 @@ function updateTexture(dt) {
     tex.applyT = (tex.applyT || 0) + dt;
     if (tex.applyT > 0.1) {                                          // levels go to the audio engine ten times a second
       tex.applyT = 0;
-      for (let k = 0; k < 6; k++) {
+      for (let k = 0; k < 7; k++) {
         const drift = tex.drift ? 1 + 0.4 * Math.sin(now * (0.05 + k * 0.017) + k * 1.9) * Math.sin(now * (0.021 + k * 0.007) + k) : 1;
         const want = Math.min(1.3, texLevel(k) * drift);
         const L = texAudio.layers[k]; if (Math.abs((L.last ?? -1) - want) > 0.002) { L.last = want; L.g.gain.setTargetAtTime(want, now, 0.25); }
       }
     }
   }
+  // thunder: claps come more often, and nearer, the higher the slider
+  if (texAudio && tex.lv[6] > 0.02) {
+    if ((tex.thunderT -= dt) <= 0) { thunderClap(); tex.thunderT = 6 + (1 - tex.lv[6]) * 28 + Math.random() * 10; }
+  } else tex.thunderT = Math.min(tex.thunderT, 2.5);
+  let fl = 0;
+  tex.claps = tex.claps.filter((c) => now < c.end);
+  for (const c of tex.claps) { if (now < c.t0) continue; const i = Math.floor((now - c.t0) * c.rate / 0.05); fl = Math.max(fl, (c.env[i] || 0) * c.amp); }
+  const heard = MUTED.texture ? 0 : Math.min(1.5, volGain(VOL.texture)) * Math.min(1, texLevel(6) / 0.6 + 0.25);
+  fl *= heard;
+  tex.flash += (fl - tex.flash) * Math.min(1, dt * (fl > tex.flash ? 30 : 6));
+  tex.dim += ((MUTED.texture ? 0 : tex.lv[6]) - tex.dim) * Math.min(1, dt * 1.5);
   // the panels breathe: each layer's own loudness, read from its loop's precomputed envelope
-  for (let k = 0; k < 6; k++) {
+  for (let k = 0; k < 7; k++) {
     let b = 0.5;
     const L = texAudio && texAudio.layers[k];
     if (L && L.env) { const pos = ((now - L.t0) % L.dur + L.dur) % L.dur, i = Math.floor(pos / 0.05); b = L.env[Math.min(L.env.length - 1, i)] || 0; }
     else if (k === 5) b = 0.6 + 0.4 * Math.sin(now * 0.4);
+    else if (k === 6) b = tex.flash * 2;
     const lvl = Math.min(1, (L && L.last) || 0) / 0.6;
     tex.breath[k] += (b * lvl - tex.breath[k]) * Math.min(1, dt * 8);
     texPanels[k].mat.emissiveIntensity = 0.04 + tex.breath[k] * 1.2;
@@ -4522,24 +4587,28 @@ function update(dt) {
     bulbs.setColorAt(j, bulbCol);
   }
   bulbs.instanceColor.needsUpdate = true;
+  // the storm: thunder darkens the room's fill light and exposure; each clap lights it up
+  hemi.intensity = 0.38 * (1 - 0.8 * tex.dim) + tex.flash * 1.1;
+  renderer.toneMappingExposure = 0.85 * (1 - 0.45 * tex.dim) + tex.flash * 0.4;
   spots.forEach((sp, k) => {
     const a = k * Math.PI * 2 / 3 - time * 0.05;
     sp.s.position.set(Math.sin(a) * 6.2, 12, Math.cos(a) * 6.2);
     sp.fx.position.copy(sp.s.position);
     sp.s.target.position.set(Math.sin(time * 0.37 + k * 2.1) * 1.4, 1.4 + Math.sin(time * 0.6 + k) * 0.5, Math.cos(time * 0.29 + k * 2.1) * 1.4);
     sp.s.color.setHSL((time * 0.025 + k / 3) % 1, 0.8, 0.62);
-    sp.s.intensity = 260 + lv * 900;
+    sp.s.intensity = (260 + lv * 900) * (1 - 0.35 * tex.dim) + tex.flash * 3200;   // lightning: the spots flare with the thunder
+    if (tex.flash > 0.02) sp.s.color.lerp(_flashCol, Math.min(1, tex.flash * 1.5));
     tmp.subVectors(sp.s.target.position, sp.s.position); const len = tmp.length(); tmp.normalize();
     sp.fx.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), tmp);
     sp.beam.position.copy(sp.s.position); sp.beam.quaternion.copy(sp.fx.quaternion);
     const r = Math.tan(0.2) * len; sp.beam.scale.set(r, len, r);
-    sp.beam.material.color.copy(sp.s.color); sp.beam.material.opacity = 0.025 + lv * 0.05;
+    sp.beam.material.color.copy(sp.s.color); sp.beam.material.opacity = 0.025 + lv * 0.05 + tex.flash * 0.12;
   });
   for (const a of alcoves) {
     if (!a) continue;
     a.flash *= Math.exp(-dt * 2.2);
     const breathe = 0.92 + Math.sin(time * 0.5 + a.base) * 0.08;
-    a.L.intensity = a.base * breathe * (1 + a.flash * 2.5);
+    a.L.intensity = a.base * breathe * (1 + a.flash * 2.5) * (1 - 0.6 * tex.dim) * (1 + tex.flash * 1.6);
     a.wash.material.opacity = 0.34 + a.flash * 0.5;
     a.glow.material.opacity = 0.24 + a.flash * 0.45;
     a.beam.material.opacity = 0.06 + a.flash * 0.12;
