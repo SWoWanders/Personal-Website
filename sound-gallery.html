@@ -4607,7 +4607,7 @@ therAl.g.remove(therAl.plinth); therAl.g.remove(therAl.beam);
 plinths.splice(plinths.indexOf(therAl.plinth), 1);
 const therHits = [], therCtrls = [];
 const TH_VOICES = ['RCA', 'ROCKMORE', 'PURE'];
-const TH = { rodX: 0.27, rodZ: -0.12, rodY0: 1.47, rodY1: 2.12, dMin: 0.025, dMax: 0.6, loopY: 1.3, loopZ: 0.0, loopX: -0.31, volH: 0.32 };
+const TH = { spkX: -0.1, spkZ: -0.62, spkY: 1.4, rodX: 0.27, rodZ: -0.12, rodY0: 1.47, rodY1: 2.12, dMin: 0.025, dMax: 0.6, loopY: 1.3, loopZ: 0.0, loopX: -0.31, volH: 0.32 };
 const ther = { voice: 1, guide: true, snap: false, tune: 0, rh: null, lh: null, semi: 66, vol: 0, vib: 0, still: 0, sig: '', lastSemi: 66 };
 // the right hand: distance from the rod → semitone (MIDI). Four octaves, C3 far away to C7 at the rod,
 // compressed near the rod as on the real instrument
@@ -4694,31 +4694,54 @@ let therDispL, therKnobs = {}, therSw = {}, therRings = [], therOrbs = {}, therG
   therGuide = canvasTex(1024, 256);
   const gm = new THREE.Mesh(new THREE.PlaneGeometry(TH.dMax + 0.04, 0.16), new THREE.MeshBasicMaterial({ map: therGuide.t, transparent: true, toneMapped: false, depthWrite: false }));
   gm.position.set(TH.rodX + (TH.dMax + 0.04) / 2, 1.62, TH.rodZ); therG.add(gm); therGuide.m = gm;
-  // the Art Deco back: a gold sunburst over cream, stepped black frame, the display in a gold frame
+  // the Art Deco back: cream under stepped black bands, the display in a gold frame
   const back = box(2.6, 2.4, 0.06, cream, 0, 1.5, -0.95, therG); therHits.push(back);
-  for (let i = 0; i < 15; i++) {
-    const a = Math.PI * (0.06 + 0.88 * i / 14), len = 1.15;
-    const ray = new THREE.Mesh(new THREE.BoxGeometry(0.035, len, 0.008), gold);
-    ray.position.set(Math.cos(a) * len / 2, 0.68 + Math.sin(a) * len / 2, -0.915); ray.rotation.z = a - Math.PI / 2; therG.add(ray);
-  }
-  const sun = new THREE.Mesh(new THREE.CircleGeometry(0.2, 48, 0, Math.PI), gold); sun.position.set(0, 0.68, -0.912); therG.add(sun);
   for (const [w, h, y] of [[2.6, 0.05, 2.7], [2.2, 0.05, 2.62], [1.8, 0.05, 2.54]]) box(w, h, 0.02, black, 0, y, -0.91, therG);
   for (const x of [-1.25, 1.25]) box(0.08, 2.4, 0.03, black, x, 1.5, -0.91, therG);
-  box(1.06, 0.31, 0.02, gold, 0, 2.3, -0.905, therG);
+  box(1.06, 0.31, 0.02, gold, 0, 2.33, -0.905, therG);
   therDispL = canvasTex(2048, 560);
   const dp = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.274), new THREE.MeshBasicMaterial({ map: therDispL.t, toneMapped: false }));
-  dp.position.set(0, 2.3, -0.892); therG.add(dp);
-  // the loudspeaker: a separate fluted cabinet with a rounded top and a sunburst grille, as RCA sold it
-  const spk = new THREE.Group(); spk.position.set(-0.86, base, -0.72); spk.rotation.y = 0.25; therG.add(spk);
-  therHits.push(box(0.5, 1.1, 0.3, mahog, 0, 0.55, 0, spk));
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.3, 32), mahog); crown.rotation.x = Math.PI / 2; crown.position.set(0, 1.1, 0); spk.add(crown);
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.62), new THREE.MeshStandardMaterial({ color: '#c9b48a', roughness: 0.9, emissive: '#ffcf80', emissiveIntensity: 0.02 }));
-  cloth.position.set(0, 0.72, 0.152); spk.add(cloth); therSpk = cloth;
-  for (let i = 0; i < 7; i++) {
-    const a = Math.PI * (0.15 + 0.7 * i / 6), bar = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.34, 0.01), gold);
-    bar.position.set(Math.cos(a) * 0.17, 0.48 + Math.sin(a) * 0.17, 0.158); bar.rotation.z = a - Math.PI / 2; spk.add(bar);
+  dp.position.set(0, 2.33, -0.892); therG.add(dp);
+  // the loudspeaker: Theremin's own triangular speaker, point down on a pole, standing behind the
+  // instrument. A shallow box whose face is smoked glass, nearly black; behind the glass an array of
+  // bright coloured lamps that follow your two hands
+  const spk = new THREE.Group(); spk.position.set(TH.spkX, 0, TH.spkZ); therG.add(spk);
+  const SW = 0.44, SH = 0.74, SB = 0.07, SD = 0.2;                   // half-width at the top, height, half-width of the blunt foot, depth
+  const triShape = (inset) => {
+    const w = SW - inset * 1.6, b = Math.max(0.02, SB - inset * 0.4), y0 = inset, y1 = SH - inset;
+    const s = new THREE.Shape(); s.moveTo(-b, y0); s.lineTo(b, y0); s.quadraticCurveTo(b + 0.03, y0, b + 0.045, y0 + 0.04);
+    s.lineTo(w, y1 - 0.015); s.quadraticCurveTo(w + 0.005, y1, w - 0.02, y1); s.lineTo(-w + 0.02, y1); s.quadraticCurveTo(-w - 0.005, y1, -w, y1 - 0.015);
+    s.lineTo(-b - 0.045, y0 + 0.04); s.quadraticCurveTo(-b - 0.03, y0, -b, y0); return s;
+  };
+  const SY = TH.spkY;                                                  // the foot of the triangle
+  const shell = new THREE.Mesh(new THREE.ExtrudeGeometry(triShape(0), { depth: SD, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 8 }), ebony);
+  shell.position.set(0, SY, -SD / 2); spk.add(shell); therHits.push(shell);
+  const bezel = new THREE.Mesh(new THREE.ShapeGeometry(triShape(0.012), 8), mChrome); bezel.position.set(0, SY, SD / 2 + 0.009); spk.add(bezel);
+  const hollow = new THREE.Mesh(new THREE.ShapeGeometry(triShape(0.022), 8), new THREE.MeshBasicMaterial({ color: '#030303' })); hollow.position.set(0, SY, SD / 2 + 0.0095); spk.add(hollow);
+  // the lamps sit just behind the glass; drawn added onto it so they shine through the smoke
+  const lampPts = [];
+  for (let r = 0, y = 0.08; y < SH - 0.05; r++, y += 0.052) {
+    const hw = SB + (SW - SB) * (y / SH) - 0.07;
+    const off = r % 2 ? 0.029 : 0;
+    for (let x = -Math.floor(hw / 0.058) * 0.058 - off; x <= hw + 1e-6; x += 0.058) if (Math.abs(x) <= hw) lampPts.push([x, y]);
   }
-  for (const x of [-0.2, 0.2]) box(0.02, 1.08, 0.02, gold, x, 0.55, 0.152, spk);
+  const lampMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const lamps = new THREE.InstancedMesh(new THREE.CircleGeometry(0.019, 14), lampMat, lampPts.length);
+  const halo = new THREE.InstancedMesh(new THREE.CircleGeometry(0.042, 14), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), lampPts.length);
+  const mtx = new THREE.Matrix4();
+  lampPts.forEach(([x, y], i) => { mtx.makeTranslation(x, SY + y, SD / 2 + 0.0105); lamps.setMatrixAt(i, mtx); mtx.makeTranslation(x, SY + y, SD / 2 + 0.0102); halo.setMatrixAt(i, mtx); lamps.setColorAt(i, new THREE.Color(0)); halo.setColorAt(i, new THREE.Color(0)); });
+  lamps.renderOrder = 3; halo.renderOrder = 2; spk.add(halo); spk.add(lamps);
+  const glass = new THREE.Mesh(new THREE.ShapeGeometry(triShape(0.022), 8), new THREE.MeshPhysicalMaterial({ color: '#0b0b0d', roughness: 0.08, metalness: 0.1, clearcoat: 1, transparent: true, opacity: 0.86, depthWrite: false }));
+  glass.position.set(0, SY, SD / 2 + 0.0112); glass.renderOrder = 4; spk.add(glass);
+  // the glass dims the lamps a little: they are drawn again, fainter, on top of it
+  const shine = new THREE.InstancedMesh(lamps.geometry, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), lampPts.length);
+  lampPts.forEach(([x, y], i) => { mtx.makeTranslation(x, SY + y, SD / 2 + 0.0118); shine.setMatrixAt(i, mtx); shine.setColorAt(i, new THREE.Color(0)); });
+  shine.renderOrder = 5; spk.add(shine);
+  therSpk = { lamps, halo, shine, pts: lampPts, h: SH, w: SW, col: new THREE.Color(), c2: new THREE.Color() };
+  // the pole: a black lacquered column on a round weighted foot, a chrome collar under the box
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.04, 32), black); foot.position.y = base + 0.02; spk.add(foot);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, SY - base - 0.02, 16), black); pole.position.y = (SY + base) / 2; spk.add(pole);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 16), mChrome); collar.position.y = SY - 0.02; spk.add(collar);
   // two fluted torchère lamps, glowing up the walls
   for (const x of [-1.15, 1.15]) {
     const tg = new THREE.Group(); tg.position.set(x * 1.03, base, -0.8); therG.add(tg);
@@ -4730,7 +4753,7 @@ let therDispL, therKnobs = {}, therSw = {}, therRings = [], therOrbs = {}, therG
   }
 }
 const therPos = therAl.g.localToWorld(new THREE.Vector3(0, 1.4, A + 1.4));
-const therSpkPos = therAl.g.localToWorld(new THREE.Vector3(0.86, 0.9, A + 1.97));
+const therSpkPos = therAl.g.localToWorld(new THREE.Vector3(-TH.spkX, TH.spkY + 0.55, A + 1.25 - TH.spkZ));
 
 /* ---------- sound */
 let therAudio = null;
@@ -4943,7 +4966,18 @@ function updateTheremin(dt) {
     const s = 1 + 0.25 * Math.sin(time * (4 + i) + i); m.scale.set(s, s, s);
   });
   therRings.loop.material.opacity = ther.vol * 0.6; therRings.loop.scale.set(1.15 * (0.8 + ther.vol * 0.4), 0.45 * (0.8 + ther.vol * 0.4), 1);
-  therSpk.material.emissiveIntensity = 0.02 + ther.vol * 0.35;
+  { // the speaker's lamps: loudness lights them, pitch chooses the band that burns brightest and its colours
+    const S = therSpk, v = ther.vol, pfc = Math.max(0, Math.min(1, pf)), vibW = therAudio ? ther.still : 0;
+    for (let i = 0; i < S.pts.length; i++) {
+      const [x, y] = S.pts[i], yn = y / S.h;
+      const band = Math.exp(-Math.pow((yn - pfc) / 0.22, 2));
+      const ripple = 0.5 + 0.5 * Math.sin(time * (3 + vibW * 5.7 * 6.28 / 3) - Math.hypot(x, y - pfc * S.h) * 18);
+      const b = 0.025 + v * (0.25 + 1.5 * band) * (0.6 + 0.4 * ripple);
+      S.col.setHSL((pfc * 0.85 + yn * 0.35 + x * 0.6 + time * 0.04) % 1, 1, 0.5).multiplyScalar(b);
+      S.lamps.setColorAt(i, S.col); S.shine.setColorAt(i, S.c2.copy(S.col).multiplyScalar(0.8)); S.halo.setColorAt(i, S.c2.copy(S.col).multiplyScalar(0.6));
+    }
+    S.lamps.instanceColor.needsUpdate = S.shine.instanceColor.needsUpdate = S.halo.instanceColor.needsUpdate = true;
+  }
   const orb = (o, on, x, y, z) => { o.visible = on; if (on) { o.position.set(x, y, z); o.material.opacity = 0.55 + 0.25 * Math.sin(time * 5); } };
   orb(therOrbs.rh, !!ther.rh, TH.rodX + (ther.rh ? ther.rh.d : 0), ther.rh ? Math.max(1.2, Math.min(2.2, ther.rh.y || 1.62)) : 0, TH.rodZ);
   orb(therOrbs.lh, !!ther.lh, ther.lh && ther.lh.x ? Math.max(-0.95, Math.min(-0.35, ther.lh.x)) : -0.47, TH.loopY + (ther.lh ? Math.max(0, ther.lh.h) : 0), TH.loopZ);
