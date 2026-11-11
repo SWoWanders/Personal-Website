@@ -2273,7 +2273,7 @@ const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const SP_VOICES = [['PLAIN', '#00b8a0'], ['WAVY', '#e8262b'], ['BLEND', '#8a4bff']];   // the Omnichord's standard voice, its vibrato voice, or both
 const SP_SUS = [['SHORT', 0.13], ['MEDIUM', 0.42], ['LONG', 1.1]];                       // decay time constant, seconds
 const SP_N = 13, SP_LO = 42, SP_HI = 101;                 // thirteen zones; their pitch windows run F♯2 to F7
-const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD'];
+const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD', 'POLKA', 'SWING', 'TANGO', 'REGGAE'];
 // the Optigan's discs: each gives the keyboard its own voice (the chord buttons and rhythm stay the same)
 const OPT_DISCS = [['ORGAN', '#e8262b'], ['HAMMOND', '#8a4bff'], ['HARPSICHORD', '#c08a2b'], ['VIBES', '#00b8a0'],
   ['ACCORDION', '#2b8fd8'], ['E.PIANO', '#e8902b'], ['THEATRE', '#ff1f8f']];
@@ -2390,10 +2390,10 @@ function buildKeys(kb, parent, y, z) {
     const L = flatLabel(0.25, 0.09, 256, 92, b, 0, 0.0205, 0); susBtns[k] = { mat, L, name };
   });
   // Optigan backing styles: left cheek of the raised tier
-  OPT_STYLES.forEach((name, k) => {
-    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.075), mat);
-    b.position.set(-0.84, 1.17, -0.27 - k * 0.083); melG.add(b); b.userData = { t: 'style', i: k }; melCtrls.push(b);
-    const L = flatLabel(0.25, 0.07, 256, 72, b, 0, 0.0205, 0); styleBtns[k] = { mat, L, name };
+  OPT_STYLES.forEach((name, k) => {                                // two columns of four
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.04, 0.075), mat);
+    b.position.set(k < 4 ? -1.06 : -0.79, 1.17, -0.27 - (k % 4) * 0.083); melG.add(b); b.userData = { t: 'style', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.24, 0.07, 256, 72, b, 0, 0.0205, 0); styleBtns[k] = { mat, L, name };
   });
   // the Optigan's spinning disc, right cheek
   optDisc = new THREE.Group(); optDisc.position.set(0.84, 1.16, -0.4); melG.add(optDisc);
@@ -2636,10 +2636,16 @@ function reedNote(m, vel = 1, dur = 0) {
   return { stop };
 }
 /* ---------- the Optigan's backing: chords, bass and brushes on the Rhythm Wheel's grid */
+// backing patterns over sixteen sixteenths. bass: step → chord tone (0 root, 1 third, 2 fifth, 3 octave);
+// chord: step → length in steps; brush: steps with a brush; swing: how late the off-beat eighths fall
 const OPT_PAT = {
-  1: { bass: { 0: 0, 8: 1 }, chord: { 2: 1, 6: 1, 10: 1, 14: 1 }, brush: [4, 12] },                         // strum
-  2: { bass: { 0: 0, 6: 1, 8: 0, 14: 1 }, chord: { 3: 1.4, 6: 1.4, 10: 1.4, 13: 1.4 }, brush: [0, 3, 6, 10, 12] },   // bossa
-  3: { bass: { 0: 0, 8: 1 }, chord: { 0: 7.5, 8: 7.5 }, brush: [4, 12] },                                   // ballad
+  1: { bass: { 0: 0, 8: 2 }, chord: { 2: 1, 6: 1, 10: 1, 14: 1 }, brush: [4, 12] },                         // strum
+  2: { bass: { 0: 0, 6: 2, 8: 0, 14: 2 }, chord: { 3: 1.4, 6: 1.4, 10: 1.4, 13: 1.4 }, brush: [0, 3, 6, 10, 12] },   // bossa
+  3: { bass: { 0: 0, 8: 2 }, chord: { 0: 7.5, 8: 7.5 }, brush: [4, 12], bassLen: 7.5 },                      // ballad
+  4: { bass: { 0: 0, 8: 2 }, chord: { 4: 1.3, 12: 1.3 }, brush: [4, 12], bassLen: 1.4 },                    // polka: oom-pah, oom-pah
+  5: { bass: { 0: 0, 4: 1, 8: 2, 12: 1 }, chord: { 4: 1, 10: 0.6, 12: 1 }, brush: [0, 4, 6, 8, 12, 14], swing: 0.66, bassLen: 3.6 },   // swing: walking bass, stabs on 2 and 4
+  6: { bass: { 0: 0, 6: 2, 8: 0, 12: 2 }, chord: { 0: 0.7, 4: 0.7, 8: 0.7, 12: 0.7, 14: 0.5 }, brush: [6, 14], bassLen: 1.6 },   // tango: habanera bass, marcato chords
+  7: { bass: { 0: 0, 3: 0, 6: 2, 10: 3 }, chord: { 4: 0.5, 12: 0.5 }, brush: [8], bassLen: 2.6 },          // reggae: skank on the off-beats, one drop
 };
 function chordMidis(d) { const base = 57 + ((NOTE_SEMI[org.root] - 9 + 12) % 12); return triad(d).map((x) => base + x); }   // around A3–G#4
 function schedNote(kind, t, m, dur) {
@@ -2668,8 +2674,9 @@ function scheduleOptigan() {
   while (mel.nextT < ac.currentTime - 0.05) { mel.nextT += stepDur(); mel.next = (mel.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
   const ahead = ac.currentTime + LOOKAHEAD, P = OPT_PAT[mel.style];
   while (mel.nextT < ahead) {
-    const st = mel.next, t = mel.nextT, sd = stepDur(), cm = chordMidis(mel.chord), bassRoot = cm[0] - 24;
-    if (st in P.bass) schedNote('bass', t, bassRoot + (P.bass[st] ? 7 : 0), sd * (mel.style === 3 ? 7.5 : 1.8));
+    const st = mel.next, sd = stepDur(), t = mel.nextT + (P.swing && st % 4 === 2 ? sd * P.swing : 0), cm = chordMidis(mel.chord);
+    const tone = [cm[0], cm[1], cm[2], cm[0] + 12];
+    if (st in P.bass) schedNote('bass', t, tone[P.bass[st]] - 24, sd * (P.bassLen || 1.8));
     if (st in P.chord) cm.forEach((m, k) => schedNote('chord', t + k * 0.012, m, sd * P.chord[st]));
     if (P.brush.includes(st)) schedBrush(t, st % 4 === 0);
     mel.nextT += sd; mel.next = (mel.next + 1) % 16;
@@ -2694,7 +2701,7 @@ const MEL_HELP = {
   vol: 'Volume: slide it, or touch anywhere along it. Each instrument has its own; 70% is its normal level, and it goes about twice as loud.',
   sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
   plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
-  style: 'Optigan backing: pick a style, then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
+  style: 'Optigan backing: pick a style (strum, bossa nova, ballad, polka, swing, tango or reggae), then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
   chord: 'Chord buttons: the seven chords that belong to the gallery’s key. Try I, then IV, then V, then back to I.',
   key: 'Lit keys belong to the gallery’s key, so they always sound right. Green keys are the home note. Slide along the keys to glide.',
 };
@@ -2832,7 +2839,7 @@ function melUp(e) {
   if (u.t === 'key') noteOff('p' + e.pointerId);
   if (u.t === 'chord') chordUp('p' + e.pointerId);
 }
-const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3].map((i) => ({ t: 'style', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i })), { t: 'mmute' }];
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ t: 'style', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i })), { t: 'mmute' }];
 for (let i = 0; i < SP_N; i++) M_STATIONS.push({ t: 'plate', i });
 for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb: 1, m });
 let mFocus = -1;
@@ -3909,7 +3916,7 @@ plinths.splice(plinths.indexOf(echoAl.plinth), 1);
 const echoHits = [], echoCtrls = [];
 const EC_INPUTS = [['ORGAN', ['organ'], '#8a4bff'], ['WHEEL', ['rhythm'], '#ff3030'], ['CONSOLE', ['strum', 'optigan'], '#66e000'], ['BASS', ['bass'], '#1f6bff'], ['POOL', ['pool'], '#00d0b0'], ['TEXTURE', ['texture'], '#ffd000']];
 const EC_SYNC = [['1/16', 1], ['1/8', 2], ['3/16', 3], ['1/4', 4]];        // base delay in sixteenths when synced
-const echo = { ins: [false, false, true, false, true, false], heads: [true, false, true], repeat: 0.45, rate: 0.45, tone: 0.5, wow: 0.25, sync: false, throw: false, vu: 0, tapeOff: 0, sig: '' };
+const echo = { ins: [false, false, true, false, true, false], heads: [true, false, true], repeat: 0.45, rate: 0.45, tone: 0.5, wow: 0.25, sync: false, throw: false, freeze: false, vu: 0, inLvl: 0, tapeOff: 0, sig: '', marks: [] };
 function echoBase() {                                                     // seconds between the record head and head 1
   if (echo.sync) return stepDur() * EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][1];
   return 0.09 + echo.rate * 0.33;
@@ -3953,6 +3960,7 @@ let echoTape, echoDispL, echoHeadMats = [], echoThrow;
   echoThrow = btn('THROW', '#e8262b', -0.74, 0.34, 0.34, { t: 'throw' });
   btn('SYNC', '#f6f2ea', -0.43, 0.34, 0.2, { t: 'sync' }, echoBtns, 'sync');
   [0, 1, 2].forEach((k) => btn(`HEAD ${k + 1}`, '#f6f2ea', -0.16 + k * 0.215, 0.34, 0.2, { t: 'head', i: k }, echoBtns.head, k));
+  btn('FREEZE', '#f6f2ea', 0.57, 0.34, 0.22, { t: 'freeze' }, echoBtns, 'freeze');
   { const b = makeMuteBtn('echo', echoG, 0.84, top + 0.02, 0.34, 0.2, 0.12); b.userData = { t: 'mmute' }; echoCtrls.push(b); }
   slider('vol', -0.2, 1.1, 0.52, 'ECHO VOLUME', '#00b7ff', -0.6, 0.66);
   // the open tape deck behind the desk: six posts, the heads, and the loop of tape
@@ -3977,6 +3985,12 @@ let echoTape, echoDispL, echoHeadMats = [], echoThrow;
   tapeL.t.wrapS = THREE.RepeatWrapping;
   echoTape = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: tapeL.t, roughness: 0.55, side: THREE.DoubleSide }));
   echoTape.userData.len = len; echoG.add(echoTape);
+  // what's been recorded, shown as bright marks riding the tape from the record head past the playback heads
+  echo.markMeshes = Array.from({ length: 10 }, () => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.012), new THREE.MeshBasicMaterial({ color: '#9fe8ff', transparent: true, opacity: 0, toneMapped: false }));
+    m.visible = false; echoG.add(m); return m;
+  });
+  echo.deckY = deckY;
   // heads: red record head, then three chrome playback heads that glow when switched on and echoing
   [[-0.4, '#e8262b'], [-0.08, '#c9ccd0'], [0.22, '#c9ccd0'], [0.52, '#c9ccd0']].forEach(([x, col], k) => {
     const mat = new THREE.MeshStandardMaterial({ color: col, metalness: k ? 0.85 : 0.2, roughness: 0.3, emissive: k ? '#00b7ff' : '#e8262b', emissiveIntensity: 0 });
@@ -4019,23 +4033,27 @@ function initEchoAudio() {
   const sat = ac.createWaveShaper(); sat.curve = softClipCurve(); sat.oversample = 'none';
   sum.connect(hp); hp.connect(lp); lp.connect(fb); fb.connect(sat); sat.connect(rec);
   const an = ac.createAnalyser(); an.fftSize = 512; sum.connect(an);
-  echoAudio = { out, rec, sends, heads, hp, lp, fb, w1g, w2g, an, buf: new Float32Array(512), sum };
+  const inAn = ac.createAnalyser(); inAn.fftSize = 512; sends.forEach((g) => g.connect(inAn));
+  echoAudio = { out, rec, sends, heads, hp, lp, fb, w1g, w2g, an, inAn, buf: new Float32Array(512), sum };
   applyEcho(true);
 }
 function applyEcho(instant) {
   if (!echoAudio) return;
   const t = ac.currentTime, E = echoAudio, base = echoBase();
-  E.sends.forEach((g, k) => g.gain.setTargetAtTime(echo.ins[k] ? 0.8 : 0, t, 0.05));
+  E.sends.forEach((g, k) => g.gain.setTargetAtTime(echo.ins[k] && !echo.freeze ? 0.8 : 0, t, 0.05));   // FREEZE: nothing new goes on the tape
   const on = echo.heads.filter(Boolean).length || 1;
   E.heads.forEach((h, k) => {
-    h.hg.gain.setTargetAtTime(echo.heads[k] ? 1 / Math.sqrt(on) : 0, t, 0.03);
+    h.hg.gain.setTargetAtTime(echo.heads[k] ? (echo.freeze ? 1 / on : 1 / Math.sqrt(on)) : 0, t, 0.03);
     if (instant) h.d.delayTime.value = base * h.mul; else h.d.delayTime.setTargetAtTime(base * h.mul, t, 0.25);   // tape speeding up or slowing: the echoes bend
   });
   // feedback: below 1 the echoes fade away; THROW pushes it just past 1 and the saturator keeps it in hand
-  const fbAmt = echo.throw ? 1.08 : echo.repeat * 0.88;
-  E.fb.gain.setTargetAtTime(fbAmt / Math.sqrt(on), t, echo.throw ? 0.15 : 0.05);
-  E.lp.frequency.value = 900 + echo.tone * echo.tone * 9000;
-  E.hp.frequency.value = 260 - echo.tone * 180;
+  // the soft saturator in the loop amplifies quiet signals by about 1.74, so the feedback is scaled down by that much:
+  // REPEAT at full is a long trail that still fades, THROW is just past the point where it grows, FREEZE holds it
+  const SAT = 1.74;
+  const fbAmt = echo.freeze ? 1 / SAT : echo.throw ? 1.08 / SAT : (echo.repeat * 0.95) / SAT;
+  E.fb.gain.setTargetAtTime(echo.freeze ? fbAmt : fbAmt / Math.sqrt(on), t, echo.throw ? 0.15 : 0.05);   // frozen: the heads (1/n each) sum to exactly one trip round
+  E.lp.frequency.value = echo.freeze ? 18000 : 900 + echo.tone * echo.tone * 9000;
+  E.hp.frequency.value = echo.freeze ? 20 : 260 - echo.tone * 180;
   E.w1g.gain.value = 0.0035 * echo.wow; E.w2g.gain.value = 0.0005 * echo.wow;
 }
 
@@ -4050,6 +4068,7 @@ const ECHO_HELP = {
   tone: 'Tone: each repeat gets darker to the left, brighter to the right.',
   wow: 'Wow: the tape wavers, as an old machine would.',
   sync: 'Sync: the delay locks to the Rhythm Wheel’s tempo: a sixteenth, an eighth, a dotted eighth or a quarter note.',
+  freeze: 'Freeze: stops recording and loops whatever is on the tape, round and round, until you press it again. Move RATE while frozen to bend the whole loop up or down.',
   throw: 'Throw: hold it and the echoes feed on themselves and swell; let go and they fade. A dub trick.',
   vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
   mmute: 'Mute: silences the echo at once. Press again to bring it back.',
@@ -4090,7 +4109,7 @@ function drawEchoButtons() {
   const tog = (b, on, size = 36) => printText(b.L, [[b.name, size, on ? '#ffffff' : '#1d1b18']], on ? { bg: '#1d1b18' } : {});
   echoBtns.in.forEach((b, k) => tog(b, echo.ins[k], b.name.length > 6 ? 30 : 36));
   echoBtns.head.forEach((b, k) => tog(b, echo.heads[k], 32));
-  tog(echoBtns.sync, echo.sync); tog(echoThrow, echo.throw, 44);
+  tog(echoBtns.sync, echo.sync); tog(echoBtns.freeze, echo.freeze, 32); tog(echoThrow, echo.throw, 44);
   for (const key in echoSl) drawEchoSlider(key);
 }
 drawEchoButtons();
@@ -4108,6 +4127,7 @@ function echoButton(u) {
   if (u.t === 'in') { echo.ins[u.i] = !echo.ins[u.i]; echoHelp = ECHO_HELP.in; echoValue = `${EC_INPUTS[u.i][0].toLowerCase()} ${echo.ins[u.i] ? 'on' : 'off'}`; }
   if (u.t === 'head') { echo.heads[u.i] = !echo.heads[u.i]; echoHelp = ECHO_HELP.head; echoValue = `head ${u.i + 1} ${echo.heads[u.i] ? 'on' : 'off'}`; }
   if (u.t === 'sync') { echo.sync = !echo.sync; echoHelp = ECHO_HELP.sync; echoValue = echo.sync ? 'synced' : 'free'; }
+  if (u.t === 'freeze') { echo.freeze = !echo.freeze; echoHelp = ECHO_HELP.freeze; echoValue = echo.freeze ? 'frozen' : 'flowing'; }
   if (u.t === 'mmute') { const on = machineMute('echo'); echoHelp = ECHO_HELP.mmute; echoValue = on ? 'echo muted' : 'sound on'; }
   if (u.t === 'slider') echoHelp = ECHO_HELP[u.key];
   applyEcho(); buzz(8); drawEchoButtons(); drawEchoDisplay();
@@ -4125,7 +4145,7 @@ function echoDown(e) {
 function echoMove(e) { const u = echoPtr.get(e.pointerId); if (u && u.t === 'slider') echoSliderTo(u.key, e); }
 function echoUp(e) { const u = echoPtr.get(e.pointerId); echoPtr.delete(e.pointerId); if (u && u.t === 'throw' && ![...echoPtr.values()].some((v) => v.t === 'throw')) echoThrowSet(false); }
 const E_STATIONS = [...[0, 1, 2, 3, 4, 5].map((i) => ({ t: 'in', i })), { t: 'slider', key: 'repeat' }, { t: 'slider', key: 'rate' }, { t: 'slider', key: 'tone' }, { t: 'slider', key: 'wow' },
-  { t: 'throw' }, { t: 'sync' }, ...[0, 1, 2].map((i) => ({ t: 'head', i })), { t: 'mmute' }, { t: 'slider', key: 'vol' }];
+  { t: 'throw' }, { t: 'sync' }, ...[0, 1, 2].map((i) => ({ t: 'head', i })), { t: 'freeze' }, { t: 'mmute' }, { t: 'slider', key: 'vol' }];
 let eFocus = -1;
 function eFocusSet(i) {
   eFocus = i; if (i < 0) return;
@@ -4163,8 +4183,23 @@ function makeEchoMachine() {
 /* ---------- every frame: the tape runs, heads glow, the VU needle swings */
 function updateEcho(dt) {
   if (echo.sync && echoAudio) { const b = echoBase(); if (Math.abs(b - (echo.lastBase || 0)) > 0.001) { echo.lastBase = b; applyEcho(); } }
-  echo.tapeOff += dt * (0.06 / echoBase());                         // faster tape for shorter delays
+  // the tape moves 30 cm (record head to head 1) in one delay time, so its stripes and the marks run at true speed
+  const speed = 0.3 / echoBase();
+  echo.tapeOff += dt * speed / 0.25;
   echoTape.material.map.offset.x = -echo.tapeOff;
+  if (echoAudio) {
+    echoAudio.inAn.getFloatTimeDomainData(echoAudio.buf); let s2 = 0; for (const x of echoAudio.buf) s2 += x * x;
+    const lvIn = Math.sqrt(s2 / echoAudio.buf.length) * 6;
+    if (!echo.freeze && lvIn > 0.12 && lvIn > echo.inLvl * 1.6 && (echo.lastMark || 0) + 0.12 < time) { echo.marks.push({ x: -0.4, a: Math.min(1, lvIn) }); echo.lastMark = time; if (echo.marks.length > 10) echo.marks.shift(); }
+    echo.inLvl += (lvIn - echo.inLvl) * Math.min(1, dt * 8);
+  }
+  echo.markMeshes.forEach((m, i) => {
+    const k = echo.marks[i];
+    if (!k) { m.visible = false; return; }
+    k.x += dt * speed;
+    m.visible = true; m.position.set(k.x, echo.deckY + 0.045, -0.37); m.material.opacity = k.a * Math.max(0, 1 - Math.max(0, k.x - 0.52) / 0.25);
+  });
+  echo.marks = echo.marks.filter((k) => k.x < 0.78);
   let lvl = 0;
   if (echoAudio) { echoAudio.an.getFloatTimeDomainData(echoAudio.buf); let s = 0; for (const x of echoAudio.buf) s += x * x; lvl = Math.min(1.2, Math.sqrt(s / echoAudio.buf.length) * 6); }
   echo.vu += (lvl - echo.vu) * Math.min(1, dt * (lvl > echo.vu ? 12 : 3));
@@ -4180,7 +4215,7 @@ function updateEcho(dt) {
   const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
   echoBtns.in.forEach((b, k) => glow(b.mat, foc && foc.t === 'in' && foc.i === k));
   echoBtns.head.forEach((b, k) => glow(b.mat, foc && foc.t === 'head' && foc.i === k));
-  glow(echoBtns.sync.mat, foc && foc.t === 'sync'); glow(echoThrow.mat, (foc && foc.t === 'throw') || echo.throw);
+  glow(echoBtns.sync.mat, foc && foc.t === 'sync'); glow(echoBtns.freeze.mat, (foc && foc.t === 'freeze') || echo.freeze); glow(echoThrow.mat, (foc && foc.t === 'throw') || echo.throw);
   for (const key in echoSl) glow(echoSl[key].mat, foc && foc.t === 'slider' && foc.key === key);
   glow(muteBtns.echo.mat, foc && foc.t === 'mmute');
 }
