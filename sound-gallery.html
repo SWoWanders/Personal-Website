@@ -1031,7 +1031,8 @@ function initMic(revWet) {
   const lim = ac.createDynamicsCompressor();
   lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.006; lim.release.value = 0.2;
   const makeup = ac.createGain(); makeup.gain.value = 1.6;
-  micBus.connect(comp); comp.connect(makeup); makeup.connect(lim);
+  if (isTouch) { micBus.connect(makeup); makeup.gain.value = 1.2; } else { micBus.connect(comp); comp.connect(makeup); }
+  makeup.connect(lim);
   micAn = ac.createAnalyser(); micAn.fftSize = 1024; micData = new Float32Array(micAn.fftSize); lim.connect(micAn);
   micOut = ac.createMediaStreamDestination ? ac.createMediaStreamDestination() : null;
   if (micOut) lim.connect(micOut);
@@ -1111,6 +1112,7 @@ function stopRecording() {
 function setPannerPos(p, v) {
   if (p.positionX) { p.positionX.value = v.x; p.positionY.value = v.y; p.positionZ.value = v.z; } else p.setPosition(v.x, v.y, v.z);
 }
+const lsn = { t: 1, pos: new THREE.Vector3(1e9, 0, 0), fwd: new THREE.Vector3(), room: -1, hall: -1 };
 function setListener(pos, fwd) {
   const L = ac.listener;
   if (L.positionX) {
@@ -1617,7 +1619,7 @@ function initOrganAudio() {
   ns.connect(nf); nf.connect(airG); airG.connect(amp); ns.start();
   const voices = voiceFreqs().map((f, v) => {
     const g = ac.createGain(); g.gain.value = 0; g.connect(filt);
-    const oscs = [-4, 4].map((d) => {
+    const oscs = (isTouch ? [0] : [-4, 4]).map((d) => {
       const o = ac.createOscillator(); o.setPeriodicWave(wave); o.frequency.value = f; o.detune.value = d + v * 1.3;
       o.connect(g); o.start(); return o;
     });
@@ -1998,7 +2000,7 @@ const DRUM = {
     const f0 = rootFreq() * 2 * Math.pow(2, semi / 12);
     const o = ac.createOscillator(), o2 = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
     o.type = 'triangle'; o.frequency.value = f0; o2.type = 'sine'; o2.frequency.value = f0 * 2.002;
-    lp.type = 'lowpass'; lp.frequency.setValueAtTime(f0 * 9, t); lp.frequency.exponentialRampToValueAtTime(f0 * 1.5, t + 0.35);
+    lp.type = 'lowpass'; lp.frequency.value = Math.min(12000, f0 * 3.5);
     env(g, t, 0.36 * v, 0.55, 0.004); o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(rhyAudio.out);
     o.start(t); o2.start(t); o.stop(t + 0.6); o2.stop(t + 0.6);
   },
@@ -2428,13 +2430,10 @@ function strumZone(i, delay = 0) {
   if (z.h) z.h.stop(t);
   const pk = 0.07 * Math.pow(0.988, m - 60);               // high zones a touch quieter, as the ear hears them louder
   const mix = [[0, 1], [1, 0], [0.62, 0.62]][mel.voice]; // [vibrato voice, standard voice]
-  const oscs = [], envs = [];
-  mix.forEach((a, k) => {
-    if (!a) return;
-    const o = mkOsc('square', f), e = ac.createGain(); o.connect(e); e.connect(k === 0 ? melAudio.spWavy : melAudio.spIn);
-    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(pk * a, t + 0.0025); e.gain.setTargetAtTime(0, t + 0.0025, tau);
-    oscs.push(o); envs.push(e);
-  });
+  const o = mkOsc('square', f), e = ac.createGain(), oscs = [o], envs = [e];
+  o.connect(e);
+  mix.forEach((a, k) => { if (!a) return; const s = ac.createGain(); s.gain.value = a; e.connect(s); s.connect(k === 0 ? melAudio.spWavy : melAudio.spIn); });
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(pk, t + 0.0025); e.gain.setTargetAtTime(0, t + 0.0025, tau);
   const end = t + Math.min(tau * 6.5, 6) + 0.05;
   oscs.forEach((o) => { o.start(t); o.stop(end); });
   let done = false;
@@ -3207,8 +3206,9 @@ function bassVoice(m, vel, t) {
   g.connect(bassAudio.in); g.gain.setValueAtTime(0, t);
   let filters = [], rel = 0.1, glideOsc = [];
   if (v === 'TAURUS') {
-    const f1 = lp(cut, 2.2), f2 = lp(cut, 0.7); f1.connect(f2); f2.connect(g); filters = [f1, f2];
-    for (const [type, mul, det, a] of [['sawtooth', 1, 0, 0.5], ['sawtooth', 1, 9, 0.5], ['square', 0.5, 0, 0.32]]) {
+    const f1 = lp(cut, 2.2); filters = [f1];
+    if (isTouch) f1.connect(g); else { const f2 = lp(cut, 0.7); f1.connect(f2); f2.connect(g); filters.push(f2); }
+    for (const [type, mul, det, a] of (isTouch ? [['sawtooth', 1, 0, 0.75], ['square', 0.5, 0, 0.32]] : [['sawtooth', 1, 0, 0.5], ['sawtooth', 1, 9, 0.5], ['square', 0.5, 0, 0.32]])) {
       const o = mkOsc(type, f * mul, det), og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(f1); srcs.push(o); glideOsc.push([o, mul]);
     }
     for (const fl of filters) { fl.frequency.setValueAtTime(Math.min(14000, cut * 2.4), t); fl.frequency.setTargetAtTime(cut * 0.75, t, 0.16); }
@@ -3602,10 +3602,16 @@ function update(dt) {
     if (state === 'hall' || state === 'exiting') {
       tmp.set(player.pos.x, view === 'first' ? EYE : 2.1, player.pos.z);
     } else tmp.copy(camera.position);
-    setListener(tmp, fwd);
+    // every change to the listener or a filter makes the audio engine recalculate sample by sample, so only
+    // send them when they've moved enough to hear, and at most 20 times a second
+    lsn.t += dt;
+    if (lsn.t > 0.05 && (tmp.distanceToSquared(lsn.pos) > 0.0004 || fwd.dot(lsn.fwd) < 0.9997)) { lsn.t = 0; lsn.pos.copy(tmp); lsn.fwd.copy(fwd); setListener(tmp, fwd); }
     const target = state === 'hall' || state === 'exiting' ? 2600 : (doorT > 0.3 ? 300 + 1600 * doorT : 280);
-    roomFilter.frequency.setTargetAtTime(target, ac.currentTime, 0.2);
-    hallBus.frequency.setTargetAtTime(state === 'hall' || state === 'exiting' ? 20000 : target * 1.3, ac.currentTime, 0.2);
+    const hallT = state === 'hall' || state === 'exiting' ? 20000 : target * 1.3;
+    if (Math.abs(target - lsn.room) > 15 || Math.abs(hallT - lsn.hall) > 15) {
+      lsn.room = target; lsn.hall = hallT;
+      roomFilter.frequency.setTargetAtTime(target, ac.currentTime, 0.2); hallBus.frequency.setTargetAtTime(hallT, ac.currentTime, 0.2);
+    }
   }
 
   // --- captions
@@ -3815,16 +3821,15 @@ function ghostMachine(k) {
 function ghostStep(G, st, t) {
   const sc = galleryScale(), home = NOTE_SEMI[org.root], deg = triad(mel.chord ?? mel.plateChord);
   const pitch = (d, oct) => 12 * oct + home + d;
-  const note = (m, dur, type, oscs, q) => {                        // a typical synth note: oscillators, a filter, an envelope
-    const g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = q;
-    f.frequency.setValueAtTime(3000, t); f.frequency.setTargetAtTime(800, t, dur * 0.4);
+  const note = (m, dur, type, oscs, q) => {                        // a budget synth note: oscillators, a still filter, an envelope
+    const g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = q; f.frequency.value = 1800;
     f.connect(g); g.connect(G.out);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.01); g.gain.setTargetAtTime(0, t + dur * 0.6, dur * 0.3);
-    for (let i = 0; i < oscs; i++) { const o = mkOsc(type, mf(m), (i - 1) * 6); o.connect(f); o.start(t); o.stop(t + dur * 2.2); }
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.01); g.gain.setTargetAtTime(0, t + dur * 0.6, dur * 0.25);
+    for (let i = 0; i < oscs; i++) { const o = mkOsc(type, mf(m), (i - 1) * 6); o.connect(f); o.start(t); o.stop(t + dur * 1.6); }
     G.notes++;
   };
-  if (G.kind === 'pad' && st % 8 === 0) deg.forEach((d) => note(pitch(d, 4), stepDur() * 8, 'sawtooth', 3, 0.7));
-  if (G.kind === 'arp') note(pitch(deg[st % 3] + (st % 6 > 2 ? 12 : 0), 5), stepDur() * 3, 'square', 2, 3);
+  if (G.kind === 'pad' && st % 8 === 0) deg.forEach((d) => note(pitch(d, 4), stepDur() * 8, 'sawtooth', 2, 0.7));
+  if (G.kind === 'arp') note(pitch(deg[st % 3] + (st % 6 > 2 ? 12 : 0), 5), stepDur() * 3, 'square', 1, 3);
   if (G.kind === 'drums' && st % 2 === 0) {
     const n = ac.createBufferSource(); n.buffer = bassAudio.noise; const f = ac.createBiquadFilter(); f.type = st % 8 === 4 ? 'bandpass' : 'highpass'; f.frequency.value = st % 8 === 4 ? 1800 : 7000;
     const g = ac.createGain(); g.gain.setValueAtTime(0.12, t); g.gain.setTargetAtTime(0, t, st % 8 === 4 ? 0.06 : 0.02);
@@ -3891,7 +3896,7 @@ function stageSummary(S) {
   const fps = secs.map((x) => x.fps), ratio = secs.map((x) => x.ratio), gap = secs.map((x) => x.gap);
   const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
   const r = { fps: Math.round(avg(fps)), fpsMin: Math.min(...fps), ratioMin: Math.min(...ratio), gapMax: Math.round(Math.max(...gap)), heard: S.heard || 0 };
-  r.ok = r.ratioMin > 0.985 && r.gapMax < LOOKAHEAD * 900 && r.heard === 0;
+  r.ok = r.ratioMin > 0.99 && r.gapMax < LOOKAHEAD * 900 && r.heard === 0;
   return r;
 }
 function stressReport() {
