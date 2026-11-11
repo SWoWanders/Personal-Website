@@ -361,7 +361,7 @@ function buildCorridor(g) {
 /* entry door: "Door" by Dima Zverev, Sketchfab Standard licence (textures shrunk for the web).
    Its animation swings open (0.15–0.93 s), holds, then swings shut (1.48–1.98 s); the gallery plays
    each half at its own, slower pace. */
-let doorMixer = null, doorAction = null, doorClipT = 0, doorMode = 'closed';
+let doorMixer = null, doorAction = null, doorClipT = 0, doorMode = 'closed', doorHandle = null;
 try {
   const raw = Uint8Array.from(atob(document.getElementById('door-glb').textContent.trim()), (c) => c.charCodeAt(0));
   new GLTFLoader().parse(raw.buffer, '', (gltf) => {
@@ -374,6 +374,26 @@ try {
     wrap.rotation.y = Math.PI;                 // swings into the hall, away from the corridor
     wrap.position.set(0, 0, A + 0.2);
     gltf.scene.traverse((o) => { if (o.isMesh) o.material.envMapIntensity = 0.7; });
+    // the lever handle is part of the door leaf's mesh; lift its triangles (everything standing more than
+    // 7 cm off the door's faces) into a mesh of their own on a pivot at the spindle, so it can turn
+    try {
+      let leaf = null; gltf.scene.traverse((o) => { if (o.isMesh && /Object001/.test(o.name)) leaf = o; });
+      if (leaf && leaf.geometry.index) {
+        const g0 = leaf.geometry, P = g0.attributes.position, I = g0.index.array, keep = [], lever = [];
+        for (let i = 0; i < I.length; i += 3) {
+          const tri = [I[i], I[i + 1], I[i + 2]];
+          (tri.every((v) => Math.abs(P.getY(v)) >= 70) ? lever : keep).push(...tri);
+        }
+        if (lever.length) {
+          g0.setIndex(keep);
+          const g1 = g0.clone(); g1.setIndex(lever);
+          const PIV = new THREE.Vector3(385, 0, 975.5);                // the spindle, in the leaf's own units
+          const pivot = new THREE.Group(); pivot.position.copy(PIV); leaf.parent.add(pivot);
+          const h = new THREE.Mesh(g1, leaf.material); h.position.copy(PIV).negate(); pivot.add(h);
+          doorHandle = pivot;
+        }
+      }
+    } catch (e) { console.warn('door handle split failed', e); }
     hall.add(wrap);
     doorMixer = new THREE.AnimationMixer(gltf.scene);
     doorAction = doorMixer.clipAction(gltf.animations[0]);
@@ -401,6 +421,11 @@ function updateDoor(dt) {
     ? 0.15 + 0.78 * ease(c01((doorClipT - 1.37) / (2.9 - 1.37)))
     : 1.48 + 0.5 * c01((doorClipT - 5.37) / (6.9 - 5.37));
   doorMixer.update(0);
+  // the handle: pressed down just before the door swings, held while it's open, springs back as it shuts
+  if (doorHandle) {
+    const down = doorClipT < 4 ? ease(c01((doorClipT - 0.95) / 0.22)) : 1 - ease(c01((doorClipT - 6.86) / 0.16));
+    doorHandle.rotation.y = -0.62 * down;
+  }
   doorT = doorClipT < 4 ? c01((doorClipT - 1.37) / (2.9 - 1.37)) : 1 - c01((doorClipT - 5.37) / (6.9 - 5.37));
 }
 function doorClick(vol) {
