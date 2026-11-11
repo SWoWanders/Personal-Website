@@ -4607,7 +4607,7 @@ therAl.g.remove(therAl.plinth); therAl.g.remove(therAl.beam);
 plinths.splice(plinths.indexOf(therAl.plinth), 1);
 const therHits = [], therCtrls = [];
 const TH_VOICES = ['RCA', 'ROCKMORE', 'PURE'];
-const TH = { spkX: -0.1, spkZ: -0.62, spkY: 1.4, rodX: 0.27, rodZ: -0.12, rodY0: 1.47, rodY1: 2.12, dMin: 0.025, dMax: 0.6, loopY: 1.3, loopZ: 0.0, loopX: -0.31, volH: 0.32 };
+const TH = { spkX: 0, spkZ: -0.62, spkY: 1.4, rodX: 0.27, rodZ: -0.12, rodY0: 1.47, rodY1: 2.12, dMin: 0.025, dMax: 0.6, loopY: 1.3, loopZ: 0.0, loopX: -0.31, volH: 0.32 };
 const ther = { voice: 1, guide: true, snap: false, tune: 0, rh: null, lh: null, semi: 66, vol: 0, vib: 0, still: 0, sig: '', lastSemi: 66 };
 // the right hand: distance from the rod → semitone (MIDI). Four octaves, C3 far away to C7 at the rod,
 // compressed near the rod as on the real instrument
@@ -4669,16 +4669,15 @@ let therDispL, therKnobs = {}, therSw = {}, therRings = [], therOrbs = {}, therG
   const loop = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0065, 10, false), mChrome); therG.add(loop);
   for (const z of [0.06, -0.06]) box(0.03, 0.03, 0.03, ebony, -0.315, TH.loopY, TH.loopZ + z, therG);
   // the brass switch plate on the slope: four big push-buttons, each printed with what it does
-  const plate = new THREE.Group(); plate.position.set(-0.02, cabY + 0.53, 0.03); plate.rotation.x = 0.64; therG.add(plate);
-  const pb = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.012, 0.2), gold); plate.add(pb);
-  [['voice', -0.222], ['guide', -0.074], ['snap', 0.074]].forEach(([key, x]) => {
+  const plate = new THREE.Group(); plate.position.set(0, cabY + 0.53, 0.03); plate.rotation.x = 0.64; therG.add(plate);
+  const pb = new THREE.Mesh(new THREE.BoxGeometry(0.47, 0.012, 0.2), gold); plate.add(pb);
+  [['voice', -0.15], ['guide', 0], ['snap', 0.15]].forEach(([key, x]) => {
     const mat = new THREE.MeshPhysicalMaterial({ color: '#16110e', roughness: 0.3, clearcoat: 1, emissive: '#ffffff', emissiveIntensity: 0 });
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.136, 0.024, 0.17), mat); s.position.set(x, 0.018, 0); plate.add(s);
     s.userData = { t: 'sw', key }; therCtrls.push(s);
     const L = flatLabel(0.13, 0.16, 300, 370, s, 0, 0.0125, 0);
     therSw[key] = { s, mat, L };
   });
-  { const b = makeMuteBtn('theremin', plate, 0.222, 0.018, 0, 0.136, 0.17); b.userData = { t: 'mmute' }; therCtrls.push(b); }
   // glow rings round the rod (they rise with the pitch) and round the loop (they swell with the volume)
   for (let i = 0; i < 3; i++) {
     const m = new THREE.Mesh(new THREE.TorusGeometry(0.03 + i * 0.022, 0.0025, 6, 40), new THREE.MeshBasicMaterial({ color: '#ffe3a0', transparent: true, opacity: 0, toneMapped: false, depthWrite: false }));
@@ -4793,7 +4792,6 @@ const THER_HELP = {
   tune: 'Pitch knob: tunes the whole instrument up or down, as much as an octave either way.',
   voice: 'Voice: RCA is the reedy 1929 sound; ROCKMORE the round, singing tone Clara Rockmore had built for her; PURE a near-sine.',
   guide: 'Guide: faint marks in the air where the notes of the gallery’s key lie. Real players learn these by feel.',
-  mmute: 'Mute: silences the theremin at once. Press again to bring it back.',
   snap: 'Snap: gently pulls each note towards the nearest note of the key. Off is the true theremin: anything goes.',
 };
 function drawTherDisplay() {
@@ -4854,7 +4852,6 @@ function therDown(e) {
   if (h) {
     const u = h.object.userData; therPtr.set(e.pointerId, { ...u, y: e.clientY });
     if (u.t === 'sw') therSwitch(u.key);
-    else if (u.t === 'mmute') { const on = machineMute('theremin'); therHelp = THER_HELP.mmute; therValue = on ? 'muted' : 'sound on'; drawTherDisplay(); }
     else { therHelp = THER_HELP[u.key]; drawTherDisplay(); }
     return;
   }
@@ -4885,7 +4882,7 @@ function therSwitch(key) {
   therHelp = THER_HELP[key]; buzz(10); blip(880, 0.03, 0.02); drawTherControls(); drawTherDisplay();
 }
 // keys and controller: Space/Ⓐ plays; ← → glide the pitch hand a note of the key at a time; ↑ ↓ choose a control
-const TH_STATIONS = [{ t: 'air' }, { t: 'sw', key: 'voice' }, { t: 'sw', key: 'guide' }, { t: 'sw', key: 'snap' }, { t: 'knob', key: 'vol' }, { t: 'knob', key: 'tune' }, { t: 'mmute' }];
+const TH_STATIONS = [{ t: 'air' }, { t: 'sw', key: 'voice' }, { t: 'sw', key: 'guide' }, { t: 'sw', key: 'snap' }, { t: 'knob', key: 'vol' }, { t: 'knob', key: 'tune' }];
 let thFocus = -1, thKeySemi = 66;
 function thFocusSet(i) {
   thFocus = i; if (i < 0) return;
@@ -4910,7 +4907,6 @@ function therPress(down) {
   const f = TH_STATIONS[thFocus];
   if (f.t === 'air') { ther.keyHeld = down; ther.rh = down ? { d: semiToDist(thKeySemi - ther.tune), y: 1.62 } : null; return; }
   if (down && f.t === 'sw') therSwitch(f.key);
-  if (down && f.t === 'mmute') { const on = machineMute('theremin'); therValue = on ? 'muted' : 'sound on'; drawTherDisplay(); }
 }
 function therAnalog(p) {                                            // a controller's sticks and triggers are the two hands
   const rx = p.axes[2] || 0, ry = p.axes[3] || 0, rt = p.buttons[7] ? p.buttons[7].value : 0, lt = p.buttons[6] ? p.buttons[6].value : 0;
@@ -4989,7 +4985,6 @@ function updateTheremin(dt) {
   const foc = playing && curM === THER_M && thFocus >= 0 ? TH_STATIONS[thFocus] : null;
   for (const key in therSw) therSw[key].mat.emissiveIntensity = foc && foc.key === key && foc.t === 'sw' ? 0.25 : 0;
   const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
-  glow(muteBtns.theremin.mat, foc && foc.t === 'mmute');
   for (const key in therKnobs) therKnobs[key].mat.emissiveIntensity = foc && foc.key === key && foc.t === 'knob' ? 0.25 : 0;
   ther.dispT = (ther.dispT || 0) + dt;
   if (ther.dispT > 0.15 && playing && curM === THER_M) { ther.dispT = 0; drawTherDisplay(); }
