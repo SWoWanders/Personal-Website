@@ -1003,7 +1003,8 @@ function initAudio() {
   for (let ch = 0; ch < irCh; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3.2); }
   conv.buffer = ir;
   const wet = ac.createGain(); wet.gain.value = 0.45;
-  reverbIn.connect(conv); conv.connect(wet); wet.connect(hallBus);
+  reverbIn.connect(conv); conv.connect(wet); wet.connect(hallBus); roomConv = conv;
+  setInterval(governAudio, 1000);
   initMic(wet);
   initOrganAudio();
   initRhythmAudio();
@@ -1021,6 +1022,29 @@ let micBus = null, micL = null, micR = null, micAn = null, micData = null, micOu
 const micTaps = [];
 let recorder = null, recChunks = [], recMime = '', recBlob = null, recStartedAt = null, recSecs = 0;
 const EAR_X = 1.9, SOUND_SPEED = 343, _e = new THREE.Vector3();
+/* ---------- audio safety valve: if this device's sound engine starts falling behind (the audio clock
+   running slower than real time), lighten the load in steps before it can drop out, and step back up
+   once it has kept up comfortably for a while.
+   Level 1: the room echo pauses. Level 2: strum-plate notes ring shorter and Optigan chords use one
+   oscillator per note instead of two. */
+let roomConv = null;
+const audioGov = { level: 0, bad: 0, good: 0, last: null, ratio: 1, maxLevel: 0 };
+function governAudio() {
+  if (!ac || !ac.getOutputTimestamp || ac.state !== 'running' || document.hidden) { audioGov.last = null; return; }
+  const o = ac.getOutputTimestamp(), L = audioGov.last; audioGov.last = o;
+  if (!L || o.performanceTime - L.performanceTime < 500) return;
+  const r = (o.contextTime - L.contextTime) / ((o.performanceTime - L.performanceTime) / 1000);
+  audioGov.ratio = r;
+  if (r < 0.975) { audioGov.bad++; audioGov.good = 0; } else { audioGov.good++; audioGov.bad = Math.max(0, audioGov.bad - 0.5); }
+  if (audioGov.bad >= 2 && audioGov.level < 2) { setAudioLevel(audioGov.level + 1); audioGov.bad = 0; }
+  if (audioGov.good > 45 && audioGov.level > 0) { setAudioLevel(audioGov.level - 1); audioGov.good = 0; }
+}
+function setAudioLevel(n) {
+  audioGov.level = n; audioGov.maxLevel = Math.max(audioGov.maxLevel, n);
+  if (!roomConv) return;
+  try { reverbIn.disconnect(roomConv); } catch (e) {}
+  if (n < 1) reverbIn.connect(roomConv);
+}
 function initMic(revWet) {
   micL = ac.createGain(); micR = ac.createGain();
   const merge = ac.createChannelMerger(2); micL.connect(merge, 0, 0); micR.connect(merge, 0, 1);
@@ -2426,7 +2450,7 @@ function mkOsc(type, f, det = 0) { const o = ac.createOscillator(); o.type = typ
 // struck again while still ringing restarts its fade, as touching a real zone recharges it.
 function strumZone(i, delay = 0) {
   if (!ac || !melAudio) return;
-  const z = mel.plates[i], m = plateMidi(i), t = ac.currentTime + 0.004 + delay, f = mf(m), tau = SP_SUS[mel.sus][1];
+  const z = mel.plates[i], m = plateMidi(i), t = ac.currentTime + 0.004 + delay, f = mf(m), tau = Math.min(SP_SUS[mel.sus][1], audioGov.level >= 2 ? 0.42 : 9);
   if (z.h) z.h.stop(t);
   const pk = 0.07 * Math.pow(0.988, m - 60);               // high zones a touch quieter, as the ear hears them louder
   const mix = [[0, 1], [1, 0], [0.62, 0.62]][mel.voice]; // [vibrato voice, standard voice]
@@ -2586,10 +2610,10 @@ function schedNote(kind, t, m, dur) {
     o.start(t); o2.start(t); o.stop(t + dur + 0.4); o2.stop(t + dur + 0.4);
   } else {
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2000; lp.connect(g);
-    const o = mkOsc('square', f), o2 = mkOsc('square', f * 2, 5), h = ac.createGain(); h.gain.value = 0.3;
-    o.connect(lp); o2.connect(h); h.connect(lp);
+    const o = mkOsc('square', f); o.connect(lp);
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.03, t + 0.008); g.gain.setTargetAtTime(0, t + dur * 0.85, 0.05);
-    o.start(t); o2.start(t); o.stop(t + dur + 0.4); o2.stop(t + dur + 0.4);
+    o.start(t); o.stop(t + dur + 0.4);
+    if (audioGov.level < 2) { const o2 = mkOsc('square', f * 2, 5), h = ac.createGain(); h.gain.value = 0.3; o2.connect(h); h.connect(lp); o2.start(t); o2.stop(t + dur + 0.4); }
   }
 }
 function schedBrush(t, accent) {
@@ -3885,7 +3909,7 @@ function stressSecond() {
   // the note scheduler's worst wait this second (over ~140 ms and notes come out late)
   let gap = 0; const tk = stress.ticks; for (let i = Math.max(1, stress.cur.ticks0); i < tk.length; i++) gap = Math.max(gap, tk[i] - tk[i - 1]);
   stress.ticks = tk.slice(-1);
-  const s = { fps: stress.cur.frames, ratio, gap, cap: ac.renderCapacity ? ac.renderCapacity : null };
+  const s = { fps: stress.cur.frames, ratio, gap, valve: audioGov.level };
   const S = (stress.stages[stress.stage] ||= {}); (S.secs ||= []).push(s);
   stressNewSecond();
   return s;
@@ -3895,8 +3919,8 @@ function stageSummary(S) {
   if (!secs.length) return null;
   const fps = secs.map((x) => x.fps), ratio = secs.map((x) => x.ratio), gap = secs.map((x) => x.gap);
   const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
-  const r = { fps: Math.round(avg(fps)), fpsMin: Math.min(...fps), ratioMin: Math.min(...ratio), gapMax: Math.round(Math.max(...gap)), heard: S.heard || 0 };
-  r.ok = r.ratioMin > 0.99 && r.gapMax < LOOKAHEAD * 900 && r.heard === 0;
+  const r = { fps: Math.round(avg(fps)), fpsMin: Math.min(...fps), ratioMin: Math.min(...ratio), dips: ratio.filter((x) => x < 0.98).length, secs: ratio.length, valve: Math.max(...secs.map((x) => x.valve || 0)), gapMax: Math.round(Math.max(...gap)), heard: S.heard || 0 };
+  r.ok = r.dips === 0 && r.gapMax < LOOKAHEAD * 900 && r.heard === 0;
   return r;
 }
 function stressReport() {
@@ -3904,11 +3928,11 @@ function stressReport() {
     `Device: ${navigator.userAgent}`, `Cores ${navigator.hardwareConcurrency || '?'} · memory ${navigator.deviceMemory || '?'} GB · screen ${screen.width}x${screen.height} @${devicePixelRatio}`,
     `Drawing sharpness ${perfGov.pr.toFixed(2)} of ${PR_MAX.toFixed(2)} · note queue ${LOOKAHEAD * 1000} ms`,
     `Audio: ${ac.sampleRate} Hz · base latency ${Math.round((ac.baseLatency || 0) * 1000)} ms · output latency ${Math.round((ac.outputLatency || 0) * 1000)} ms · panning ${PANNING} · touch ${isTouch}`,
-    'machines | fps avg/min | audio clock min | scheduler worst gap | crackle taps | verdict'];
+    'machines | fps avg/min | audio clock min | seconds behind | safety valve | scheduler worst gap | crackle taps | verdict'];
   let best = 0;
   stress.stages.forEach((S, k) => {
     const r = stageSummary(S); if (!r) return;
-    lines.push(`${4 + k} | ${r.fps}/${r.fpsMin} | ${r.ratioMin.toFixed(3)} | ${r.gapMax} ms | ${r.heard} | ${r.ok ? 'clean' : 'TROUBLE'}`);
+    lines.push(`${4 + k} | ${r.fps}/${r.fpsMin} | ${r.ratioMin.toFixed(3)} | ${r.dips} of ${r.secs} | ${r.valve} | ${r.gapMax} ms | ${r.heard} | ${r.ok ? 'clean' : 'TROUBLE'}`);
     if (r.ok && best === k) best = k + 1;
   });
   lines.push(best ? `Clean up to ${3 + best} machines.` : 'Trouble even with the four real machines.');
