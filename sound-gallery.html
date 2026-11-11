@@ -1004,6 +1004,7 @@ function initAudio() {
   conv.buffer = ir;
   const wet = ac.createGain(); wet.gain.value = 0.45;
   reverbIn.connect(conv); conv.connect(wet); wet.connect(hallBus); roomConv = conv;
+  { let v = 0; try { v = Math.min(2, +localStorage.getItem('sg-valve') || 0); } catch (e) {} if (v) setAudioLevel(v); }
   setInterval(governAudio, 1000);
   initMic(wet);
   initOrganAudio();
@@ -1035,12 +1036,13 @@ function governAudio() {
   if (!L || o.performanceTime - L.performanceTime < 500) return;
   const r = (o.contextTime - L.contextTime) / ((o.performanceTime - L.performanceTime) / 1000);
   audioGov.ratio = r;
-  if (r < 0.975) { audioGov.bad++; audioGov.good = 0; } else { audioGov.good++; audioGov.bad = Math.max(0, audioGov.bad - 0.5); }
+  if (r < 0.985) { audioGov.bad++; audioGov.good = 0; } else { audioGov.good++; audioGov.bad = Math.max(0, audioGov.bad - 0.5); }
   if (audioGov.bad >= 2 && audioGov.level < 2) { setAudioLevel(audioGov.level + 1); audioGov.bad = 0; }
   if (audioGov.good > 45 && audioGov.level > 0) { setAudioLevel(audioGov.level - 1); audioGov.good = 0; }
 }
 function setAudioLevel(n) {
   audioGov.level = n; audioGov.maxLevel = Math.max(audioGov.maxLevel, n);
+  try { localStorage.setItem('sg-valve', String(n)); } catch (e) {}     // next visit starts where this device settled
   if (!roomConv) return;
   try { reverbIn.disconnect(roomConv); } catch (e) {}
   if (n < 1) reverbIn.connect(roomConv);
