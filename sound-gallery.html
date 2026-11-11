@@ -223,11 +223,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : i === 3 ? 'The Texture Machine' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : i === 3 ? 'Wind, rain, sea, light · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : i === 3 ? 'Weather for the room' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -940,13 +940,13 @@ function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15
 const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 /* ---------- a volume control for every machine. 0..1 on the dial; 0.7 is the normal level,
    full turn is about twice as loud. Remembered in this browser. */
-const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7 };
+const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7, texture: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
 function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
 // a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
-const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false };
+const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false, texture: false };
 const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
 const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
 const muteBtns = {};
@@ -1039,6 +1039,7 @@ function initAudio() {
   initMelodyAudio();
   initBassAudio();
   initPoolAudio();
+  initTextureAudio();
   initEchoAudio();                                       // last: it listens to the others
 }
 /* ---------- THE CENTRE MICROPHONE
@@ -1357,15 +1358,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I] || a === alcoves[TEX_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0], th = ray.intersectObjects(texHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M], [th, TEX_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -4175,6 +4176,308 @@ function updateEcho(dt) {
   glow(muteBtns.echo.mat, foc && foc.t === 'mmute');
 }
 
+/* ------------------------------------------------------------------ III · THE TEXTURE MACHINE
+   Atmosphere under everything: wind, rain, sea, vinyl crackle, tape hiss and a slow shimmering
+   drone in the gallery's key, each on its own long slider. Five scene buttons glide the sliders to
+   a mood (STILL, SEASIDE, RAINY NIGHT, OLD RECORD, STORM); DRIFT lets the mix wander on its own like
+   weather. Behind the desk, a Mondrian cabinet of six coloured panels, each breathing with its sound.
+   Nearly free to run: the five noise textures are computed once when you arrive, as seamless loops,
+   and simply played back; only the shimmer uses live oscillators, and only while it's up. */
+const TEX_I = 3;
+const texAl = alcoves[TEX_I];
+texAl.g.remove(texAl.plinth); texAl.g.remove(texAl.beam);
+plinths.splice(plinths.indexOf(texAl.plinth), 1);
+const texHits = [], texCtrls = [];
+const TX_LAYERS = [['WIND', '#00b7ff'], ['RAIN', '#1f6bff'], ['SEA', '#00d0b0'], ['CRACKLE', '#ff9a5a'], ['HISS', '#c9ccd0'], ['SHIMMER', '#ffd000']];
+const TX_SCENES = [['STILL', [0.1, 0, 0, 0, 0.05, 0.35]], ['SEASIDE', [0.35, 0, 0.75, 0, 0, 0.3]], ['RAINY NIGHT', [0.25, 0.7, 0, 0.1, 0.1, 0.25]],
+  ['OLD RECORD', [0, 0, 0, 0.75, 0.45, 0.3]], ['STORM', [0.85, 0.85, 0.45, 0, 0, 0.15]]];
+const tex = { lv: [0, 0, 0, 0, 0, 0], glide: null, drift: false, scene: -1, sig: '', breath: [0, 0, 0, 0, 0, 0] };
+
+const texG = new THREE.Group(); texG.position.set(0, 0.15, A + 1.25); texG.rotation.y = Math.PI; texAl.g.add(texG);
+const texSl = {}, texBtns = { scene: [] }, texPanels = [];
+let texDispL, texDrift;
+{
+  const mW = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
+  const mC = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
+  const mInk = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.5 });
+  const top = 0.82;
+  // the desk
+  texHits.push(box(1.9, 0.78, 1.14, mW, 0, 0.39, 0.2, texG));
+  texHits.push(box(1.92, 0.04, 1.16, mC, 0, 0.8, 0.2, texG));
+  const slider = (key, x0, len, z, label, col, lx, lw, depth = 0.1) => {
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.012, 0.026), mDark); slot.position.set(x0 + len / 2, top + 0.006, z); texG.add(slot);
+    const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.018), new THREE.MeshBasicMaterial({ color: col, toneMapped: false })); texG.add(fill);
+    const mat = capMat('#2a2724'), cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.075), mat); texG.add(cap);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(len + 0.12, 0.1, depth), hitMat); hit.position.set(x0 + len / 2, top + 0.03, z); texG.add(hit);
+    for (const o of [cap, hit]) { o.userData = { t: 'slider', key }; texCtrls.push(o); }
+    const lb = flatLabel(lw, 0.06, Math.round(lw * 800), 49, texG, lx, top + 0.002, z);
+    texSl[key] = { x0, len, z, mat, cap, fill, lb, label };
+  };
+  // six layer sliders, back to front, each with a swatch of its panel's colour
+  TX_LAYERS.forEach(([n, col], k) => {
+    const z = -0.27 + k * 0.12;
+    slider(k, -0.36, 1.22, z, n, col, -0.6, 0.4, 0.11);
+    box(0.05, 0.006, 0.05, new THREE.MeshBasicMaterial({ color: col, toneMapped: false }), -0.9, top + 0.003, z, texG);
+  });
+  // scene buttons, DRIFT and the quick mute
+  const btn = (name, col, x, w, u) => {
+    const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, 0.12), mat);
+    b.position.set(x, top + 0.02, 0.52); texG.add(b); b.userData = u; texCtrls.push(b);
+    const L = flatLabel(w * 0.95, 0.115, Math.round(256 * w / 0.2), 155, b, 0, 0.0205, 0); return { mat, L, name, col, b };
+  };
+  TX_SCENES.forEach(([n], k) => { texBtns.scene[k] = btn(n, '#f6f2ea', -0.79 + k * 0.265, 0.25, { t: 'scene', i: k }); });
+  texDrift = btn('DRIFT', '#f6f2ea', 0.56, 0.22, { t: 'drift' });
+  { const b = makeMuteBtn('texture', texG, 0.83, top + 0.02, 0.52, 0.2, 0.12); b.userData = { t: 'mmute' }; texCtrls.push(b); }
+  slider('vol', -0.2, 1.1, 0.7, 'TEXTURE VOLUME', '#ffd000', -0.6, 0.66, 0.13);
+  // the Mondrian cabinet: six coloured panels in a black grid, each glowing with its layer
+  texHits.push(box(1.9, 1.62, 0.12, mW, 0, 1.62, -0.52, texG));
+  const face = -0.455;
+  const cells = [[-0.6, 2.06, 0.62, 0.68], [0.12, 2.18, 0.78, 0.44], [0.71, 1.83, 0.36, 0.7], [-0.6, 1.45, 0.62, 0.5], [0.12, 1.66, 0.78, 0.56], [0.47, 1.29, 0.86, 0.2]];
+  box(1.84, 1.18, 0.01, mInk, 0, 1.79, face - 0.006, texG);
+  cells.forEach(([x, y, w, h], k) => {
+    const col = TX_LAYERS[k][1], mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.05 });
+    const p = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, h - 0.04, 0.02), mat); p.position.set(x, y, face); texG.add(p);
+    const L = flatLabel(Math.min(w - 0.1, 0.4), 0.07, 360, 63, texG, x - (w - 0.1) / 2 + Math.min(w - 0.1, 0.4) / 2, y - h / 2 + 0.07, face + 0.012);
+    L.m.rotation.x = 0; printText(L, [[TX_LAYERS[k][0], 40, k === 4 ? '#1d1b18' : '#fbf8f2']], { align: 'left' });
+    texPanels[k] = { mat };
+  });
+  texDispL = canvasTex(2048, 280);
+  const d = new THREE.Mesh(new THREE.PlaneGeometry(1.76, 0.24), new THREE.MeshBasicMaterial({ map: texDispL.t, toneMapped: false }));
+  d.position.set(0, 0.99, face); texG.add(d);
+}
+const texPos = texAl.g.localToWorld(new THREE.Vector3(0, 1.4, A + 1.4));
+
+/* ---------- the textures, computed once as seamless loops */
+function biq(type, f, q, sr) {                                    // a one-shot RBJ biquad for rendering
+  const w = 2 * Math.PI * f / sr, cs = Math.cos(w), al = Math.sin(w) / (2 * q);
+  let b0, b1, b2; const a0 = 1 + al, a1 = -2 * cs, a2 = 1 - al;
+  if (type === 'lp') { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = b0; } else if (type === 'hp') { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = b0; } else { b0 = al; b1 = 0; b2 = -al; }
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  return (x) => { const y = (b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
+}
+function renderTexture(kind, sr) {
+  const secs = { wind: 8, rain: 6, sea: 12, crackle: 5, hiss: 4 }[kind], n = Math.floor(sr * secs), d = new Float32Array(n);
+  const R = Math.random, T = (i) => i / sr;
+  let br = 0;
+  if (kind === 'wind') {
+    const bp = biq('bp', 420, 0.7, sr), wh = biq('bp', 1250, 9, sr), ph = [R(), R(), R()].map((x) => x * 6.28);
+    for (let i = 0; i < n; i++) {
+      br = (br + 0.02 * (R() * 2 - 1)) / 1.02;
+      const t = T(i), gust = 0.55 + 0.25 * Math.sin(2 * Math.PI * t / 8 + ph[0]) + 0.15 * Math.sin(2 * Math.PI * 3 * t / 8 + ph[1]) + 0.08 * Math.sin(2 * Math.PI * 7 * t / 8 + ph[2]);
+      d[i] = bp(br * 6 + (R() * 2 - 1) * 0.15) * gust + wh(R() * 2 - 1) * 0.35 * gust * gust * gust;
+    }
+  } else if (kind === 'rain') {
+    const hp = biq('hp', 1400, 0.6, sr), lp = biq('lp', 6500, 0.6, sr);
+    for (let i = 0; i < n; i++) d[i] = lp(hp(R() * 2 - 1)) * 0.22;
+    const drops = secs * 45;
+    for (let k = 0; k < drops; k++) {                               // droplets: tiny decaying pings, a few deeper plops
+      const at = Math.floor(R() * n), big = R() < 0.12, f = big ? 500 + R() * 700 : 2200 + R() * 4000, tau = (big ? 0.016 : 0.005) * sr, a = (big ? 0.5 : 0.3) * (0.3 + R() * 0.7);
+      for (let j = 0; j < tau * 6; j++) d[(at + j) % n] += a * Math.exp(-j / tau) * Math.sin(2 * Math.PI * f * j / sr);
+    }
+  } else if (kind === 'sea') {
+    const lp = biq('lp', 850, 0.6, sr), hp = biq('hp', 2200, 0.6, sr);
+    for (let i = 0; i < n; i++) {
+      br = (br + 0.02 * (R() * 2 - 1)) / 1.02;
+      const ph = (T(i) % 6) / 6, env = ph < 0.58 ? Math.pow(ph / 0.58, 2) : Math.pow(1 - (ph - 0.58) / 0.42, 1.5);   // two waves: a slow rise, a quicker fall
+      const e = 0.12 + 0.88 * env;
+      d[i] = lp(br * 7) * e + hp(R() * 2 - 1) * 0.35 * e * e * e;
+    }
+  } else if (kind === 'crackle') {
+    const lp = biq('lp', 140, 0.7, sr), hp = biq('hp', 900, 0.7, sr);
+    for (let i = 0; i < n; i++) { br = (br + 0.02 * (R() * 2 - 1)) / 1.02; d[i] = lp(br * 3) * 0.25; }
+    const tick = new Float32Array(n);
+    for (let k = 0; k < secs * 35; k++) tick[Math.floor(R() * n)] = (R() < 0.08 ? 1 : 0.35) * (R() < 0.5 ? -1 : 1) * (0.4 + R() * 0.6);
+    for (let i = 0; i < n; i++) d[i] += hp(tick[i]) * 0.9;
+  } else {                                                           // tape hiss
+    const hp = biq('hp', 2800, 0.6, sr), lp = biq('lp', 11000, 0.6, sr);
+    for (let i = 0; i < n; i++) d[i] = lp(hp(R() * 2 - 1)) * 0.5;
+  }
+  // a seamless loop: fade the tail into the head
+  const F = Math.floor(sr * 0.25);
+  for (let i = 0; i < F; i++) { const w = i / F; d[i] = d[i] * w + d[n - F + i] * (1 - w); }
+  const out = d.subarray(0, n - F);
+  let pk = 0; for (const v of out) pk = Math.max(pk, Math.abs(v)); const g = 0.9 / (pk || 1);
+  // a breathing envelope for the panels: loudness every 50 ms
+  const blk = Math.floor(sr * 0.05), env = [];
+  for (let i = 0; i < out.length; i += blk) { let s = 0; for (let j = i; j < Math.min(out.length, i + blk); j++) s += out[j] * out[j]; env.push(Math.sqrt(s / blk) * g); }
+  const em = Math.max(...env) || 1;
+  return { data: out.map((v) => v * g), env: env.map((v) => v / em) };
+}
+let texAudio = null;
+function initTextureAudio() {
+  const out = ac.createGain(); volRegister('texture', out, 1);
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 5; pan.rolloffFactor = 0.6;
+  setPannerPos(pan, texPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.3; out.connect(send); send.connect(reverbIn);
+  micTap(out, texPos, 1.2);
+  const layers = [], kinds = ['wind', 'rain', 'sea', 'crackle', 'hiss'];
+  kinds.forEach((kind, k) => {
+    const r = renderTexture(kind, ac.sampleRate), b = ac.createBuffer(1, r.data.length, ac.sampleRate); b.copyToChannel(r.data, 0);
+    const g = ac.createGain(); g.gain.value = 0; g.connect(out);
+    const s = ac.createBufferSource(); s.buffer = b; s.loop = true; s.connect(g); s.start(ac.currentTime + 0.05, Math.random() * b.duration);
+    layers[k] = { g, env: r.env, dur: b.duration, t0: ac.currentTime + 0.05, src: s };
+  });
+  // shimmer: a slow pad of five soft partials in the key, each swelling at its own pace
+  const sg = ac.createGain(); sg.gain.value = 0; sg.connect(out);
+  layers[5] = { g: sg, oscs: null };
+  texAudio = { out, layers };
+  texRetune();
+}
+function shimmerFreqs() { const r = rootFreq(), third = MOODS[org.mood].moodSemi - 12; return [r, r * 1.5, r * 2, r * 2 * Math.pow(2, (third + 12) / 12), r * 3].map((f) => Math.min(f, 1800)); }
+function texRetune() {
+  const L = texAudio && texAudio.layers[5]; if (!L || !L.oscs) return;
+  shimmerFreqs().forEach((f, k) => L.oscs[k].o.frequency.setTargetAtTime(f, ac.currentTime, 0.8));
+}
+function shimmerOn(on) {                                            // its oscillators only run while it's up
+  const L = texAudio.layers[5];
+  if (on && !L.oscs) {
+    L.oscs = shimmerFreqs().map((f, k) => {
+      const o = mkOsc(k % 2 ? 'triangle' : 'sine', f, (k - 2) * 3), g = ac.createGain(); g.gain.value = 0.16 / (1 + k * 0.4);
+      const l = mkOsc('sine', 0.05 + k * 0.023), lg = ac.createGain(); lg.gain.value = g.gain.value * 0.9; l.connect(lg); lg.connect(g.gain);
+      o.connect(g); g.connect(L.g); o.start(); l.start(); return { o, l };
+    });
+  } else if (!on && L.oscs) { const os = L.oscs; L.oscs = null; const t = ac.currentTime + 1.2; os.forEach(({ o, l }) => { o.stop(t); l.stop(t); }); }
+}
+const texLevel = (k) => Math.pow(tex.lv[k], 2) * (k === 5 ? 1.1 : 0.55);
+
+/* ---------- display */
+let texHelp = '', texValue = '';
+const TEX_HELP = {
+  start: 'Slide up the sounds you want under the music, or press a scene. DRIFT lets the mix wander like weather. Keys: ← → choose, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  layer: 'Each slider brings up one sound: wind, rain, the sea, vinyl crackle, tape hiss, and a shimmering drone in the gallery’s key.',
+  scene: 'Scenes glide every slider to a mood. Change any slider afterwards to make it your own.',
+  drift: 'Drift: the sounds you’ve brought up wander slowly louder and softer on their own, like changing weather.',
+  vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
+  mmute: 'Mute: silences the texture at once. Press again to bring it back.',
+};
+function drawTexDisplay() {
+  const { g, c, t } = texDispL;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = ALCOVE_COL[TEX_I]; g.fillRect(0, 0, c.width, 10);
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 64px ${FONT}`;
+  const head = tex.scene >= 0 ? TX_SCENES[tex.scene][0] : 'TEXTURE';
+  g.fillText(head, 34, 82); const hw = g.measureText(head).width;
+  g.fillStyle = '#5a554d'; g.font = `bold 36px ${FONT}`;
+  g.fillText(TX_LAYERS.map(([n], k) => tex.lv[k] > 0.02 ? n : '').filter(Boolean).join(' · ') + (tex.drift ? '   ·   DRIFTING' : ''), 70 + hw, 80);
+  if (texValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 46px ${FONT}`; g.fillText(texValue, c.width - 34, 82); g.textAlign = 'left'; }
+  g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
+  const words = texHelp.split(' '); let line = '', y = 142;
+  for (const wd of words) { if (g.measureText(line + wd).width > c.width - 68) { g.fillText(line, 34, y); line = ''; y += 44; } line += wd + ' '; }
+  g.fillText(line, 34, y); t.needsUpdate = true;
+}
+function drawTexSlider(key) {
+  const S = texSl[key], v = key === 'vol' ? VOL.texture : tex.lv[key], x = S.x0 + v * S.len;
+  S.cap.position.set(x, 0.82 + 0.025, S.z);
+  S.fill.scale.x = Math.max(0.001, v * S.len); S.fill.position.set(S.x0 + v * S.len / 2, 0.82 + 0.008, S.z);
+  printText(S.lb, [[`${S.label} ${Math.round(v * 100)}%`, 34, '#3a3630']], { align: 'left' });
+}
+function drawTexButtons() {
+  const tog = (b, on, size = 34) => printText(b.L, [[b.name, size, on ? '#ffffff' : '#1d1b18']], on ? { bg: '#1d1b18' } : {});
+  texBtns.scene.forEach((b, k) => {                                // two-word scenes on two lines, so the type can be bigger
+    const on = tex.scene === k, col = on ? '#ffffff' : '#1d1b18', words = b.name.split(' ');
+    printText(b.L, words.map((w) => [w, words.length > 1 ? 40 : 46, col]), on ? { bg: '#1d1b18' } : {});
+  });
+  tog(texDrift, tex.drift, 46);
+  for (const key in texSl) drawTexSlider(key);
+}
+drawTexButtons();
+
+/* ---------- touch, mouse, keys, controller */
+function texRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(texCtrls, false)[0]; }
+function texSet(key, v, keepScene) {
+  v = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+  if (key === 'vol') { setVol('texture', v); texValue = `Volume ${Math.round(v * 100)}%`; }
+  else { tex.lv[key] = v; if (!keepScene) { tex.scene = -1; tex.glide = null; } texValue = `${TX_LAYERS[key][0].toLowerCase()} ${Math.round(v * 100)}%`; }
+  drawTexSlider(key); drawTexDisplay();
+}
+function texButton(u) {
+  if (u.t === 'scene') { tex.scene = u.i; tex.glide = { from: tex.lv.slice(), to: TX_SCENES[u.i][1], t: 0 }; texHelp = TEX_HELP.scene; texValue = TX_SCENES[u.i][0].toLowerCase(); }
+  if (u.t === 'drift') { tex.drift = !tex.drift; texHelp = TEX_HELP.drift; texValue = tex.drift ? 'drifting' : 'steady'; }
+  if (u.t === 'mmute') { const on = machineMute('texture'); texHelp = TEX_HELP.mmute; texValue = on ? 'texture muted' : 'sound on'; }
+  if (u.t === 'slider') texHelp = u.key === 'vol' ? TEX_HELP.vol : TEX_HELP.layer;
+  buzz(8); drawTexButtons(); drawTexDisplay();
+}
+function texSliderTo(key, e) { const S = texSl[key], p = groupLocalAt(texG, e, 0.85); if (p) texSet(key, (p.x - S.x0) / S.len); }
+const texPtr = new Map();
+function texDown(e) {
+  const h = texRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  tFocus = -1;
+  const u = h.object.userData; texPtr.set(e.pointerId, u);
+  texButton(u); if (u.t === 'slider') texSliderTo(u.key, e);
+}
+function texMove(e) { const u = texPtr.get(e.pointerId); if (u && u.t === 'slider') texSliderTo(u.key, e); }
+function texUp(e) { texPtr.delete(e.pointerId); }
+const T_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'scene', i })), { t: 'drift' }, { t: 'mmute' }, ...[0, 1, 2, 3, 4, 5].map((k) => ({ t: 'slider', key: k })), { t: 'slider', key: 'vol' }];
+let tFocus = -1;
+function tFocusSet(i) {
+  tFocus = i; if (i < 0) return;
+  const f = T_STATIONS[i]; texHelp = f.t === 'slider' ? (f.key === 'vol' ? TEX_HELP.vol : TEX_HELP.layer) : TEX_HELP[f.t];
+  texValue = f.t === 'scene' ? TX_SCENES[f.i][0].toLowerCase() : f.t === 'slider' ? (f.key === 'vol' ? `Volume ${Math.round(VOL.texture * 100)}%` : `${TX_LAYERS[f.key][0].toLowerCase()} ${Math.round(tex.lv[f.key] * 100)}%`) : f.t;
+  drawTexDisplay(); blip(660, 0.04, 0.03);
+}
+function texStepF(d) { tFocusSet(tFocus < 0 ? (d > 0 ? 0 : T_STATIONS.length - 1) : (tFocus + d + T_STATIONS.length) % T_STATIONS.length); }
+function texAdjust(d) {
+  if (tFocus < 0) { tFocusSet(0); return; }
+  const f = T_STATIONS[tFocus];
+  if (f.t === 'slider') { texSet(f.key, (f.key === 'vol' ? VOL.texture : tex.lv[f.key]) + d * 0.05); return; }
+  texStepF(-d);
+}
+function texPress(down) { if (!down) return; if (tFocus < 0) { tFocusSet(0); return; } const f = T_STATIONS[tFocus]; if (f.t !== 'slider') texButton(f); }
+function makeTexMachine() {
+  const fit = [], fitL = [];
+  for (const x of [-0.97, 0.97]) {
+    fit.push([texG, new THREE.Vector3(x, 0.82, 0.8)]); fit.push([texG, new THREE.Vector3(x, 0.82, -0.4)]); fit.push([texG, new THREE.Vector3(x, 2.43, -0.46)]);
+    fitL.push([texG, new THREE.Vector3(x, 0.82, 0.8)]); fitL.push([texG, new THREE.Vector3(x, 0.82, -0.4)]); fitL.push([texG, new THREE.Vector3(x * 0.9, 1.12, -0.46)]);
+  }
+  return {
+    al: TEX_I, base: texG, fit, fitL, elev: [1.0, 0.9], stand: 1.05,
+    down: texDown, move: texMove, up: texUp, step: texStepF, adjust: texAdjust, press: texPress,
+    enter() { tFocus = -1; texHelp = TEX_HELP.start; texValue = ''; drawTexButtons(); drawTexDisplay(); },
+    exit() { texPtr.clear(); tFocus = -1; },
+  };
+}
+
+/* ---------- every frame */
+function updateTexture(dt) {
+  const sig = org.root + ':' + org.mood;
+  if (sig !== tex.sig) { tex.sig = sig; texRetune(); }
+  if (tex.glide) {                                                    // a scene: the sliders glide over two seconds
+    const G = tex.glide; G.t = Math.min(1, G.t + dt / 2); const e = G.t * G.t * (3 - 2 * G.t);
+    for (let k = 0; k < 6; k++) { tex.lv[k] = G.from[k] + (G.to[k] - G.from[k]) * e; drawTexSlider(k); }
+    if (G.t >= 1) { tex.glide = null; drawTexDisplay(); }
+  }
+  const now = ac ? ac.currentTime : 0;
+  if (texAudio) {
+    shimmerOn(tex.lv[5] > 0.01);
+    tex.applyT = (tex.applyT || 0) + dt;
+    if (tex.applyT > 0.1) {                                          // levels go to the audio engine ten times a second
+      tex.applyT = 0;
+      for (let k = 0; k < 6; k++) {
+        const drift = tex.drift ? 1 + 0.4 * Math.sin(now * (0.05 + k * 0.017) + k * 1.9) * Math.sin(now * (0.021 + k * 0.007) + k) : 1;
+        const want = Math.min(1.3, texLevel(k) * drift);
+        const L = texAudio.layers[k]; if (Math.abs((L.last ?? -1) - want) > 0.002) { L.last = want; L.g.gain.setTargetAtTime(want, now, 0.25); }
+      }
+    }
+  }
+  // the panels breathe: each layer's own loudness, read from its loop's precomputed envelope
+  for (let k = 0; k < 6; k++) {
+    let b = 0.5;
+    const L = texAudio && texAudio.layers[k];
+    if (L && L.env) { const pos = ((now - L.t0) % L.dur + L.dur) % L.dur, i = Math.floor(pos / 0.05); b = L.env[Math.min(L.env.length - 1, i)] || 0; }
+    else if (k === 5) b = 0.6 + 0.4 * Math.sin(now * 0.4);
+    const lvl = Math.min(1, (L && L.last) || 0) / 0.6;
+    tex.breath[k] += (b * lvl - tex.breath[k]) * Math.min(1, dt * 8);
+    texPanels[k].mat.emissiveIntensity = 0.04 + tex.breath[k] * 1.2;
+  }
+  const foc = playing && curM === TEX_M && tFocus >= 0 ? T_STATIONS[tFocus] : null;
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  texBtns.scene.forEach((b, k) => glow(b.mat, foc && foc.t === 'scene' && foc.i === k));
+  glow(texDrift.mat, foc && foc.t === 'drift');
+  for (const key in texSl) glow(texSl[key].mat, foc && foc.t === 'slider' && String(foc.key) === String(key));
+  glow(muteBtns.texture.mat, foc && foc.t === 'mmute');
+}
+
 const ORGAN_M = {
   al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
   down: organPointerDown, move: organPointerMove, up: organPointerUp,
@@ -4187,6 +4490,7 @@ const MEL_M = makeMelodyMachine();
 const BASS_M = makeBassMachine();
 const POOL_M = makePoolMachine();
 const ECHO_M = makeEchoMachine();
+const TEX_M = makeTexMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -4247,6 +4551,7 @@ function update(dt) {
   updateBass(dt);
   updatePool(dt);
   updateEcho(dt);
+  updateTexture(dt);
   updateStress(dt);
   updateProjector(dt);
 
@@ -4381,6 +4686,9 @@ function updateCaption() {
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
     c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === TEX_I) {
+    c.innerHTML = `<b>III</b> · The Texture Machine<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} it to play</span>`;
     c.classList.remove('hidden');
   } else if (show === ECHO_I) {
     c.innerHTML = `<b>IX</b> · The Tape Echo<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the echo to play</span>`;
