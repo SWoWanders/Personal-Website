@@ -150,7 +150,7 @@ const FONT = 'Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", Arial, sa
 
 /* ------------------------------------------------------------------ renderer */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-const PR_MAX = Math.min(devicePixelRatio, isTouch ? 1.25 : 1.5);
+const PR_MAX = Math.min(devicePixelRatio, 1.5), PR_MIN = Math.min(PR_MAX, 1.0);
 renderer.setPixelRatio(PR_MAX);   // lighter on phones, leaving room for the audio
 // how far ahead the beat machines queue their notes. A phone drawing 3D can stall for a moment;
 // with a longer queue the notes are already waiting in the audio engine, so the music doesn't stop.
@@ -160,9 +160,11 @@ const perfGov = { pr: PR_MAX, slow: 0, fast: 0, last: 0 };
 function governFrame() {
   const now = performance.now(), ft = perfGov.last ? now - perfGov.last : 16; perfGov.last = now;
   if (ft > 250) return;                                          // a hidden tab or a one-off hitch
-  if (ft > 30) { perfGov.slow++; perfGov.fast = 0; } else if (ft < 19) { perfGov.fast++; perfGov.slow = Math.max(0, perfGov.slow - 1); }
-  if (perfGov.slow > 45 && perfGov.pr > 0.6) { perfGov.pr = Math.max(0.6, perfGov.pr - 0.15); renderer.setPixelRatio(perfGov.pr); perfGov.slow = 0; }
-  if (perfGov.fast > 600 && perfGov.pr < PR_MAX) { perfGov.pr = Math.min(PR_MAX, perfGov.pr + 0.1); renderer.setPixelRatio(perfGov.pr); perfGov.fast = 0; }
+  // sound turned out to be the phone's bottleneck, not drawing, so this only steps in for genuinely slow
+  // frames, never goes below one pixel per screen pixel, and sharpens again readily
+  if (ft > 34) { perfGov.slow++; perfGov.fast = Math.max(0, perfGov.fast - 2); } else if (ft < 22) { perfGov.fast++; perfGov.slow = Math.max(0, perfGov.slow - 1); }
+  if (perfGov.slow > 90 && perfGov.pr > PR_MIN) { perfGov.pr = Math.max(PR_MIN, perfGov.pr - 0.1); renderer.setPixelRatio(perfGov.pr); perfGov.slow = 0; perfGov.fast = 0; }
+  if (perfGov.fast > 240 && perfGov.pr < PR_MAX) { perfGov.pr = Math.min(PR_MAX, perfGov.pr + 0.1); renderer.setPixelRatio(perfGov.pr); perfGov.fast = 0; }
 }
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -205,7 +207,7 @@ function plasterTex(seed) {
     g.fillRect(x, y, 1 + r() * 1.6, 1 + r() * 1.6);
   }
   const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return t;
 }
 function radialTex() {
@@ -226,7 +228,7 @@ function labelTex(i) {
   g.fillText('Sound Gallery Collection', 36, 262);
   g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
   g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : 'Installation in progress', 36, 346);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
 }
 function signTex(text, w = 1024, h = 200) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1465,7 +1467,7 @@ const ctrls = [];                                                   // raycast t
 }
 function canvasTex(w, h) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return { c, g: c.getContext('2d'), t };
 }
 function flatLabel(w, h, cw, ch, parent, x, y, z) {               // a printed label lying on a surface, readable from the player's side
