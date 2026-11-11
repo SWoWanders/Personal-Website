@@ -1473,7 +1473,8 @@ function canvasTex(w, h) {
 }
 function flatLabel(w, h, cw, ch, parent, x, y, z) {               // a printed label lying on a surface, readable from the player's side
   const ct = canvasTex(cw, ch);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: ct.t, transparent: true, toneMapped: false }));
+  // pulled towards the camera in the depth test so a label never fights the surface it lies on (that shows as flicker)
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: ct.t, transparent: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
   m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); parent.add(m);
   return { ...ct, m };
 }
@@ -4132,9 +4133,11 @@ function updateEcho(dt) {
   let lvl = 0;
   if (echoAudio) { echoAudio.an.getFloatTimeDomainData(echoAudio.buf); let s = 0; for (const x of echoAudio.buf) s += x * x; lvl = Math.min(1.2, Math.sqrt(s / echoAudio.buf.length) * 6); }
   echo.vu += (lvl - echo.vu) * Math.min(1, dt * (lvl > echo.vu ? 12 : 3));
+  // heads glow steadily with how much is on the tape (smoothed, so drum hits don't make them flicker)
+  echo.glow = (echo.glow || 0) + (Math.min(1, echo.vu) - (echo.glow || 0)) * Math.min(1, dt * 2.5);
   const anyIn = echo.ins.some(Boolean);
-  echoHeadMats[0].emissiveIntensity = anyIn ? 0.25 + 0.3 * Math.sin(time * 4) ** 2 : 0;
-  for (let k = 0; k < 3; k++) echoHeadMats[k + 1].emissiveIntensity = echo.heads[k] ? 0.15 + echo.vu * 1.6 : 0;
+  echoHeadMats[0].emissiveIntensity = anyIn ? 0.35 : 0;
+  for (let k = 0; k < 3; k++) echoHeadMats[k + 1].emissiveIntensity = echo.heads[k] ? 0.2 + echo.glow * 0.6 : 0;
   echo.dispT = (echo.dispT || 0) + dt;
   const near = playing && curM === ECHO_M || player.pos.distanceToSquared(echoPos) < 100;
   if (near && echo.dispT > 0.06) { echo.dispT = 0; drawEchoDisplay(); }
