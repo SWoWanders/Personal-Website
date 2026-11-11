@@ -223,11 +223,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : i === 3 ? 'The Texture Machine' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : i === 3 ? 'The Texture Machine' : i === 2 ? 'The Theremin' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : i === 3 ? 'Wind, rain, sea, light · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : i === 3 ? 'Weather for the room' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : i === 3 ? 'Wind, rain, sea, light · 2026' : i === 2 ? 'Mahogany, nickel, air · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : i === 3 ? 'Weather for the room' : i === 2 ? 'After Léon Theremin’s RCA of 1929' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -940,13 +940,13 @@ function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15
 const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 /* ---------- a volume control for every machine. 0..1 on the dial; 0.7 is the normal level,
    full turn is about twice as loud. Remembered in this browser. */
-const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7, texture: 0.7 };
+const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7, texture: 0.7, theremin: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
 function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
 // a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
-const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false, texture: false };
+const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false, texture: false, theremin: false };
 const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
 const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
 const muteBtns = {};
@@ -1040,6 +1040,7 @@ function initAudio() {
   initBassAudio();
   initPoolAudio();
   initTextureAudio();
+  initThereminAudio();
   initEchoAudio();                                       // last: it listens to the others
 }
 /* ---------- THE CENTRE MICROPHONE
@@ -1358,15 +1359,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I] || a === alcoves[TEX_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M, THER_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I] || a === alcoves[TEX_I] || a === alcoves[THER_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0], th = ray.intersectObjects(texHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M], [th, TEX_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0], th = ray.intersectObjects(texHits, false)[0], thr = ray.intersectObjects(therHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M], [th, TEX_M], [thr, THER_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -1902,6 +1903,7 @@ function playPad(dt) {
   };
   rep('l', () => curM.step(-1)); rep('r', () => curM.step(1));
   rep('u', () => curM.adjust(1)); rep('d', () => curM.adjust(-1));
+  if (curM.analog) curM.analog(p);
   if (now.a !== padPrevPlay.a) curM.press(now.a);
   if (now.x && !padPrevPlay.x) exitPlay();
   padPrevPlay = now;
@@ -4587,6 +4589,374 @@ function updateTexture(dt) {
   glow(muteBtns.texture.mat, foc && foc.t === 'mmute');
 }
 
+/* ------------------------------------------------------------------ II · THE THEREMIN
+   After the RCA Theremin of 1929, built to Léon Theremin's design, the instrument Clara Rockmore
+   learned on: a mahogany cabinet with a sloping top on four tall tapered legs, an upright rod on the
+   right for pitch and a horizontal loop on the left for volume, played without touching anything.
+   Your right hand's distance from the rod sets the pitch (closer is higher, the notes crowding
+   together as you near it, as on the real instrument); your left hand's height above the loop sets
+   the volume (down on the loop is silence). Two bakelite knobs in the front window, as on the
+   original: VOLUME and PITCH (tuning, an octave either way). A small brass plate on the sloping top
+   adds three switches the original didn't have: VOICE (RCA, ROCKMORE, PURE), GUIDE (faint marks in
+   the air where the notes of the key lie) and SNAP (a gentle pull towards those notes).
+   The alcove is Art Deco: a gold sunburst, a stepped dais, a separate loudspeaker in a fluted cabinet.
+   One oscillator, still filters: almost nothing for the phone to do. */
+const THER_I = 2;
+const therAl = alcoves[THER_I];
+therAl.g.remove(therAl.plinth); therAl.g.remove(therAl.beam);
+plinths.splice(plinths.indexOf(therAl.plinth), 1);
+const therHits = [], therCtrls = [];
+const TH_VOICES = ['RCA', 'ROCKMORE', 'PURE'];
+const TH = { rodX: 0.27, rodZ: -0.12, rodY0: 1.47, rodY1: 2.12, dMin: 0.025, dMax: 0.6, loopY: 1.3, loopZ: 0.0, loopX: -0.31, volH: 0.32 };
+const ther = { voice: 1, guide: true, snap: false, tune: 0, rh: null, lh: null, semi: 66, vol: 0, vib: 0, still: 0, sig: '', lastSemi: 66 };
+// the right hand: distance from the rod → semitone (MIDI). Four octaves, C3 far away to C7 at the rod,
+// compressed near the rod as on the real instrument
+const TH_LO = 48, TH_HI = 96;
+const distToSemi = (d) => TH_HI - (TH_HI - TH_LO) * Math.pow(Math.max(0, Math.min(1, (d - TH.dMin) / (TH.dMax - TH.dMin))), 0.72);
+const semiToDist = (s) => TH.dMin + (TH.dMax - TH.dMin) * Math.pow(Math.max(0, Math.min(1, (TH_HI - s) / (TH_HI - TH_LO))), 1 / 0.72);
+
+const therG = new THREE.Group(); therG.position.set(0, 0.15, A + 1.25); therG.rotation.y = Math.PI; therAl.g.add(therG);
+let therDispL, therKnobs = {}, therSw = {}, therRings = [], therOrbs = {}, therGuide, therSpk;
+{
+  const mahog = new THREE.MeshPhysicalMaterial({ color: '#3a1d12', roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.2, envMapIntensity: 0.8 });
+  const ebony = new THREE.MeshPhysicalMaterial({ color: '#1a0f0a', roughness: 0.3, clearcoat: 0.6, envMapIntensity: 0.7 });
+  const gold = new THREE.MeshStandardMaterial({ color: '#c9a24a', metalness: 0.9, roughness: 0.28 });
+  const cream = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.55 });
+  const black = new THREE.MeshStandardMaterial({ color: '#141210', roughness: 0.4 });
+  // an Art Deco dais: two stepped tiers, black and cream, edged in gold
+  for (const [r, h, y, m] of [[1.55, 0.06, 0.03, black], [1.25, 0.05, 0.085, cream]]) {
+    const d = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 64, 1, false, 0, Math.PI), m); d.rotation.y = -Math.PI / 2; d.position.set(0, y, -0.15); therG.add(d);
+    const e = new THREE.Mesh(new THREE.TorusGeometry(r, 0.008, 6, 64, Math.PI), gold); e.rotation.x = -Math.PI / 2; e.rotation.z = Math.PI; e.position.set(0, y + h / 2, -0.15); therG.add(e);
+  }
+  const base = 0.11;
+  // four tall tapered legs and the apron
+  for (const x of [-0.28, 0.28]) for (const z of [-0.15, 0.15]) {
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.011, 0.72, 4), mahog); l.rotation.y = Math.PI / 4; l.position.set(x, base + 0.36, z); therG.add(l);
+  }
+  therHits.push(box(0.64, 0.05, 0.38, mahog, 0, base + 0.745, 0, therG));
+  // the cabinet: a box with a sloping top, low side towards you, as in the photographs
+  const prof = new THREE.Shape();
+  prof.moveTo(-0.19, 0); prof.lineTo(0.19, 0); prof.lineTo(0.19, 0.4); prof.lineTo(0.17, 0.42); prof.lineTo(-0.15, 0.66);
+  prof.quadraticCurveTo(-0.19, 0.69, -0.19, 0.62); prof.lineTo(-0.19, 0);
+  const cg = new THREE.ExtrudeGeometry(prof, { depth: 0.62, bevelEnabled: false, curveSegments: 10 });
+  const cab = new THREE.Mesh(cg, mahog); cab.rotation.y = -Math.PI / 2; cab.position.set(0.31, base + 0.77, 0); therG.add(cab); therHits.push(cab);
+  // (the shape's x runs towards you along +z after the turn; its y is height)
+  const cabY = base + 0.77;
+  // the moulding at the foot of the slope, and a band round the base
+  box(0.63, 0.02, 0.03, ebony, 0, cabY + 0.425, 0.17, therG);
+  box(0.64, 0.025, 0.39, ebony, 0, cabY + 0.01, 0, therG);
+  // the front window: a black escutcheon with two bakelite knobs and a red pilot lamp
+  const win = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 24, 1), black); win.scale.set(1, 1, 0.5); win.rotation.z = Math.PI / 2; win.position.set(-0.05, cabY + 0.24, 0.19); therG.add(win);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.009, 12, 8), new THREE.MeshStandardMaterial({ color: '#ff3b2b', emissive: '#ff3b2b', emissiveIntensity: 1.2 })); lamp.position.set(-0.05, cabY + 0.24, 0.222); therG.add(lamp);
+  [['vol', 'VOLUME', -0.115], ['tune', 'PITCH', 0.015]].forEach(([key, label, x]) => {
+    const g = new THREE.Group(); g.position.set(x, cabY + 0.24, 0.215); therG.add(g);
+    const mat = new THREE.MeshPhysicalMaterial({ color: '#16110e', roughness: 0.25, clearcoat: 1, emissive: '#ffffff', emissiveIntensity: 0 });
+    const k = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.03, 32), mat); k.rotation.x = Math.PI / 2; g.add(k);
+    const pip = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.018, 0.004), new THREE.MeshBasicMaterial({ color: '#efe6d6' })); pip.position.set(0, 0.012, 0.016); g.add(pip);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.08), hitMat); g.add(hit);
+    for (const o of [k, hit]) { o.userData = { t: 'knob', key }; therCtrls.push(o); }
+    const lb = flatLabel(0.16, 0.035, 220, 48, therG, x, cabY + 0.165, 0.193); lb.m.rotation.x = 0;
+    therKnobs[key] = { g, mat, lb, label };
+  });
+  // the pitch rod: upright, at the back right, on a little ebony insulator
+  box(0.04, 0.04, 0.04, ebony, TH.rodX, TH.rodY0 - 0.005, TH.rodZ, therG);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0065, TH.rodY1 - TH.rodY0, 16), mChrome); rod.position.set(TH.rodX, (TH.rodY0 + TH.rodY1) / 2, TH.rodZ); therG.add(rod);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 8), mChrome); tip.position.set(TH.rodX, TH.rodY1, TH.rodZ); therG.add(tip);
+  // the volume loop: out from the left side, a long horseshoe of nickel tube
+  const lp = new THREE.CurvePath();
+  const pts = [[-0.31, 0.06], [-0.4, 0.07], [-0.5, 0.075], [-0.6, 0.06], [-0.64, 0.0], [-0.6, -0.06], [-0.5, -0.075], [-0.4, -0.07], [-0.31, -0.06]].map(([x, z]) => new THREE.Vector3(x, TH.loopY, TH.loopZ + z));
+  const loop = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0065, 10, false), mChrome); therG.add(loop);
+  for (const z of [0.06, -0.06]) box(0.03, 0.03, 0.03, ebony, -0.315, TH.loopY, TH.loopZ + z, therG);
+  // the brass switch plate on the slope
+  const plate = new THREE.Group(); plate.position.set(-0.03, cabY + 0.54, 0.02); plate.rotation.x = 0.64; therG.add(plate);
+  const pb = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.012, 0.12), gold); plate.add(pb);
+  [['voice', -0.21], ['guide', -0.075], ['snap', 0.06]].forEach(([key, x]) => {
+    const mat = new THREE.MeshPhysicalMaterial({ color: '#16110e', roughness: 0.3, clearcoat: 1, emissive: '#ffffff', emissiveIntensity: 0 });
+    const s = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.022, 0.05), mat); s.position.set(x, 0.016, 0.022); plate.add(s);
+    s.userData = { t: 'sw', key }; therCtrls.push(s);
+    const L = flatLabel(0.12, 0.04, 240, 80, plate, x, 0.0065, -0.032);
+    therSw[key] = { s, mat, L };
+  });
+  { const b = makeMuteBtn('theremin', plate, 0.205, 0.016, 0.0, 0.11, 0.08); b.userData = { t: 'mmute' }; therCtrls.push(b); }
+  // glow rings round the rod (they rise with the pitch) and round the loop (they swell with the volume)
+  for (let i = 0; i < 3; i++) {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(0.03 + i * 0.022, 0.0025, 6, 40), new THREE.MeshBasicMaterial({ color: '#ffe3a0', transparent: true, opacity: 0, toneMapped: false, depthWrite: false }));
+    m.rotation.x = Math.PI / 2; m.position.set(TH.rodX, TH.rodY0 + 0.1, TH.rodZ); therG.add(m); therRings.push(m);
+  }
+  const lr = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.003, 6, 48), new THREE.MeshBasicMaterial({ color: '#ffe3a0', transparent: true, opacity: 0, toneMapped: false, depthWrite: false }));
+  lr.rotation.x = Math.PI / 2; lr.scale.set(1.15, 0.45, 1); lr.position.set(-0.47, TH.loopY, TH.loopZ); therG.add(lr); therRings.loop = lr;
+  // the hands, as soft points of light (you can't see your own)
+  for (const [k, col] of [['rh', '#ffd27a'], ['lh', '#fff1d6']]) {
+    const o = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 10), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, toneMapped: false, depthWrite: false }));
+    o.visible = false; therG.add(o); therOrbs[k] = o;
+  }
+  // GUIDE: marks in the air where the notes of the key lie, on the plane the right hand moves in
+  therGuide = canvasTex(1024, 256);
+  const gm = new THREE.Mesh(new THREE.PlaneGeometry(TH.dMax + 0.04, 0.16), new THREE.MeshBasicMaterial({ map: therGuide.t, transparent: true, toneMapped: false, depthWrite: false }));
+  gm.position.set(TH.rodX + (TH.dMax + 0.04) / 2, 1.62, TH.rodZ); therG.add(gm); therGuide.m = gm;
+  // the Art Deco back: a gold sunburst over cream, stepped black frame, the display in a gold frame
+  const back = box(2.6, 2.4, 0.06, cream, 0, 1.5, -0.95, therG); therHits.push(back);
+  for (let i = 0; i < 15; i++) {
+    const a = Math.PI * (0.06 + 0.88 * i / 14), len = 1.15;
+    const ray = new THREE.Mesh(new THREE.BoxGeometry(0.035, len, 0.008), gold);
+    ray.position.set(Math.cos(a) * len / 2, 0.68 + Math.sin(a) * len / 2, -0.915); ray.rotation.z = a - Math.PI / 2; therG.add(ray);
+  }
+  const sun = new THREE.Mesh(new THREE.CircleGeometry(0.2, 48, 0, Math.PI), gold); sun.position.set(0, 0.68, -0.912); therG.add(sun);
+  for (const [w, h, y] of [[2.6, 0.05, 2.7], [2.2, 0.05, 2.62], [1.8, 0.05, 2.54]]) box(w, h, 0.02, black, 0, y, -0.91, therG);
+  for (const x of [-1.25, 1.25]) box(0.08, 2.4, 0.03, black, x, 1.5, -0.91, therG);
+  box(1.06, 0.31, 0.02, gold, 0, 2.3, -0.905, therG);
+  therDispL = canvasTex(2048, 560);
+  const dp = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.274), new THREE.MeshBasicMaterial({ map: therDispL.t, toneMapped: false }));
+  dp.position.set(0, 2.3, -0.892); therG.add(dp);
+  // the loudspeaker: a separate fluted cabinet with a rounded top and a sunburst grille, as RCA sold it
+  const spk = new THREE.Group(); spk.position.set(-0.86, base, -0.72); spk.rotation.y = 0.25; therG.add(spk);
+  therHits.push(box(0.5, 1.1, 0.3, mahog, 0, 0.55, 0, spk));
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.3, 32), mahog); crown.rotation.x = Math.PI / 2; crown.position.set(0, 1.1, 0); spk.add(crown);
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.62), new THREE.MeshStandardMaterial({ color: '#c9b48a', roughness: 0.9, emissive: '#ffcf80', emissiveIntensity: 0.02 }));
+  cloth.position.set(0, 0.72, 0.152); spk.add(cloth); therSpk = cloth;
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (0.15 + 0.7 * i / 6), bar = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.34, 0.01), gold);
+    bar.position.set(Math.cos(a) * 0.17, 0.48 + Math.sin(a) * 0.17, 0.158); bar.rotation.z = a - Math.PI / 2; spk.add(bar);
+  }
+  for (const x of [-0.2, 0.2]) box(0.02, 1.08, 0.02, gold, x, 0.55, 0.152, spk);
+  // two fluted torchère lamps, glowing up the walls
+  for (const x of [-1.15, 1.15]) {
+    const tg = new THREE.Group(); tg.position.set(x * 1.03, base, -0.8); therG.add(tg);
+    box(0.24, 0.04, 0.24, black, 0, 0.02, 0, tg);
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 1.5, 12), gold); col.position.y = 0.79; tg.add(col);
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.05, 0.16, 8, 1, true), new THREE.MeshStandardMaterial({ color: '#f3e6c8', emissive: '#ffd99a', emissiveIntensity: 0.9, side: THREE.DoubleSide }));
+    bowl.position.y = 1.6; tg.add(bowl);
+    const L = new THREE.PointLight('#ffd9a0', 1.2, 2.6, 2); L.position.y = 1.75; tg.add(L);
+  }
+}
+const therPos = therAl.g.localToWorld(new THREE.Vector3(0, 1.4, A + 1.4));
+const therSpkPos = therAl.g.localToWorld(new THREE.Vector3(0.86, 0.9, A + 1.97));
+
+/* ---------- sound */
+let therAudio = null;
+const TH_WAVES = {
+  RCA: [0, 1, 0.52, 0.34, 0.22, 0.14, 0.09, 0.06, 0.04, 0.025],    // reedy, a little nasal, through the RCA speaker
+  ROCKMORE: [0, 1, 0.3, 0.15, 0.075, 0.04, 0.022, 0.012],            // the round, cello-like voice Clara Rockmore asked for
+  PURE: [0, 1, 0.04, 0.01],
+};
+function initThereminAudio() {
+  const out = ac.createGain(); volRegister('theremin', out, 1);
+  // the sound comes from the loudspeaker cabinet, not the instrument
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, therSpkPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.3; out.connect(send); send.connect(reverbIn);
+  micTap(out, therSpkPos, 1.2);
+  const osc = ac.createOscillator(); osc.frequency.value = mf(ther.semi);
+  const vib = ac.createOscillator(); vib.frequency.value = 5.7; const vibG = ac.createGain(); vibG.gain.value = 0; vib.connect(vibG); vibG.connect(osc.detune); vib.start();
+  // the loudspeaker's colour: a little low cut, a forward presence bump, the top rolled off
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 95; hp.Q.value = 0.6;
+  const pk = ac.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1150; pk.Q.value = 0.9; pk.gain.value = 3;
+  const lpf = ac.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 5200; lpf.Q.value = 0.5;
+  const amp = ac.createGain(); amp.gain.value = 0;
+  osc.connect(hp); hp.connect(pk); pk.connect(lpf); lpf.connect(amp); amp.connect(out); osc.start();
+  therAudio = { out, osc, vibG, amp, waves: {} };
+  for (const k in TH_WAVES) therAudio.waves[k] = ac.createPeriodicWave(new Float32Array(TH_WAVES[k].length), Float32Array.from(TH_WAVES[k]));
+  therAudio.osc.setPeriodicWave(therAudio.waves[TH_VOICES[ther.voice]]);
+}
+
+/* ---------- display, labels */
+let therHelp = '', therValue = '';
+const THER_HELP = {
+  start: 'Play it in the air. Right hand by the upright rod: nearer is higher. Left hand over the loop: higher is louder, down on the loop is silence. Touch or drag to the right of the rod; a second finger over the loop shapes the volume. Keys: hold Space and use ← → to glide, ↑ ↓ to choose. Controller: right stick is your pitch hand, right trigger your volume hand.',
+  pitch: 'Pitch: your right hand. The notes crowd together as you near the rod, just as on a real theremin. Hold still and the vibrato blooms.',
+  volume: 'Volume: your left hand over the loop. Lift for louder, lower for softer, touch down to stop the note: that’s how theremin players separate notes.',
+  vol: 'Volume knob: the instrument’s overall level, like the knob on the 1929 original.',
+  tune: 'Pitch knob: tunes the whole instrument up or down, as much as an octave either way.',
+  voice: 'Voice: RCA is the reedy 1929 factory sound; ROCKMORE the round, singing tone Clara Rockmore had built for her; PURE a near-sine.',
+  guide: 'Guide: faint marks in the air where the notes of the gallery’s key lie. Real players learn these by feel.',
+  mmute: 'Mute: silences the theremin at once. Press again to bring it back.',
+  snap: 'Snap: gently pulls each note towards the nearest note of the key. Off is the true theremin: anything goes.',
+};
+function drawTherDisplay() {
+  const { g, c, t } = therDispL, W = c.width, H = c.height;
+  g.fillStyle = '#f6efe0'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#c9a24a'; g.lineWidth = 10; g.strokeRect(18, 18, W - 36, H - 36);
+  g.lineWidth = 3; g.strokeRect(36, 36, W - 72, H - 72);
+  g.fillStyle = '#1a0f0a'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.font = `bold 92px ${FONT}`; g.fillText('T H E R E M I N', W / 2, 150);
+  g.font = `bold 40px ${FONT}`; g.fillStyle = '#7a5a20';
+  const n = ther.vol > 0.02 ? `${noteName(Math.round(ther.semi))}${Math.abs(ther.semi - Math.round(ther.semi)) > 0.15 ? (ther.semi > Math.round(ther.semi) ? ' ↑' : ' ↓') : ''}` : '—';
+  g.fillText(`VOICE ${TH_VOICES[ther.voice]}   ·   NOTE ${n}   ·   GUIDE ${ther.guide ? 'ON' : 'OFF'}   ·   SNAP ${ther.snap ? 'ON' : 'OFF'}${therValue ? '   ·   ' + therValue.toUpperCase() : ''}`, W / 2, 222);
+  g.fillStyle = '#2a1c14'; g.font = `38px ${FONT}`; g.textAlign = 'left';
+  const words = therHelp.split(' '); let line = '', y = 300;
+  for (const wd of words) { if (g.measureText(line + wd).width > W - 160) { g.fillText(line, 80, y); line = ''; y += 48; } line += wd + ' '; }
+  g.fillText(line, 80, y); t.needsUpdate = true;
+}
+function drawTherControls() {
+  for (const key of ['vol', 'tune']) {
+    const K = therKnobs[key], v = key === 'vol' ? VOL.theremin : (ther.tune + 12) / 24;
+    K.g.rotation.z = -(-0.75 * Math.PI + 1.5 * Math.PI * v);
+    printText(K.lb, [[key === 'vol' ? `VOLUME ${Math.round(VOL.theremin * 100)}` : `PITCH ${ther.tune > 0 ? '+' : ''}${ther.tune}`, 30, '#e8d6a8']]);
+  }
+  const txt = { voice: TH_VOICES[ther.voice], guide: ther.guide ? 'GUIDE ON' : 'GUIDE OFF', snap: ther.snap ? 'SNAP ON' : 'SNAP OFF' };
+  for (const key in therSw) printText(therSw[key].L, [[txt[key], 30, '#1a0f0a']]);
+  // guide marks: the key's notes along the right hand's path
+  const { g, c, t } = therGuide, W = c.width, H = c.height, span = TH.dMax + 0.04, sc = galleryScale(), home = NOTE_SEMI[org.root];
+  g.clearRect(0, 0, W, H);
+  if (ther.guide) {
+    for (let m = TH_LO; m <= TH_HI; m++) {
+      const pc = (m - ther.tune + 1200) % 12; if (!sc.includes(pc)) continue;
+      const x = (semiToDist(m - ther.tune) + (TH.rodX - TH.rodX)) / span * W; if (x < 0 || x > W) continue;
+      const isHome = pc === home;
+      g.fillStyle = isHome ? 'rgba(255,214,120,0.95)' : 'rgba(255,240,210,0.55)'; g.fillRect(x - (isHome ? 3 : 2), H * 0.18, isHome ? 6 : 4, H * 0.5);
+      if (isHome || x > 60) { g.font = `bold ${isHome ? 34 : 24}px ${FONT}`; g.textAlign = 'center'; g.fillText(noteName(m - ther.tune), x, H * 0.9); }
+    }
+  }
+  t.needsUpdate = true;
+}
+
+/* ---------- playing: two hands in the air */
+function therPlane(e, z) { return groupLocalAt2(therG, e, z); }
+function groupLocalAt2(G, e, z) {                                  // where a pointer meets the vertical plane z = const in G's space
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+  G.updateMatrixWorld();
+  const o = G.localToWorld(new THREE.Vector3(0, 0, z)), n = new THREE.Vector3(0, 0, 1).transformDirection(G.matrixWorld);
+  const hit = new THREE.Vector3(); return ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, o), hit) ? G.worldToLocal(hit) : null;
+}
+const inPitchField = (p) => p && p.x > TH.rodX + 0.01 && p.x < TH.rodX + TH.dMax + 0.25 && p.y > 1.15 && p.y < 2.25;
+const inVolField = (p) => p && p.x < TH.loopX - 0.02 && p.x > -1.0 && p.y > TH.loopY - 0.08 && p.y < TH.loopY + 0.55;
+const therPtr = new Map();
+function therDown(e) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(therCtrls, false)[0];
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  thFocus = -1;
+  if (h) {
+    const u = h.object.userData; therPtr.set(e.pointerId, { ...u, y: e.clientY });
+    if (u.t === 'sw') therSwitch(u.key);
+    else if (u.t === 'mmute') { const on = machineMute('theremin'); therHelp = THER_HELP.mmute; therValue = on ? 'muted' : 'sound on'; drawTherDisplay(); }
+    else { therHelp = THER_HELP[u.key]; drawTherDisplay(); }
+    return;
+  }
+  const pp = therPlane(e, TH.rodZ), pv = therPlane(e, TH.loopZ);
+  if (inPitchField(pp)) { therPtr.set(e.pointerId, { t: 'rh' }); ther.rh = { d: pp.x - TH.rodX, y: pp.y }; therHelp = THER_HELP.pitch; drawTherDisplay(); }
+  else if (inVolField(pv)) { therPtr.set(e.pointerId, { t: 'lh' }); ther.lh = { h: pv.y - TH.loopY, x: pv.x }; therHelp = THER_HELP.volume; drawTherDisplay(); }
+}
+function therMove(e) {
+  const u = therPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'rh') { const p = therPlane(e, TH.rodZ); if (p) ther.rh = { d: Math.max(0, p.x - TH.rodX), y: p.y }; }
+  else if (u.t === 'lh') { const p = therPlane(e, TH.loopZ); if (p) ther.lh = { h: p.y - TH.loopY, x: p.x }; }
+  else if (u.t === 'knob') { const d = u.y - e.clientY; u.y = e.clientY; therKnob(u.key, d / 220); }
+}
+function therUp(e) {
+  const u = therPtr.get(e.pointerId); therPtr.delete(e.pointerId); if (!u) return;
+  if (u.t === 'rh' && ![...therPtr.values()].some((v) => v.t === 'rh')) ther.rh = null;
+  if (u.t === 'lh' && ![...therPtr.values()].some((v) => v.t === 'lh')) ther.lh = null;
+}
+function therKnob(key, dv) {
+  if (key === 'vol') { setVol('theremin', VOL.theremin + dv); therValue = `volume ${Math.round(VOL.theremin * 100)}%`; }
+  else { ther.tuneF = Math.max(-12, Math.min(12, (ther.tuneF ?? ther.tune) + dv * 24)); ther.tune = Math.round(ther.tuneF); therValue = `tuned ${ther.tune > 0 ? '+' : ''}${ther.tune}`; }
+  drawTherControls(); drawTherDisplay();
+}
+function therSwitch(key) {
+  if (key === 'voice') { ther.voice = (ther.voice + 1) % TH_VOICES.length; if (therAudio) therAudio.osc.setPeriodicWave(therAudio.waves[TH_VOICES[ther.voice]]); therValue = TH_VOICES[ther.voice].toLowerCase(); }
+  if (key === 'guide') { ther.guide = !ther.guide; therValue = ther.guide ? 'guide on' : 'guide off'; }
+  if (key === 'snap') { ther.snap = !ther.snap; therValue = ther.snap ? 'snap on' : 'snap off'; }
+  therHelp = THER_HELP[key]; buzz(10); blip(880, 0.03, 0.02); drawTherControls(); drawTherDisplay();
+}
+// keys and controller: Space/Ⓐ plays; ← → glide the pitch hand a note of the key at a time; ↑ ↓ choose a control
+const TH_STATIONS = [{ t: 'air' }, { t: 'sw', key: 'voice' }, { t: 'sw', key: 'guide' }, { t: 'sw', key: 'snap' }, { t: 'knob', key: 'vol' }, { t: 'knob', key: 'tune' }, { t: 'mmute' }];
+let thFocus = -1, thKeySemi = 66;
+function thFocusSet(i) {
+  thFocus = i; if (i < 0) return;
+  const f = TH_STATIONS[i]; therHelp = f.t === 'air' ? THER_HELP.start : THER_HELP[f.key || f.t]; therValue = f.t === 'air' ? 'play' : (f.key || 'mute');
+  drawTherDisplay(); blip(660, 0.04, 0.03);
+}
+function therStep(d) {
+  if (thFocus < 0) thFocusSet(0);
+  const f = TH_STATIONS[thFocus];
+  if (f.t === 'air') {                                               // move the pitch hand to the next note of the key
+    const sc = galleryScale(); let s = Math.round(thKeySemi);
+    do { s += d; } while (!sc.includes(((s - ther.tune) % 12 + 12) % 12) && s > TH_LO && s < TH_HI);
+    thKeySemi = Math.max(TH_LO, Math.min(TH_HI, s)); if (ther.keyHeld) ther.rh = { d: semiToDist(thKeySemi - ther.tune), y: 1.62 };
+    therValue = noteName(thKeySemi); drawTherDisplay(); return;
+  }
+  if (f.t === 'sw' && d) therSwitch(f.key);
+  if (f.t === 'knob') therKnob(f.key, d * 0.05);
+}
+function therAdjust(d) { thFocusSet(thFocus < 0 ? 0 : (thFocus - d + TH_STATIONS.length) % TH_STATIONS.length); }
+function therPress(down) {
+  if (thFocus < 0) thFocusSet(0);
+  const f = TH_STATIONS[thFocus];
+  if (f.t === 'air') { ther.keyHeld = down; ther.rh = down ? { d: semiToDist(thKeySemi - ther.tune), y: 1.62 } : null; return; }
+  if (down && f.t === 'sw') therSwitch(f.key);
+  if (down && f.t === 'mmute') { const on = machineMute('theremin'); therValue = on ? 'muted' : 'sound on'; drawTherDisplay(); }
+}
+function therAnalog(p) {                                            // a controller's sticks and triggers are the two hands
+  const rx = p.axes[2] || 0, ry = p.axes[3] || 0, rt = p.buttons[7] ? p.buttons[7].value : 0, lt = p.buttons[6] ? p.buttons[6].value : 0;
+  const mag = Math.hypot(rx, ry);
+  if (mag > 0.2 || rt > 0.05) {
+    const sx = mag > 0.2 ? (rx + 1) / 2 : 0.5;                       // stick right = nearer the rod = higher
+    ther.rh = { d: TH.dMin + (1 - sx) * (TH.dMax - TH.dMin), y: 1.62, pad: true };
+    ther.lh = { h: Math.max(0.02, rt || 0.75) * TH.volH * (1 - lt * 0.9), pad: true };
+  } else if (ther.rh && ther.rh.pad) { ther.rh = null; ther.lh = null; }
+}
+function makeTheremin() {
+  const fit = [];
+  for (const p of [[-0.68, TH.loopY, 0], [TH.rodX + TH.dMax, 1.35, TH.rodZ], [TH.rodX + TH.dMax, 2.15, TH.rodZ], [-0.68, 1.8, 0], [-0.31, 0.88, 0.2], [0.31, 0.88, 0.2], [0, 2.44, -0.9]]) fit.push([therG, new THREE.Vector3(...p)]);
+  const fitL = fit.slice(0, 6);
+  return {
+    al: THER_I, base: therG, fit, fitL, elev: [0.5, 0.4], stand: 1.0,
+    down: therDown, move: therMove, up: therUp, step: therStep, adjust: therAdjust, press: therPress, analog: therAnalog,
+    enter() { thFocus = -1; therHelp = THER_HELP.start; therValue = ''; drawTherControls(); drawTherDisplay(); },
+    exit() { therPtr.clear(); ther.rh = null; ther.lh = null; ther.keyHeld = false; thFocus = -1; },
+  };
+}
+drawTherControls(); drawTherDisplay();
+
+/* ---------- every frame: the two hands make the sound */
+function updateTheremin(dt) {
+  const sig = org.root + ':' + org.mood;
+  if (sig !== ther.sig) { ther.sig = sig; drawTherControls(); }
+  // pitch from the right hand's distance (plus the tuning knob), gently snapped if asked
+  if (ther.rh) {
+    let s = distToSemi(Math.max(TH.dMin, ther.rh.d)) + ther.tune;
+    if (ther.snap) {
+      const sc = galleryScale(); let best = Math.round(s), bd = 9;
+      for (let m = Math.floor(s) - 2; m <= Math.ceil(s) + 2; m++) if (sc.includes(((m % 12) + 12) % 12) && Math.abs(m - s) < bd) { bd = Math.abs(m - s); best = m; }
+      s = best + (s - best) * 0.3;
+    }
+    ther.semi = s;
+  }
+  // volume: the left hand's height over the loop; with no left hand, a player's comfortable level
+  const vTarget = ther.rh ? (ther.lh ? Math.pow(Math.max(0, Math.min(1, ther.lh.h / TH.volH)), 1.4) : 0.75) : 0;
+  ther.vol += (vTarget - ther.vol) * Math.min(1, dt * (vTarget > ther.vol ? 18 : 12));
+  // vibrato blooms as a held note settles, as a player's hand would make it
+  const moved = Math.abs(ther.semi - ther.lastSemi); ther.lastSemi = ther.semi;
+  ther.still = moved > 0.04 ? 0 : Math.min(1, ther.still + dt * 1.6);
+  if (therAudio) {
+    const now = ac.currentTime;
+    therAudio.osc.frequency.setTargetAtTime(mf(ther.semi), now, 0.018);
+    therAudio.amp.gain.setTargetAtTime(ther.vol * 0.32, now, 0.025);
+    therAudio.vibG.gain.setTargetAtTime(ther.still * (ther.voice === 2 ? 8 : 16), now, 0.15);
+  }
+  // lights: rings on the rod rise with the pitch, the loop's ring swells with the volume, the speaker glows
+  const pf = (ther.semi - TH_LO) / (TH_HI - TH_LO);
+  therRings.forEach((m, i) => {
+    m.position.y = TH.rodY0 + 0.08 + pf * (TH.rodY1 - TH.rodY0 - 0.16) + Math.sin(time * 3 + i) * 0.01;
+    m.material.opacity = ther.vol * (0.75 - i * 0.2) * (0.8 + 0.2 * Math.sin(time * (6 + i * 2)));
+    const s = 1 + 0.25 * Math.sin(time * (4 + i) + i); m.scale.set(s, s, s);
+  });
+  therRings.loop.material.opacity = ther.vol * 0.6; therRings.loop.scale.set(1.15 * (0.8 + ther.vol * 0.4), 0.45 * (0.8 + ther.vol * 0.4), 1);
+  therSpk.material.emissiveIntensity = 0.02 + ther.vol * 0.35;
+  const orb = (o, on, x, y, z) => { o.visible = on; if (on) { o.position.set(x, y, z); o.material.opacity = 0.55 + 0.25 * Math.sin(time * 5); } };
+  orb(therOrbs.rh, !!ther.rh, TH.rodX + (ther.rh ? ther.rh.d : 0), ther.rh ? Math.max(1.2, Math.min(2.2, ther.rh.y || 1.62)) : 0, TH.rodZ);
+  orb(therOrbs.lh, !!ther.lh, ther.lh && ther.lh.x ? Math.max(-0.95, Math.min(-0.35, ther.lh.x)) : -0.47, TH.loopY + (ther.lh ? Math.max(0, ther.lh.h) : 0), TH.loopZ);
+  therGuide.m.material.opacity = playing && curM === THER_M ? 1 : 0.35;
+  const foc = playing && curM === THER_M && thFocus >= 0 ? TH_STATIONS[thFocus] : null;
+  for (const key in therSw) therSw[key].mat.emissiveIntensity = foc && foc.key === key && foc.t === 'sw' ? 0.25 : 0;
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  glow(muteBtns.theremin.mat, foc && foc.t === 'mmute');
+  for (const key in therKnobs) therKnobs[key].mat.emissiveIntensity = foc && foc.key === key && foc.t === 'knob' ? 0.25 : 0;
+  ther.dispT = (ther.dispT || 0) + dt;
+  if (ther.dispT > 0.15 && playing && curM === THER_M) { ther.dispT = 0; drawTherDisplay(); }
+}
+
 const ORGAN_M = {
   al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
   down: organPointerDown, move: organPointerMove, up: organPointerUp,
@@ -4600,6 +4970,7 @@ const BASS_M = makeBassMachine();
 const POOL_M = makePoolMachine();
 const ECHO_M = makeEchoMachine();
 const TEX_M = makeTexMachine();
+const THER_M = makeTheremin();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -4665,6 +5036,7 @@ function update(dt) {
   updatePool(dt);
   updateEcho(dt);
   updateTexture(dt);
+  updateTheremin(dt);
   updateStress(dt);
   updateProjector(dt);
 
@@ -4799,6 +5171,9 @@ function updateCaption() {
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
     c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === THER_I) {
+    c.innerHTML = `<b>II</b> · The Theremin<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} it to play</span>`;
     c.classList.remove('hidden');
   } else if (show === TEX_I) {
     c.innerHTML = `<b>III</b> · The Texture Machine<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} it to play</span>`;
