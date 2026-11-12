@@ -989,6 +989,7 @@ function initAudio() {
   // a larger audio buffer on phones and tablets: a hair more delay, but no crackle when the device is busy drawing 3D
   const AC = window.AudioContext || window.webkitAudioContext;
   try { ac = new AC({ latencyHint: isTouch ? 'playback' : 'balanced' }); } catch (e) { ac = new AC(); }
+  if (uiAc) { try { uiAc.close(); } catch (e) {} uiAc = null; }
   // if the system pauses the audio (an overloaded phone, a call, another app), start it again
   ac.onstatechange = () => { if (ac.state !== 'running' && ac.state !== 'closed' && !document.hidden) ac.resume().catch(() => {}); };
   master = ac.createGain(); master.gain.value = 0.78;
@@ -1244,10 +1245,29 @@ function resetSparkles(c) {
 
 /* ------------------------------------------------------------------ UI wiring */
 const $ = (id) => document.getElementById(id);
+// a soft wooden click when a shirt is chosen, each colour a note of a pentatonic scale. Before you join, the
+// gallery's own sound isn't running yet, so the click borrows a tiny audio context of its own (closed on joining)
+let uiAc = null;
+function shirtClick(k) {
+  let c = ac, dest = ac && master;
+  if (!c) {
+    try { if (!uiAc) { const AC = window.AudioContext || window.webkitAudioContext; uiAc = new AC(); } } catch (e) { return; }
+    c = uiAc; dest = uiAc.destination; if (c.state !== 'running') c.resume().catch(() => {});
+  }
+  const t = c.currentTime + 0.01, f = 523.25 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16][k % 8] / 12);
+  const g = c.createGain(); g.connect(dest);
+  const tick = c.createOscillator(); tick.type = 'triangle'; tick.frequency.setValueAtTime(2400, t); tick.frequency.exponentialRampToValueAtTime(900, t + 0.012);
+  const tg = c.createGain(); tg.gain.setValueAtTime(0.09, t); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.025); tick.connect(tg); tg.connect(g);
+  const tone = c.createOscillator(); tone.frequency.value = f;
+  const og = c.createGain(); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.07, t + 0.004); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.22); tone.connect(og); og.connect(g);
+  const ov = c.createOscillator(); ov.frequency.value = f * 3.01;
+  const vg = c.createGain(); vg.gain.setValueAtTime(0.0001, t); vg.gain.exponentialRampToValueAtTime(0.018, t + 0.003); vg.gain.exponentialRampToValueAtTime(0.0001, t + 0.07); ov.connect(vg); vg.connect(g);
+  for (const o of [tick, tone, ov]) { o.start(t); o.stop(t + 0.26); }
+}
 const shirtsEl = $('shirts');
 SHIRTS.forEach(([name, hex], k) => {
   const b = document.createElement('button'); b.className = 'sw' + (k === 0 ? ' on' : ''); b.style.background = hex; b.title = name; b.setAttribute('aria-label', name);
-  b.onclick = () => { shirtIdx = k; [...shirtsEl.children].forEach((c, j) => c.classList.toggle('on', j === k)); toast(name); };
+  b.onclick = () => { shirtIdx = k; [...shirtsEl.children].forEach((c, j) => c.classList.toggle('on', j === k)); toast(name); shirtClick(k); };
   shirtsEl.appendChild(b);
 });
 $('ctrlHint').innerHTML = isTouch
