@@ -5903,7 +5903,12 @@ const CAL_VOICES = [
   { n: 'HORN', reg: -12, att: 0.07, scoop: 20, blat: 0.1, rest: 0.05, dark: [1, 0.38, 0.12, 0.04], bright: [1, 0.62, 0.36, 0.2, 0.11, 0.06], vib: 0.00009 },
   { n: 'TUBA', reg: -24, att: 0.06, scoop: 35, blat: 0.16, rest: 0.07, dark: [1, 0.45, 0.18, 0.06], bright: [1, 0.75, 0.52, 0.34, 0.2, 0.12], vib: 0.00005 },
   { n: 'BAND', band: true, vib: 0.0001 },
+  { n: 'QUARTET', quartet: true, vib: 0.0001 },                      // trumpet on the tune, horn a third below, trombone a fifth below, tuba underneath
+  { n: 'MUSIC BOX', box: true, vib: 0 },                              // steel tines plucked by the roll's pins: each note rings and fades however long the hole
+  { n: 'ORGAN', organ: true, vib: 0 },                                // a church pipe organ: principal and octave, a soft 16' below, a breath of chiff
 ];
+// the note of scale degree d (any whole number, negative too) for the pipes
+const calDegMidi = (d) => { const r = NOTE_SEMI[org.root], sc = SCALES[org.mood], k = ((d % 7) + 7) % 7; return (r < 6 ? 60 : 48) + r + sc[k] + 12 * Math.floor(d / 7); };
 const CAL_PRESETS = {
   CAROUSEL: { n: [[0, 4, 2], [2, 2, 1], [3, 4, 1], [4, 7, 2], [6, 4, 2], [8, 5, 2], [10, 3, 1], [11, 5, 1], [12, 8, 2], [14, 5, 2], [16, 4, 2], [18, 2, 1], [19, 4, 1], [20, 6, 2], [22, 4, 1], [23, 3, 1], [24, 2, 2], [26, 1, 1], [27, 2, 1], [28, 0, 4]],
     d: [0, 4, 8, 12, 16, 20, 24, 28], c: [14, 30] },
@@ -5921,7 +5926,7 @@ const cal = { roll: calPresetRoll('CAROUSEL'), steam: false, p: 0, step: 0, next
 try { const v = +localStorage.getItem('sg-callv'); if (v > 0 && v < CAL_VOICES.length) cal.voice = v; } catch (e) {}
 try { const s = JSON.parse(localStorage.getItem('sg-roll') || 'null'); if (s && s.length === CAL_ROWS && s[0].length === CAL_LEN) { cal.roll = s; cal.preset = ''; } } catch (e) {}
 const calSave = () => { try { localStorage.setItem('sg-roll', JSON.stringify(cal.roll)); } catch (e) {} };
-const calMidi = (d) => { const r = NOTE_SEMI[org.root], sc = SCALES[org.mood]; return (r < 6 ? 60 : 48) + r + sc[d % 7] + 12 * Math.floor(d / 7); };   // whistle d: scale degree d above the home note
+const calMidi = (d) => calDegMidi(d);   // whistle d: scale degree d above the home note
 
 const calG = new THREE.Group(); calG.position.set(0, 0.15, A + 1.25); calG.rotation.y = Math.PI; calAl.g.add(calG);
 let calRollG, calPaper, calRowL, calDispL, calWhistles = [], calDrum, calCym, calCrank, calSpools = [], calBtns = {}, calVolSl, calBarMat, calPuffTex, calCursor;
@@ -6006,7 +6011,7 @@ let calRollG, calPaper, calRowL, calDispL, calWhistles = [], calDrum, calCym, ca
     calBtns[key] = { b, mat, L };
   };
   btn('steam', -0.78, 0.3); btn('CAROUSEL', -0.43, 0.28); btn('MARCH', -0.13, 0.26); btn('LULLABY', 0.16, 0.26); btn('clear', 0.43, 0.22);
-  CAL_VOICES.forEach((V, v) => btn('v' + v, -0.75 + v * 0.3, 0.27, 0.8, { t: 'voice', v }));
+  CAL_VOICES.forEach((V, v) => btn('v' + v, -0.82 + v * 0.205, 0.19, 0.8, { t: 'voice', v }));
   { const b = makeMuteBtn('calliope', calG, 0.75, top + 0.02, 0.64, 0.26, 0.12); b.userData = { t: 'mute' }; calCtrls.push(b); }
   const x0 = -0.25, len = 1.1, z = 0.96;
   box(len + 0.04, 0.012, 0.03, mDark, x0 + len / 2, top + 0.006, z, calG);
@@ -6074,7 +6079,8 @@ function initCalliopeAudio() {
   const wave = ac.createPeriodicWave(new Float32Array(6), Float32Array.from([0, 1, 0.16, 0.22, 0.05, 0.06]));
   const pw = (a) => ac.createPeriodicWave(new Float32Array(a.length + 1), Float32Array.from([0, ...a]));
   const waves = CAL_VOICES.map((V) => (V.dark ? { dark: pw(V.dark), bright: pw(V.bright) } : null));
-  calAudio = { out, bus, perc, wave, waves, l1g, l2g };
+  const organW = pw([1, 0.62, 0.34, 0.3, 0.14, 0.16, 0.06, 0.09, 0.03, 0.05]), mid = { 1: pw([1, 0.8, 0.6, 0.45, 0.32, 0.22, 0.14, 0.09]), 3: pw([1, 0.5, 0.22, 0.1, 0.05]), 2: pw([1, 0.75, 0.55, 0.4, 0.27, 0.17, 0.1]), 4: pw([1, 0.6, 0.3, 0.14, 0.06]) };
+  calAudio = { out, bus, perc, wave, waves, l1g, l2g, organW, mid };
   calVoiceAudio();
 }
 function calVoiceAudio() {
@@ -6097,6 +6103,45 @@ function calBrass(vi, f, g, t, srcs, lvl = 1) {
 function calWhistleOn(row, t) {
   if (!calAudio) return null;
   const V = CAL_VOICES[cal.voice];
+  if (V.box) {                                                         // a music box tine: struck, it rings and fades on its own
+    const g = ac.createGain(); g.connect(calAudio.bus);
+    const f = mf(calMidi(row) + 12), k = Math.pow(523 / f, 0.4), srcs = [];
+    for (const [mul, a, tau] of [[1, 0.5, 0.9 * k], [2.0, 0.08, 0.35 * k], [6.27, 0.12, 0.05]]) {
+      if (f * mul > 14000) continue;
+      const o = ac.createOscillator(); o.frequency.value = f * mul; const og = ac.createGain(); og.gain.setValueAtTime(a, t); og.gain.setTargetAtTime(0, t + 0.002, tau);
+      o.connect(og); og.connect(g); o.start(t); o.stop(t + tau * 7 + 0.05); srcs.push(o);
+    }
+    g.gain.value = 1;
+    const h = { g, srcs, row, on: true, box: true };
+    cal.sounding.set(h, t); if (cal.sounding.size > 8) calWhistleOff(cal.sounding.keys().next().value, t, true);
+    return h;
+  }
+  if (V.organ) {                                                      // pipe organ: steady, with a little chiff as the pipe speaks
+    const g = ac.createGain(); g.gain.value = 0; g.connect(calAudio.bus);
+    const f = mf(calMidi(row)), srcs = [];
+    const o = ac.createOscillator(); o.setPeriodicWave(calAudio.organW); o.frequency.value = f; const og = ac.createGain(); og.gain.value = 0.2; o.connect(og); og.connect(g); o.start(t); srcs.push(o);
+    const s = ac.createOscillator(); s.type = 'sine'; s.frequency.value = f / 2; const sg = ac.createGain(); sg.gain.value = 0.09; s.connect(sg); sg.connect(g); s.start(t); srcs.push(s);
+    const n = noiseSrc(t, 0.08), bp = ac.createBiquadFilter(), ng = ac.createGain(); bp.type = 'bandpass'; bp.frequency.value = Math.min(8000, f * 4); bp.Q.value = 3;
+    ng.gain.setValueAtTime(0.12, t); ng.gain.setTargetAtTime(0, t, 0.02); n.connect(bp); bp.connect(ng); ng.connect(g); srcs.push(n);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.04);
+    const h = { g, srcs, row, on: true, rel: 0.07 };
+    cal.sounding.set(h, t); if (cal.sounding.size > 6) calWhistleOff(cal.sounding.keys().next().value, t);
+    return h;
+  }
+  if (V.quartet) {                                                    // four brass players in harmony, one oscillator each (it's a lot of players)
+    const g = ac.createGain(); g.gain.value = 0; g.connect(calAudio.bus);
+    const srcs = [];
+    for (const [d, vi, lvl, reg] of [[row, 1, 0.14, 0], [row - 2, 3, 0.12, 0], [row - 4, 2, 0.11, -12], [row - 7, 4, 0.12, -12]]) {
+      const f = mf(calDegMidi(d) + reg), V2 = CAL_VOICES[vi];
+      const o = ac.createOscillator(); o.setPeriodicWave(calAudio.mid[vi]);
+      o.frequency.setValueAtTime(f * Math.pow(2, -V2.scoop / 1200), t); o.frequency.setTargetAtTime(f, t, V2.att * 0.7);
+      const og = ac.createGain(); og.gain.value = lvl; o.connect(og); og.connect(g); o.start(t); srcs.push(o);
+    }
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1.15, t + 0.035); g.gain.setTargetAtTime(1, t + 0.035, 0.1);
+    const h = { g, srcs, row, on: true, rel: 0.06 };
+    cal.sounding.set(h, t); if (cal.sounding.size > 4) calWhistleOff(cal.sounding.keys().next().value, t);
+    return h;
+  }
   if (!V.steam) {
     const g = ac.createGain(); g.gain.value = 0; g.connect(calAudio.bus);
     const srcs = [], m = calMidi(row);
@@ -6124,8 +6169,9 @@ function calWhistleOn(row, t) {
   if (cal.sounding.size > 6) calWhistleOff(cal.sounding.keys().next().value, t);
   return h;
 }
-function calWhistleOff(h, t) {
-  if (!h || !h.on) return; h.on = false; cal.sounding.delete(h);
+function calWhistleOff(h, t, force) {
+  if (!h || !h.on) return;
+  if (h.box && !force) { h.on = false; setTimeout(() => cal.sounding.delete(h), 1500); return; } h.on = false; cal.sounding.delete(h);
   t = Math.max(t, ac.currentTime);
   h.g.gain.cancelScheduledValues(t); h.g.gain.setTargetAtTime(0, t, h.rel || 0.03);
   for (const s of h.srcs) s.stop(t + 0.25);
@@ -6205,7 +6251,7 @@ let calHelp = '', calValue = '';
 const CAL_HELP = {
   start: 'Punch the roll: tap the paper to make a hole, tap again to patch it, drag to punch a row. STEAM runs it in time with the Rhythm Wheel, or turn the CRANK yourself. Keys: ↑ ↓ choose, ← → move or turn, Space punches.',
   paper: 'The roll: each row is a whistle (low at the bottom of the brass), then the drum and the cymbal. Holes in a line make a long note.',
-  voice: 'Voice: what the pipes sound like. Steam WHISTLES, or brass: TRUMPET, TROMBONE, French HORN, TUBA, or the BAND (trumpets with trombones an octave below).',
+  voice: 'Voice: steam WHISTLE; brass (TRUMPET, TROMBONE, French HORN, TUBA, a BAND, a brass QUARTET in four-part harmony); a MUSIC BOX; or a church pipe ORGAN.',
   steam: 'Steam: starts and stops the engine. It runs the roll in eighth notes, in step with the Rhythm Wheel.',
   crank: 'The crank: drag it round, either way, as fast or slow as you like. The roll turns with your hand.',
   preset: 'A roll that came with the calliope. It replaces yours (CLEAR gives you a blank one).',
@@ -6231,7 +6277,7 @@ function drawCalControls() {
   tog('steam', cal.steam ? 'STEAM ON' : 'STEAM', cal.steam, '#d42a24');
   for (const k of ['CAROUSEL', 'MARCH', 'LULLABY']) tog(k, k, cal.preset === k, '#1f5fd6');
   tog('clear', 'CLEAR', false);
-  CAL_VOICES.forEach((V, v) => tog('v' + v, V.n, v === cal.voice, '#c8861a'));
+  CAL_VOICES.forEach((V, v) => { const B = calBtns['v' + v], on = v === cal.voice; B.mat.color.set(on ? '#c8861a' : '#f6f2ea'); printText(B.L, [[V.n, V.n.length > 7 ? 32 : V.n.length > 5 ? 38 : 46, on ? '#ffffff' : '#1d1b18']]); });
   const S = calVolSl, v = VOL.calliope, x = S.x0 + v * S.len;
   S.cap.position.set(x, S.y + 0.028, S.z); S.fill.scale.x = Math.max(0.001, v * S.len); S.fill.position.set(S.x0 + v * S.len / 2, S.y + 0.008, S.z);
   printText(S.lb, [[`VOLUME ${Math.round(v * 100)}%`, 44, '#3a3630']], { align: 'left' });
@@ -6366,14 +6412,14 @@ function updateCalliope(dt) {
   calCrank.rotation.z = cal.crankA;
   // the whistles glow and puff steam while they sound; the drum and cymbal jump
   const now = performance.now();
-  const brass = !CAL_VOICES[cal.voice].steam;
+  const CV = CAL_VOICES[cal.voice], brass = !CV.steam && !CV.box && !CV.organ, steamV = !!CV.steam;
   calWhistles.forEach((W, i) => {
     W.bell.visible = brass; W.cap.visible = !brass;
     const on = cal.wFx && cal.wFx[i] > now;
     cal.glow[i] = on ? 1 : cal.glow[i] * Math.exp(-dt * 8);
     W.mat.emissiveIntensity = cal.glow[i] * 0.7;
     W.g.position.y = 1.8 + cal.glow[i] * 0.012;
-    if (on && !brass && (W.nextPuff || 0) < time) {
+    if (on && steamV && (W.nextPuff || 0) < time) {
       W.nextPuff = time + 0.09;
       const P = cal.puffs.find((q) => q.life <= 0);
       if (P) { P.life = 1; P.s.visible = true; P.s.position.set(W.x + (Math.random() - 0.5) * 0.02, 1.8 + W.h + 0.03, -0.75); P.vx = (Math.random() - 0.5) * 0.06; P.sz = 0.05 + (CAL_W - i) * 0.004; }
