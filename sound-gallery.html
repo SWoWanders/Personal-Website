@@ -223,11 +223,11 @@ function labelTex(i) {
   g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, 600, 400);
   g.fillStyle = ALCOVE_COL[i]; g.fillRect(0, 0, 600, 18);
   g.fillStyle = '#1d1b18'; g.font = `bold 110px ${FONT}`; g.fillText(ROMAN[i], 36, 140);
-  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : i === 3 ? 'The Texture Machine' : i === 2 ? 'The Theremin' : i === 10 ? 'The Choir Wall' : i === 1 ? 'The String Frame' : 'Machine Forthcoming', 36, 205);
+  g.font = `bold 40px ${FONT}`; g.fillText(i === 6 ? 'The Drone Organ' : i === 8 ? 'The Rhythm Wheel' : i === 4 ? 'The Melody Console' : i === 7 ? 'The Bass Pedals' : i === 5 ? 'The Ripple Pool' : i === 9 ? 'The Tape Echo' : i === 3 ? 'The Texture Machine' : i === 2 ? 'The Theremin' : i === 10 ? 'The Choir Wall' : i === 1 ? 'The String Frame' : i === 11 ? 'The Steam Calliope' : 'Machine Forthcoming', 36, 205);
   g.fillStyle = '#5a554d'; g.font = `30px ${FONT}`;
   g.fillText('Sound Gallery Collection', 36, 262);
-  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : i === 3 ? 'Wind, rain, sea, light · 2026' : i === 2 ? 'Mahogany, nickel, air · 2026' : i === 10 ? 'Voices, risers, light · 2026' : i === 1 ? 'Strings, frame, light · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
-  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : i === 3 ? 'Weather for the room' : i === 2 ? 'After Léon Theremin’s RCA of 1929' : i === 10 ? 'Sings the chords of the gallery’s key' : i === 1 ? 'Plucked and bowed, in the gallery’s key' : 'Installation in progress', 36, 346);
+  g.fillText(i === 6 ? 'Pipes, light, sound · 2026' : i === 8 ? 'Pads, light, pulse · 2026' : i === 4 ? 'Tape, disc, walnut · 2026' : i === 7 ? 'Pedals, woofer, walnut · 2026' : i === 5 ? 'Water, chimes, light · 2026' : i === 9 ? 'Tape, heads, walnut · 2026' : i === 3 ? 'Wind, rain, sea, light · 2026' : i === 2 ? 'Mahogany, nickel, air · 2026' : i === 10 ? 'Voices, risers, light · 2026' : i === 1 ? 'Strings, frame, light · 2026' : i === 11 ? 'Brass, steam, paper roll · 2026' : 'Sound, light, mixed media · 2026', 36, 304);
+  g.fillText(i === 6 ? 'Sets the key for the whole gallery' : i === 8 ? 'Keeps time; its tone follows the organ' : i === 4 ? 'After the Omnichord and the Optigan' : i === 7 ? 'Follows the Optigan’s chords' : i === 5 ? 'Tuned to the gallery’s key' : i === 9 ? 'Repeats the other machines' : i === 3 ? 'Weather for the room' : i === 2 ? 'After Léon Theremin’s RCA of 1929' : i === 10 ? 'Sings the chords of the gallery’s key' : i === 1 ? 'Plucked and bowed, in the gallery’s key' : i === 11 ? 'Plays the roll you punch' : 'Installation in progress', 36, 346);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
 }
 function signTex(text, w = 1024, h = 200) {
@@ -940,13 +940,13 @@ function roomSpace(x, z) { return inPolygon(x, z, 0.15) || !!inAlcove(x, z, 0.15
 const PANNING = isTouch ? 'equalpower' : 'HRTF';      // HRTF 3D sound is costly; phones get the lighter kind
 /* ---------- a volume control for every machine. 0..1 on the dial; 0.7 is the normal level,
    full turn is about twice as loud. Remembered in this browser. */
-const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7, texture: 0.7, theremin: 0.7, choir: 0.7, strings: 0.7 };
+const VOL = { organ: 0.7, rhythm: 0.7, strum: 0.7, optigan: 0.7, bass: 0.7, pool: 0.7, echo: 0.7, texture: 0.7, theremin: 0.7, choir: 0.7, strings: 0.7, calliope: 0.7 };
 try { Object.assign(VOL, JSON.parse(localStorage.getItem('sg-vol') || '{}')); } catch (e) {}
 const volNodes = {};                                     // key -> [gain node, base gain]
 const volGain = (v) => Math.pow(v / 0.7, 2);
 function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
 // a quick mute on every machine (the melody console's mutes both its instruments). Not remembered between visits.
-const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false, texture: false, theremin: false, choir: false, strings: false };
+const MUTED = { organ: false, rhythm: false, melody: false, bass: false, pool: false, echo: false, texture: false, theremin: false, choir: false, strings: false, calliope: false };
 const volGroup = (key) => (key === 'strum' || key === 'optigan' ? 'melody' : key);
 const volLevel = (key) => (MUTED[volGroup(key)] ? 0 : volGain(VOL[key]));
 const muteBtns = {};
@@ -1044,6 +1044,7 @@ function initAudio() {
   initThereminAudio();
   initChoirAudio();
   initStringsAudio();
+  initCalliopeAudio();
   initEchoAudio();                                       // last: it listens to the others
 }
 /* ---------- THE CENTRE MICROPHONE
@@ -1381,15 +1382,15 @@ function interactCenter() {
   ndc.set(0, 0); if (doRay()) return;
   // fallback: nearest plinth within reach
   let best = null, bd = 3.6;
-  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M, THER_M, CHOIR_M, STR_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
-  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I] || a === alcoves[TEX_I] || a === alcoves[THER_I] || a === alcoves[CHOIR_I] || a === alcoves[STR_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
+  if (state === 'hall') for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M, THER_M, CHOIR_M, STR_M, CAL_M]) { const od = player.pos.x * normals[m.al].x + player.pos.z * normals[m.al].z, ou = player.pos.x * tangents[m.al].x + player.pos.z * tangents[m.al].z; if (od > A - 3.5 && Math.abs(ou) < 3) { enterPlay(m); return; } }
+  for (const a of alcoves) { if (!a || a === alcoves[ORG_I] || a === alcoves[RHY_I] || a === alcoves[MEL_I] || a === alcoves[BASS_I] || a === alcoves[POOL_I] || a === alcoves[ECHO_I] || a === alcoves[TEX_I] || a === alcoves[THER_I] || a === alcoves[CHOIR_I] || a === alcoves[STR_I] || a === alcoves[CAL_I]) continue; const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z); if (d < bd) { bd = d; best = a; } }
   if (best) chime(best.plinth.userData.alcove);
 }
 function doRay() {
   ray.setFromCamera(ndc, camera);
   if (state === 'hall' && !playing) {
-    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0], th = ray.intersectObjects(texHits, false)[0], thr = ray.intersectObjects(therHits, false)[0], chh = ray.intersectObjects(choirHits, false)[0], sth = ray.intersectObjects(strHits, false)[0];
-    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M], [th, TEX_M], [thr, THER_M], [chh, CHOIR_M], [sth, STR_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
+    const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0], th = ray.intersectObjects(texHits, false)[0], thr = ray.intersectObjects(therHits, false)[0], chh = ray.intersectObjects(choirHits, false)[0], sth = ray.intersectObjects(strHits, false)[0], cah = ray.intersectObjects(calHits, false)[0];
+    const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M], [th, TEX_M], [thr, THER_M], [chh, CHOIR_M], [sth, STR_M], [cah, CAL_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
@@ -3957,9 +3958,9 @@ const echoAl = alcoves[ECHO_I];
 echoAl.g.remove(echoAl.plinth); echoAl.g.remove(echoAl.beam);
 plinths.splice(plinths.indexOf(echoAl.plinth), 1);
 const echoHits = [], echoCtrls = [];
-const EC_INPUTS = [['ORGAN', ['organ'], '#8a4bff'], ['WHEEL', ['rhythm'], '#ff3030'], ['CONSOLE', ['strum', 'optigan'], '#66e000'], ['BASS', ['bass'], '#1f6bff'], ['POOL', ['pool'], '#00d0b0'], ['TEXTURE', ['texture'], '#ffd000'], ['THEREMIN', ['theremin'], '#ff1f8f'], ['CHOIR', ['choir'], '#c400ff'], ['STRINGS', ['strings'], '#ff6a00']];
+const EC_INPUTS = [['ORGAN', ['organ'], '#8a4bff'], ['WHEEL', ['rhythm'], '#ff3030'], ['CONSOLE', ['strum', 'optigan'], '#66e000'], ['BASS', ['bass'], '#1f6bff'], ['POOL', ['pool'], '#00d0b0'], ['TEXTURE', ['texture'], '#ffd000'], ['THEREMIN', ['theremin'], '#ff1f8f'], ['CHOIR', ['choir'], '#c400ff'], ['STRINGS', ['strings'], '#ff6a00'], ['CALLIOPE', ['calliope'], '#ff9a5a']];
 const EC_SYNC = [['1/16', 1], ['1/8', 2], ['3/16', 3], ['1/4', 4]];        // base delay in sixteenths when synced
-const echo = { ins: [false, false, true, false, true, false, true, false, false], heads: [true, true, false], repeat: 0.45, rate: 0.45, tone: 0.6, wow: 0.25, sync: true, speed: 1, speedT: 1, throw: false, freeze: false, vu: 0, inLvl: 0, tapeOff: 0, sig: '', marks: [] };
+const echo = { ins: [false, false, true, false, true, false, true, false, false, false], heads: [true, true, false], repeat: 0.45, rate: 0.45, tone: 0.6, wow: 0.25, sync: true, speed: 1, speedT: 1, throw: false, freeze: false, vu: 0, inLvl: 0, tapeOff: 0, sig: '', marks: [] };
 function echoBase() {                                                     // seconds between the record head and head 1
   // (divided by the tape speed: grab the tape and drag to slow it or speed it up, as with a real loop)
   if (echo.sync) return stepDur() * EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][1] / echo.speed;
@@ -3984,7 +3985,7 @@ let echoTape, echoDispL, echoHeadMats = [], echoThrow;
     const o = { mat, L, name, col, b }; if (list) list[k] = o; return o;
   };
   // back row: what the echo listens to
-  EC_INPUTS.forEach(([n, , col], k) => btn(n, col, -0.82 + k * 0.205, -0.2, 0.195, { t: 'in', i: k }, echoBtns.in, k));
+  EC_INPUTS.forEach(([n, , col], k) => btn(n, col, -0.835 + k * 0.186, -0.2, 0.176, { t: 'in', i: k }, echoBtns.in, k));
   // sliders: REPEAT and RATE, then TONE and WOW, each with its name to the left
   const slider = (key, x0, len, z, label, col, lx, lw) => {
     const slot = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.012, 0.026), mDark); slot.position.set(x0 + len / 2, top + 0.006, z); echoG.add(slot);
@@ -4156,7 +4157,7 @@ function drawEchoSlider(key) {
 }
 function drawEchoButtons() {
   const tog = (b, on, size = 36) => printText(b.L, [[b.name, size, on ? '#ffffff' : '#1d1b18']], on ? { bg: '#1d1b18' } : {});
-  echoBtns.in.forEach((b, k) => tog(b, echo.ins[k], b.name.length > 6 ? 27 : 33));
+  echoBtns.in.forEach((b, k) => tog(b, echo.ins[k], b.name.length > 6 ? 25 : 31));
   echoBtns.head.forEach((b, k) => tog(b, echo.heads[k], 32));
   tog(echoBtns.sync, echo.sync); tog(echoBtns.freeze, echo.freeze, 32); tog(echoThrow, echo.throw, 44);
   for (const key in echoSl) drawEchoSlider(key);
@@ -5872,6 +5873,480 @@ function updateStrings(dt) {
   if (strg.dispT > 0.25 && playing && curM === STR_M) { strg.dispT = 0; drawStrDisplay(); }
 }
 
+/* ------------------------------------------------------------------ XI · THE STEAM CALLIOPE
+   A fairground steam calliope, fed by a punched paper roll, as most of them were. Ten brass whistles on
+   top (tuned to the gallery's scale, low on the left), a bass drum and a cymbal on the front, and on the
+   table before it the roll: a loop of paper, 32 eighth-notes long, running past a brass tracker bar.
+   Wherever there's a hole, air (steam) gets through and that whistle sounds; holes in a row make a long
+   note. Tap the paper to punch a hole, tap again to patch it; drag to punch several.
+   STEAM starts and stops the engine, which runs the roll in time with the Rhythm Wheel. Or turn the brass
+   CRANK by hand: as fast or slow as you like, forwards or back. Three rolls come with it (CAROUSEL,
+   MARCH, LULLABY); CLEAR gives you a blank one. Your roll is remembered in this browser.
+   Sound: each whistle is one oscillator with a soft breath of noise through a fixed filter; the steam
+   wavers through one shared delay. Puffs of steam rise from the whistles that sound. */
+const CAL_I = 11;
+const calAl = alcoves[CAL_I];
+calAl.g.remove(calAl.plinth); calAl.g.remove(calAl.beam);
+plinths.splice(plinths.indexOf(calAl.plinth), 1);
+const calHits = [], calCtrls = [];
+const CAL_W = 10, CAL_ROWS = 12, CAL_LEN = 32, CAL_VIS = 16;         // whistles, rows on the roll (10 + drum + cymbal), steps round the roll, steps in view
+const CP = { x0: -0.62, x1: 0.8, z0: -0.64, z1: -0.02, y: 0.012, bar: -0.4 };   // the paper on its sloping desk (in the desk's own space), and the tracker bar
+CP.dx = (CP.x1 - CP.x0) / CAL_VIS; CP.dz = (CP.z1 - CP.z0) / CAL_ROWS;
+// rows from the far edge: the highest whistle first, down to the lowest, then the drum and the cymbal (nearest you)
+const calRowOf = (r) => (r < CAL_W ? CAL_W - 1 - r : r);              // display row → data row (0..9 whistles low→high, 10 drum, 11 cymbal)
+const CAL_PRESETS = {
+  CAROUSEL: { n: [[0, 4, 2], [2, 2, 1], [3, 4, 1], [4, 7, 2], [6, 4, 2], [8, 5, 2], [10, 3, 1], [11, 5, 1], [12, 8, 2], [14, 5, 2], [16, 4, 2], [18, 2, 1], [19, 4, 1], [20, 6, 2], [22, 4, 1], [23, 3, 1], [24, 2, 2], [26, 1, 1], [27, 2, 1], [28, 0, 4]],
+    d: [0, 4, 8, 12, 16, 20, 24, 28], c: [14, 30] },
+  MARCH: { n: [[0, 0, 1], [1, 0, 1], [2, 2, 1], [3, 4, 1], [4, 7, 2], [6, 4, 2], [8, 5, 1], [9, 5, 1], [10, 4, 1], [11, 3, 1], [12, 2, 2], [14, 1, 2], [16, 0, 1], [17, 0, 1], [18, 2, 1], [19, 4, 1], [20, 7, 2], [22, 9, 2], [24, 8, 2], [26, 6, 1], [27, 4, 1], [28, 7, 4]],
+    d: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], c: [0, 16] },
+  LULLABY: { n: [[0, 4, 3], [3, 3, 1], [4, 2, 4], [8, 4, 3], [11, 5, 1], [12, 4, 4], [16, 7, 3], [19, 6, 1], [20, 5, 2], [22, 4, 2], [24, 3, 2], [26, 2, 2], [28, 0, 4]], d: [0, 16], c: [] },
+};
+function calPresetRoll(name) {
+  const R = Array.from({ length: CAL_ROWS }, () => new Array(CAL_LEN).fill(false)), P = CAL_PRESETS[name];
+  for (const [s, deg, len] of P.n) for (let k = 0; k < len; k++) R[deg][(s + k) % CAL_LEN] = true;
+  for (const s of P.d) R[10][s] = true; for (const s of P.c) R[11][s] = true;
+  return R;
+}
+const cal = { roll: calPresetRoll('CAROUSEL'), steam: false, p: 0, step: 0, nextT: 0, hand: false, crankA: 0, sounding: new Map(), handNotes: new Map(), wFx: {}, puffs: [], dispT: 0, edit: null, cur: { r: 0, s: 0 }, preset: 'CAROUSEL', glow: new Array(CAL_ROWS).fill(0) };
+try { const s = JSON.parse(localStorage.getItem('sg-roll') || 'null'); if (s && s.length === CAL_ROWS && s[0].length === CAL_LEN) { cal.roll = s; cal.preset = ''; } } catch (e) {}
+const calSave = () => { try { localStorage.setItem('sg-roll', JSON.stringify(cal.roll)); } catch (e) {} };
+const calMidi = (d) => { const r = NOTE_SEMI[org.root], sc = SCALES[org.mood]; return (r < 6 ? 60 : 48) + r + sc[d % 7] + 12 * Math.floor(d / 7); };   // whistle d: scale degree d above the home note
+
+const calG = new THREE.Group(); calG.position.set(0, 0.15, A + 1.25); calG.rotation.y = Math.PI; calAl.g.add(calG);
+let calRollG, calPaper, calRowL, calDispL, calWhistles = [], calDrum, calCym, calCrank, calSpools = [], calBtns = {}, calVolSl, calBarMat, calPuffTex, calCursor;
+{
+  const red = new THREE.MeshStandardMaterial({ color: '#d42a24', roughness: 0.4 });
+  const yellow = new THREE.MeshStandardMaterial({ color: '#ffc61a', roughness: 0.45 });
+  const blue = new THREE.MeshStandardMaterial({ color: '#1f5fd6', roughness: 0.45 });
+  const black = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.35 });
+  const white = new THREE.MeshStandardMaterial({ color: '#f6f2ea', roughness: 0.6 });
+  const brass = new THREE.MeshStandardMaterial({ color: '#d4a640', metalness: 0.9, roughness: 0.28 });
+  // the calliope: a red cabinet, a yellow cornice, a blue base with black stripes
+  calHits.push(box(2.0, 1.0, 0.6, red, 0, 1.2, -0.75, calG));
+  calHits.push(box(2.0, 0.7, 0.6, blue, 0, 0.35, -0.75, calG));
+  box(2.06, 0.1, 0.66, yellow, 0, 1.75, -0.75, calG);
+  box(2.06, 0.06, 0.66, black, 0, 0.72, -0.75, calG);
+  for (let k = 0; k < 6; k++) box(0.04, 0.6, 0.01, black, -0.85 + k * 0.34, 0.35, -0.444, calG);
+  // the whistles: brass pipes, tall and wide in the bass, each with a dark mouth near the top
+  for (let i = 0; i < CAL_W; i++) {
+    const x = -0.81 + i * 0.18, h = 0.58 - i * 0.034, r = 0.042 - i * 0.0018;
+    const g = new THREE.Group(); g.position.set(x, 1.8, -0.75); calG.add(g);
+    const mat = new THREE.MeshStandardMaterial({ color: '#d4a640', metalness: 0.9, roughness: 0.28, emissive: '#ffb347', emissiveIntensity: 0 });
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 20), mat); pipe.position.y = h / 2; g.add(pipe);
+    const mouth = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.02, r * 1.02, 0.03, 20), black); mouth.position.y = h * 0.78; g.add(mouth);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 1.05, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat); cap.position.y = h; g.add(cap);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.7, 0.05, 12), brass); foot.position.y = -0.02; g.add(foot);
+    calWhistles.push({ g, mat, h, x });
+  }
+  // the bass drum on the left, the cymbal on the right, the display between
+  calDrum = new THREE.Group(); calDrum.position.set(-0.66, 1.18, -0.42); calG.add(calDrum);
+  const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.07, 40), blue); shell.rotation.x = Math.PI / 2; calDrum.add(shell);
+  const skin = new THREE.Mesh(new THREE.CircleGeometry(0.21, 40), new THREE.MeshStandardMaterial({ color: '#f3ecdf', roughness: 0.7, emissive: '#ffffff', emissiveIntensity: 0 })); skin.position.z = 0.036; calDrum.add(skin); calDrum.skin = skin;
+  const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.012, 8, 40), yellow); hoop.position.z = 0.036; calDrum.add(hoop);
+  const star = new THREE.Mesh(new THREE.CircleGeometry(0.07, 5), new THREE.MeshStandardMaterial({ color: '#d42a24', roughness: 0.5 })); star.position.z = 0.038; calDrum.add(star);
+  calCym = new THREE.Group(); calCym.position.set(0.68, 1.22, -0.4); calG.add(calCym);
+  const cy = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.01, 40), new THREE.MeshStandardMaterial({ color: '#e0b84a', metalness: 0.95, roughness: 0.22, emissive: '#ffd27a', emissiveIntensity: 0 }));
+  cy.rotation.x = Math.PI / 2 - 0.35; calCym.add(cy); calCym.disc = cy;
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), brass); calCym.add(bell);
+  calDispL = canvasTex(1600, 640);
+  const dp = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.336), new THREE.MeshBasicMaterial({ map: calDispL.t, toneMapped: false }));
+  dp.position.set(0, 1.22, -0.435); calG.add(dp);
+  box(0.9, 0.39, 0.012, black, 0, 1.22, -0.443, calG);
+  // the table, and the roll on it
+  const ledgeY = 0.86;
+  calHits.push(box(2.0, 0.06, 1.04, black, 0, ledgeY - 0.03, 0.38, calG));
+  box(2.0, 0.008, 1.02, white, 0, ledgeY + 0.004, 0.38, calG);
+  for (const x of [-0.94, 0.94]) for (const z of [-0.08, 0.84]) box(0.05, ledgeY - 0.06, 0.05, black, x, (ledgeY - 0.06) / 2, z, calG);
+  // the roll lies on a sloping desk, hinged at its front edge, so it faces you
+  calRollG = new THREE.Group(); calRollG.position.set(0, ledgeY + 0.012, 0.54); calRollG.rotation.x = 0.46; calG.add(calRollG);
+  const RG = calRollG;
+  box(1.92, 0.02, CP.z1 - CP.z0 + 0.06, black, 0, 0, (CP.z0 + CP.z1) / 2, RG);
+  for (const x of [-0.9, 0.9]) box(0.04, 0.29, 0.04, black, x, ledgeY + 0.145, 0.54 - 0.66 * Math.cos(0.46), calG);   // the desk's back legs
+  const pc = canvasTex(CAL_LEN * 64, CAL_ROWS * 48);
+  pc.t.wrapS = THREE.RepeatWrapping; pc.t.repeat.x = CAL_VIS / CAL_LEN;
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(CP.x1 - CP.x0, CP.z1 - CP.z0), new THREE.MeshBasicMaterial({ map: pc.t, toneMapped: false }));
+  paper.rotation.x = -Math.PI / 2; paper.position.set((CP.x0 + CP.x1) / 2, CP.y, (CP.z0 + CP.z1) / 2); RG.add(paper);
+  calPaper = pc;
+  const ph = new THREE.Mesh(new THREE.BoxGeometry(CP.x1 - CP.x0, 0.05, CP.z1 - CP.z0), hitMat); ph.position.set((CP.x0 + CP.x1) / 2, CP.y + 0.02, (CP.z0 + CP.z1) / 2); RG.add(ph);
+  ph.userData = { t: 'paper' }; calCtrls.push(ph);
+  // spools at either end, and the brass tracker bar across the paper
+  for (const x of [CP.x0 - 0.035, CP.x1 + 0.035]) { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, CP.z1 - CP.z0 + 0.06, 20), new THREE.MeshStandardMaterial({ color: '#efe3c8', roughness: 0.7 })); s.rotation.x = Math.PI / 2; s.position.set(x, CP.y + 0.03, (CP.z0 + CP.z1) / 2); RG.add(s); calSpools.push(s); }
+  calBarMat = new THREE.MeshStandardMaterial({ color: '#d4a640', metalness: 0.9, roughness: 0.25, emissive: '#ffb347', emissiveIntensity: 0.15 });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.022, CP.z1 - CP.z0 + 0.05), calBarMat); bar.position.set(CP.bar, CP.y + 0.011, (CP.z0 + CP.z1) / 2); RG.add(bar);
+  // the row names, down the left margin
+  calRowL = flatLabel(0.26, CP.z1 - CP.z0, 260, CAL_ROWS * 60, RG, -0.835, CP.y, (CP.z0 + CP.z1) / 2);
+  // a cursor for keys and controller: a frame round one square of paper
+  calCursor = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.026, 4, 1), new THREE.MeshBasicMaterial({ color: '#e8262b', toneMapped: false })); calCursor.rotation.x = -Math.PI / 2; calCursor.rotation.z = Math.PI / 4; calCursor.scale.set(1.9, 1, 1); calCursor.visible = false; RG.add(calCursor);
+  // the crank: a brass wheel with a handle, high on the cabinet's right
+  calCrank = new THREE.Group(); calCrank.position.set(0.8, 1.53, -0.405); calG.add(calCrank);
+  { const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 16), brass); hub.rotation.x = Math.PI / 2; calCrank.add(hub); }
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.012, 8, 40), brass); calCrank.add(wheel);
+  for (let k = 0; k < 4; k++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.012, 0.012), brass); sp.rotation.z = k * Math.PI / 4; calCrank.add(sp); }
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.08, 12), new THREE.MeshStandardMaterial({ color: '#d42a24', roughness: 0.4 })); knob.rotation.x = Math.PI / 2; knob.position.set(0.13, 0, 0.04); calCrank.add(knob);
+  const ch = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.14), hitMat); calCrank.add(ch); ch.userData = { t: 'crank' }; calCtrls.push(ch);
+  // buttons along the front: STEAM, the three rolls, CLEAR; then volume and mute
+  const top = ledgeY + 0.008;
+  const btn = (key, x, w) => {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, 0.12), mat); b.position.set(x, top + 0.02, 0.64); calG.add(b);
+    b.userData = { t: 'btn', key }; calCtrls.push(b);
+    const L = flatLabel(w * 0.95, 0.11, Math.round(260 * w / 0.2), 143, b, 0, 0.0205, 0);
+    calBtns[key] = { b, mat, L };
+  };
+  btn('steam', -0.78, 0.3); btn('CAROUSEL', -0.43, 0.28); btn('MARCH', -0.13, 0.26); btn('LULLABY', 0.16, 0.26); btn('clear', 0.43, 0.22);
+  { const b = makeMuteBtn('calliope', calG, 0.75, top + 0.02, 0.64, 0.26, 0.12); b.userData = { t: 'mute' }; calCtrls.push(b); }
+  const x0 = -0.25, len = 1.1, z = 0.8;
+  box(len + 0.04, 0.012, 0.03, mDark, x0 + len / 2, top + 0.006, z, calG);
+  const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.02), new THREE.MeshBasicMaterial({ color: '#ff9a5a', toneMapped: false })); calG.add(fill);
+  const mat = capMat('#2a2724'), cap = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.055, 0.1), mat); calG.add(cap);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(len + 0.16, 0.12, 0.14), hitMat); hit.position.set(x0 + len / 2, top + 0.03, z); calG.add(hit);
+  for (const o of [cap, hit]) { o.userData = { t: 'vol' }; calCtrls.push(o); }
+  const lb = flatLabel(0.6, 0.07, 600, 70, calG, -0.6, top + 0.001, z);
+  calVolSl = { x0, len, z, y: top, fill, mat, cap, lb };
+  // steam: soft white puffs, a fixed pool of them
+  const sc = canvasTex(64, 64); { const g = sc.g, gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); sc.t.needsUpdate = true; }
+  calPuffTex = sc.t;
+  for (let k = 0; k < 36; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: calPuffTex, transparent: true, opacity: 0, depthWrite: false })); s.visible = false; calG.add(s); cal.puffs.push({ s, life: 0 }); }
+}
+const calPos = calAl.g.localToWorld(new THREE.Vector3(0, 1.6, A + 2.0));
+
+/* ---------- the roll, drawn */
+function drawCalRoll() {
+  const { g, c, t } = calPaper, W = c.width, H = c.height, cw = W / CAL_LEN, rh = H / CAL_ROWS;
+  g.fillStyle = '#f3e7cc'; g.fillRect(0, 0, W, H);
+  for (let r = 0; r < CAL_ROWS; r++) { if (r === CAL_W) { g.fillStyle = 'rgba(31,95,214,0.10)'; g.fillRect(0, r * rh, W, rh * 2); } }
+  for (let s = 0; s <= CAL_LEN; s++) { g.fillStyle = s % 8 === 0 ? 'rgba(90,60,30,0.55)' : s % 2 === 0 ? 'rgba(90,60,30,0.25)' : 'rgba(90,60,30,0.1)'; g.fillRect(s * cw - (s % 8 ? 1 : 2), 0, s % 8 ? 2 : 4, H); }
+  for (let r = 0; r <= CAL_ROWS; r++) { g.fillStyle = r === CAL_W ? 'rgba(90,60,30,0.5)' : 'rgba(90,60,30,0.12)'; g.fillRect(0, r * rh - 1, W, 2); }
+  // holes: dark slots, joined along a row where a note is held
+  for (let r = 0; r < CAL_ROWS; r++) {
+    const row = cal.roll[calRowOf(r)];
+    for (let s = 0; s < CAL_LEN; s++) {
+      if (!row[s]) continue;
+      const joinR = row[(s + 1) % CAL_LEN] && s < CAL_LEN - 1, joinL = s > 0 && row[s - 1];
+      g.fillStyle = r < CAL_W ? '#2a1a10' : r === CAL_W ? '#1f3f8a' : '#7a5a10';
+      const x = s * cw + (joinL ? 0 : cw * 0.14), w = cw - (joinL ? 0 : cw * 0.14) - (joinR ? 0 : cw * 0.14);
+      g.beginPath(); g.roundRect ? g.roundRect(x, r * rh + rh * 0.2, w, rh * 0.6, rh * 0.25) : g.rect(x, r * rh + rh * 0.2, w, rh * 0.6); g.fill();
+    }
+  }
+  t.needsUpdate = true;
+}
+function drawCalRows() {
+  const { g, c, t } = calRowL, W = c.width, H = c.height, rh = H / CAL_ROWS;
+  g.clearRect(0, 0, W, H); g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let r = 0; r < CAL_ROWS; r++) {
+    const d = calRowOf(r);
+    g.font = `bold ${d < CAL_W ? 46 : 38}px ${FONT}`; g.fillStyle = d < CAL_W ? '#f3e7cc' : d === 10 ? '#7fb0ff' : '#ffc61a';
+    g.fillText(d < CAL_W ? noteName(calMidi(d)) : d === 10 ? 'DRUM' : 'CYM', W - 8, r * rh + rh / 2);
+  }
+  t.needsUpdate = true;
+}
+
+/* ---------- sound */
+let calAudio = null;
+function initCalliopeAudio() {
+  const out = ac.createGain(); volRegister('calliope', out, 1);
+  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
+  setPannerPos(pan, calPos); out.connect(pan); pan.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.3; out.connect(send); send.connect(reverbIn);
+  micTap(out, calPos, 1.2);
+  // the steam's pressure wavers a little: one shared, slowly wobbling delay gives every whistle its unsteady pitch
+  const bus = ac.createGain(); bus.gain.value = 1;
+  const dly = ac.createDelay(0.05); dly.delayTime.value = 0.01;
+  const l1 = ac.createOscillator(); l1.frequency.value = 4.3; const l1g = ac.createGain(); l1g.gain.value = 0.00018; l1.connect(l1g); l1g.connect(dly.delayTime); l1.start();
+  const l2 = ac.createOscillator(); l2.frequency.value = 0.7; const l2g = ac.createGain(); l2g.gain.value = 0.0004; l2.connect(l2g); l2g.connect(dly.delayTime); l2.start();
+  const tone = ac.createBiquadFilter(); tone.type = 'peaking'; tone.frequency.value = 2400; tone.Q.value = 0.8; tone.gain.value = 3;
+  bus.connect(dly); dly.connect(tone); tone.connect(out);
+  const perc = ac.createGain(); perc.gain.value = 1; perc.connect(out);
+  // a whistle is mostly a pure tone, a little hollow, with a hiss of steam around it
+  const wave = ac.createPeriodicWave(new Float32Array(6), Float32Array.from([0, 1, 0.16, 0.22, 0.05, 0.06]));
+  calAudio = { out, bus, perc, wave };
+}
+function calWhistleOn(row, t) {
+  if (!calAudio) return null;
+  const f = mf(calMidi(row)), g = ac.createGain(); g.gain.value = 0; g.connect(calAudio.bus);
+  const o = ac.createOscillator(); o.setPeriodicWave(calAudio.wave);
+  o.frequency.setValueAtTime(f * Math.pow(2, -45 / 1200), t); o.frequency.setTargetAtTime(f, t, 0.025);   // steam takes a moment to reach pitch
+  const og = ac.createGain(); og.gain.value = 0.2; o.connect(og); og.connect(g); o.start(t);
+  // the hiss: noise through a fixed band round the note
+  const n = ac.createBufferSource(); n.buffer = rhyAudio.noise; n.loop = true; n.start(t, Math.random() * 0.5);
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = Math.min(9000, f * 2); bp.Q.value = 2.5;
+  const ng = ac.createGain(); ng.gain.value = 0.05; n.connect(bp); bp.connect(ng); ng.connect(g);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1.25, t + 0.012); g.gain.setTargetAtTime(1, t + 0.012, 0.05);
+  const h = { g, srcs: [o, n], row, on: true };
+  // budget: six whistles at once at most; the oldest lets go
+  cal.sounding.set(h, t);
+  if (cal.sounding.size > 6) calWhistleOff(cal.sounding.keys().next().value, t);
+  return h;
+}
+function calWhistleOff(h, t) {
+  if (!h || !h.on) return; h.on = false; cal.sounding.delete(h);
+  t = Math.max(t, ac.currentTime);
+  h.g.gain.cancelScheduledValues(t); h.g.gain.setTargetAtTime(0, t, 0.03);
+  for (const s of h.srcs) s.stop(t + 0.25);
+  setTimeout(() => { try { h.g.disconnect(); } catch (e) {} }, (t - ac.currentTime + 0.4) * 1000);
+}
+function calDrumHit(t) {
+  if (!calAudio) return;
+  const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.09);
+  g.gain.setValueAtTime(0.9, t); g.gain.setTargetAtTime(0, t + 0.01, 0.12); o.connect(g); g.connect(calAudio.perc); o.start(t); o.stop(t + 0.8);
+  const n = noiseSrc(t, 0.05), lp = ac.createBiquadFilter(), ng = ac.createGain(); lp.type = 'lowpass'; lp.frequency.value = 900; ng.gain.setValueAtTime(0.35, t); ng.gain.setTargetAtTime(0, t, 0.015);
+  n.connect(lp); lp.connect(ng); ng.connect(calAudio.perc);
+}
+function calCymHit(t) {
+  if (!calAudio) return;
+  const n = noiseSrc(t, 1.4), hp = ac.createBiquadFilter(), g = ac.createGain(); hp.type = 'highpass'; hp.frequency.value = 5200;
+  g.gain.setValueAtTime(0.32, t); g.gain.setTargetAtTime(0, t + 0.005, 0.32); n.connect(hp); hp.connect(g); g.connect(calAudio.perc);
+}
+// one step of the roll at time t: start the notes whose holes begin here (and say how long they run), hit drum and cymbal
+function calPlayStep(s, t, dur) {
+  const R = cal.roll;
+  for (let row = 0; row < CAL_W; row++) {
+    if (!R[row][s] || R[row][(s + CAL_LEN - 1) % CAL_LEN]) continue;
+    let len = 1; while (len < CAL_LEN && R[row][(s + len) % CAL_LEN]) len++;
+    const h = calWhistleOn(row, t); if (h) calWhistleOff(h, t + len * dur - 0.03);
+    calFx(row, t, len * dur);
+  }
+  if (R[10][s]) { calDrumHit(t); calFx(10, t, 0.2); }
+  if (R[11][s]) { calCymHit(t); calFx(11, t, 0.5); }
+}
+// the lights and steam for a note, timed to when it sounds
+function calFx(row, t, len) { setTimeout(() => { cal.glow[row] = 1; if (row < CAL_W) cal.wFx[row] = performance.now() + len * 1000; }, Math.max(0, (t - ac.currentTime) * 1000)); }
+
+/* ---------- the engine and the crank */
+const calDur = () => stepDur() * 2;                                     // one step of the roll is an eighth note
+function calStart() {
+  cal.steam = true;
+  // in step with the Rhythm Wheel if it's running: start on its next eighth
+  if (rhy.run) { cal.nextT = rhy.nextT + (rhy.next % 2 ? stepDur() : 0); }
+  else cal.nextT = ac.currentTime + 0.06;
+  cal.step = Math.ceil(cal.p - 1e-6) % CAL_LEN;
+}
+function calTick() {
+  if (!ac || !calAudio) return;
+  if (cal.steam && !cal.hand) {
+    const dur = calDur();
+    while (cal.nextT < ac.currentTime - 0.05) { cal.nextT += dur; cal.step = (cal.step + 1) % CAL_LEN; }   // fell behind: skip, don't burst
+    while (cal.nextT < ac.currentTime + LOOKAHEAD) { calPlayStep(cal.step, cal.nextT, dur); cal.step = (cal.step + 1) % CAL_LEN; cal.nextT += dur; }
+    // where the paper is: the step at the bar, between scheduled steps
+    const p = cal.step - (cal.nextT - ac.currentTime) / dur;
+    cal.p = ((p % CAL_LEN) + CAL_LEN) % CAL_LEN;
+  }
+}
+// turning the roll by hand to position p: every step whose start passes the bar sounds now
+function calCrankTo(np) {
+  const old = cal.p; cal.p = ((np % CAL_LEN) + CAL_LEN) % CAL_LEN;
+  if (!calAudio) return;
+  let a = old, b = np; const fwd = b > a;
+  const lo = fwd ? Math.floor(a) + 1 : Math.ceil(b), hi = fwd ? Math.floor(b) : Math.ceil(a) - 1;
+  const steps = []; for (let k = lo; k <= hi; k++) steps.push(((k % CAL_LEN) + CAL_LEN) % CAL_LEN);
+  if (!fwd) steps.reverse();
+  const t = ac.currentTime;
+  for (const s of steps.slice(-4)) {
+    for (let row = 0; row < CAL_W; row++) {
+      const h = cal.handNotes.get(row), on = cal.roll[row][s];
+      if (on && !h) { const n = calWhistleOn(row, t); cal.handNotes.set(row, n); cal.glow[row] = 1; cal.wFx[row] = performance.now() + 300; }
+      else if (!on && h) { calWhistleOff(h, t); cal.handNotes.delete(row); }
+      else if (on && h) { cal.wFx[row] = performance.now() + 300; }
+    }
+    if (cal.roll[10][s]) { calDrumHit(t); cal.glow[10] = 1; }
+    if (cal.roll[11][s]) { calCymHit(t); cal.glow[11] = 1; }
+  }
+}
+function calHandStop() { for (const h of cal.handNotes.values()) calWhistleOff(h, ac ? ac.currentTime : 0); cal.handNotes.clear(); }
+
+/* ---------- display */
+let calHelp = '', calValue = '';
+const CAL_HELP = {
+  start: 'Punch the roll: tap the paper to make a hole, tap again to patch it, drag to punch a row. STEAM runs it in time with the Rhythm Wheel, or turn the CRANK yourself. Keys: ↑ ↓ choose, ← → move or turn, Space punches.',
+  paper: 'The roll: each row is a whistle (low at the bottom of the brass), then the drum and the cymbal. Holes in a line make a long note.',
+  steam: 'Steam: starts and stops the engine. It runs the roll in eighth notes, in step with the Rhythm Wheel.',
+  crank: 'The crank: drag it round, either way, as fast or slow as you like. The roll turns with your hand.',
+  preset: 'A roll that came with the calliope. It replaces yours (CLEAR gives you a blank one).',
+  clear: 'Clear: a fresh, blank roll.',
+  vol: 'Volume: how loud the calliope plays.',
+  mute: 'Mute: silences the calliope at once. Press again to bring it back.',
+};
+function drawCalDisplay() {
+  const { g, c, t } = calDispL, W = c.width, H = c.height;
+  g.fillStyle = '#1d1b18'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#ffc61a'; g.fillRect(16, 16, W - 32, 8); g.fillRect(16, H - 24, W - 32, 8);
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#ffc61a'; g.font = `bold 96px ${FONT}`; g.fillText('STEAM CALLIOPE', W / 2, 130);
+  g.fillStyle = '#ff9a5a'; g.font = `bold 58px ${FONT}`;
+  g.fillText(`${cal.steam ? 'STEAM ON' : cal.hand ? 'BY HAND' : 'STOPPED'}   ·   ${cal.preset || 'YOUR ROLL'}${calValue ? '   ·   ' + calValue.toUpperCase() : ''}`, W / 2, 212);
+  g.fillStyle = '#f3ecdf'; g.font = `52px ${FONT}`; g.textAlign = 'left';
+  const words = calHelp.split(' '); let line = '', y = 300;
+  for (const wd of words) { if (g.measureText(line + wd).width > W - 110) { g.fillText(line, 55, y); line = ''; y += 64; } line += wd + ' '; }
+  g.fillText(line, 55, y); t.needsUpdate = true;
+}
+function drawCalControls() {
+  const tog = (key, txt, on, col) => { const B = calBtns[key]; B.mat.color.set(on ? col : '#f6f2ea'); printText(B.L, [[txt, txt.length > 7 ? 40 : 50, on ? '#ffffff' : '#1d1b18']]); };
+  tog('steam', cal.steam ? 'STEAM ON' : 'STEAM', cal.steam, '#d42a24');
+  for (const k of ['CAROUSEL', 'MARCH', 'LULLABY']) tog(k, k, cal.preset === k, '#1f5fd6');
+  tog('clear', 'CLEAR', false);
+  const S = calVolSl, v = VOL.calliope, x = S.x0 + v * S.len;
+  S.cap.position.set(x, S.y + 0.028, S.z); S.fill.scale.x = Math.max(0.001, v * S.len); S.fill.position.set(S.x0 + v * S.len / 2, S.y + 0.008, S.z);
+  printText(S.lb, [[`VOLUME ${Math.round(v * 100)}%`, 44, '#3a3630']], { align: 'left' });
+}
+
+/* ---------- playing */
+const calPtr = new Map();
+// where on the roll a point of the paper is: [data row, step], or null
+function calCellAt(p) {
+  if (!p || p.x < CP.x0 || p.x > CP.x1 || p.z < CP.z0 || p.z > CP.z1) return null;
+  const r = Math.floor((p.z - CP.z0) / CP.dz), s = Math.floor(cal.p + (p.x - CP.bar) / CP.dx);
+  return [calRowOf(Math.max(0, Math.min(CAL_ROWS - 1, r))), ((s % CAL_LEN) + CAL_LEN) % CAL_LEN];
+}
+function calPunch(row, s, val) {
+  if (cal.roll[row][s] === val) return;
+  cal.roll[row][s] = val; cal.preset = ''; calSave(); drawCalRoll(); drawCalControls();
+  if (val) { buzz(6); if (calAudio && !cal.steam) { if (row < CAL_W) { const h = calWhistleOn(row, ac.currentTime); calWhistleOff(h, ac.currentTime + 0.18); } else if (row === 10) calDrumHit(ac.currentTime); else calCymHit(ac.currentTime); } }
+  else blip(330, 0.04, 0.03);
+}
+function calVolTo(e) { const S = calVolSl, p = groupLocalAt(calG, e, S.y + 0.03); if (!p) return; setVol('calliope', (p.x - S.x0) / S.len); calValue = `volume ${Math.round(VOL.calliope * 100)}%`; drawCalControls(); drawCalDisplay(); }
+const calCrankAngle = (e) => { const p = groupLocalAt2(calG, e, -0.405); return p ? Math.atan2(p.y - 1.53, p.x - 0.8) : null; };
+function calDown(e) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(calCtrls, false)[0]; if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  calFocus = -1; calCursor.visible = false;
+  const u = h.object.userData;
+  if (u.t === 'paper') {
+    const cell = calCellAt(groupLocalAt(calRollG, e, CP.y)); if (!cell) return;
+    const val = !cal.roll[cell[0]][cell[1]]; calPtr.set(e.pointerId, { t: 'paper', val, last: cell.join() });
+    calPunch(cell[0], cell[1], val); calHelp = CAL_HELP.paper; calValue = cell[0] < CAL_W ? noteName(calMidi(cell[0])) : cell[0] === 10 ? 'drum' : 'cymbal'; drawCalDisplay();
+  } else if (u.t === 'crank') {
+    calPtr.set(e.pointerId, { t: 'crank', a: calCrankAngle(e) }); cal.hand = true; calHelp = CAL_HELP.crank; calValue = 'turning'; drawCalDisplay();
+  } else if (u.t === 'vol') { calPtr.set(e.pointerId, { t: 'vol' }); calHelp = CAL_HELP.vol; calVolTo(e); }
+  else if (u.t === 'mute') { const on = machineMute('calliope'); calHelp = CAL_HELP.mute; calValue = on ? 'muted' : 'sound on'; drawCalDisplay(); }
+  else if (u.t === 'btn') calButton(u.key);
+}
+function calMove(e) {
+  const u = calPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'vol') calVolTo(e);
+  else if (u.t === 'paper') { const cell = calCellAt(groupLocalAt(calRollG, e, CP.y)); if (cell && cell.join() !== u.last) { u.last = cell.join(); calPunch(cell[0], cell[1], u.val); } }
+  else if (u.t === 'crank') {
+    const a = calCrankAngle(e); if (a === null || u.a === null) { u.a = a; return; }
+    let d = a - u.a; if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; u.a = a;
+    // a clockwise turn (as you look at it) moves the roll forward; a quarter turn is one step
+    cal.crankA -= d; calCrankTo(cal.p - d / (Math.PI / 2));
+  }
+}
+function calUp(e) {
+  const u = calPtr.get(e.pointerId); calPtr.delete(e.pointerId);
+  if (u && u.t === 'crank' && ![...calPtr.values()].some((v) => v.t === 'crank')) { calHandStop(); cal.hand = false; if (cal.steam) calStart(); calValue = ''; drawCalDisplay(); }
+}
+function calButton(key) {
+  if (key === 'steam') { if (cal.steam) { cal.steam = false; calValue = 'engine stopped'; } else { calStart(); calValue = 'full steam'; } calHelp = CAL_HELP.steam; buzz(15); }
+  else if (key === 'clear') { cal.roll = Array.from({ length: CAL_ROWS }, () => new Array(CAL_LEN).fill(false)); cal.preset = ''; calSave(); calHelp = CAL_HELP.clear; calValue = 'blank roll'; drawCalRoll(); }
+  else if (CAL_PRESETS[key]) { cal.roll = calPresetRoll(key); cal.preset = key; calSave(); calHelp = CAL_HELP.preset; calValue = ''; drawCalRoll(); }
+  blip(880, 0.03, 0.02); drawCalControls(); drawCalDisplay();
+}
+// keys and controller: ↑ ↓ choose (and move between rows on the paper), ← → move along the paper or turn the crank, Space/Ⓐ punches or presses
+const CAL_STATIONS = [{ t: 'paper' }, { t: 'btn', key: 'steam' }, { t: 'crank' }, { t: 'btn', key: 'CAROUSEL' }, { t: 'btn', key: 'MARCH' }, { t: 'btn', key: 'LULLABY' }, { t: 'btn', key: 'clear' }, { t: 'vol' }, { t: 'mute' }];
+let calFocus = -1;
+function calFocusSet(i) {
+  calFocus = i; const f = CAL_STATIONS[i];
+  calHelp = f.t === 'btn' ? (CAL_PRESETS[f.key] ? CAL_HELP.preset : CAL_HELP[f.key]) : CAL_HELP[f.t];
+  calValue = f.t === 'btn' ? f.key.toLowerCase() : f.t;
+  if (f.t === 'paper') { cal.cur.s = Math.round(cal.p) % CAL_LEN; }
+  calCursor.visible = f.t === 'paper';
+  drawCalDisplay(); blip(660, 0.04, 0.03);
+}
+function calAdjustF(d) {                                                // ↑ ↓
+  if (calFocus < 0) { calFocusSet(0); return; }
+  const f = CAL_STATIONS[calFocus];
+  if (f.t === 'paper') {
+    const nr = cal.cur.r - d;                                          // up the paper is towards the high whistles
+    if (nr >= 0 && nr < CAL_ROWS) { cal.cur.r = nr; const d2 = calRowOf(nr); calValue = d2 < CAL_W ? noteName(calMidi(d2)) : d2 === 10 ? 'drum' : 'cymbal'; drawCalDisplay(); return; }
+  }
+  calFocusSet((calFocus - d + CAL_STATIONS.length) % CAL_STATIONS.length);
+}
+function calStepF(d) {                                                  // ← →
+  if (calFocus < 0) { calFocusSet(0); return; }
+  const f = CAL_STATIONS[calFocus];
+  if (f.t === 'paper') { cal.cur.s = (cal.cur.s + d + CAL_LEN) % CAL_LEN; return; }
+  if (f.t === 'crank') { cal.hand = true; cal.crankA -= d * Math.PI / 2; calCrankTo(cal.p + d); setTimeout(() => { if (!calPtr.size) { calHandStop(); cal.hand = false; if (cal.steam) calStart(); } }, 350); return; }
+  if (f.t === 'vol') { setVol('calliope', VOL.calliope + d * 0.05); calValue = `volume ${Math.round(VOL.calliope * 100)}%`; drawCalControls(); drawCalDisplay(); return; }
+  calFocusSet((calFocus + d + CAL_STATIONS.length) % CAL_STATIONS.length);
+}
+function calPressF(down) {
+  if (calFocus < 0) { if (down) calFocusSet(0); return; }
+  if (!down) return;
+  const f = CAL_STATIONS[calFocus];
+  if (f.t === 'paper') { const row = calRowOf(cal.cur.r); calPunch(row, cal.cur.s, !cal.roll[row][cal.cur.s]); }
+  else if (f.t === 'btn') calButton(f.key);
+  else if (f.t === 'mute') { const on = machineMute('calliope'); calValue = on ? 'muted' : 'sound on'; drawCalDisplay(); }
+  else if (f.t === 'crank') calStepF(1);
+}
+function calAnalog(p) {                                                 // the right stick turns the crank: push it round, or right for forwards
+  const rx = p.axes[2] || 0;
+  if (Math.abs(rx) > 0.25) { cal.hand = true; cal.padHand = true; const sp = rx * 6 * (1 / 60); cal.crankA -= sp * Math.PI / 2; calCrankTo(cal.p + sp); }
+  else if (cal.padHand) { cal.padHand = false; calHandStop(); cal.hand = false; if (cal.steam) calStart(); }
+}
+function makeCalliopeMachine() {
+  const P = (x, y, z) => [calG, new THREE.Vector3(x, y, z)];
+  const fit = [P(-1.0, 0.86, 0.9), P(1.0, 0.86, 0.9), P(-0.95, 2.5, -0.75), P(0.95, 2.3, -0.75), P(0, 2.6, -0.75)];
+  const fitL = [P(-1.0, 0.86, 0.9), P(1.0, 0.86, 0.9), P(-0.95, 2.2, -0.75), P(0.95, 2.0, -0.75)];
+  return {
+    al: CAL_I, base: calG, fit, fitL, elev: [0.6, 0.5], stand: 1.0,
+    down: calDown, move: calMove, up: calUp, step: calStepF, adjust: calAdjustF, press: calPressF, analog: calAnalog,
+    enter() { calFocus = -1; calCursor.visible = false; calHelp = CAL_HELP.start; calValue = ''; drawCalRows(); drawCalControls(); drawCalDisplay(); },
+    exit() { calPtr.clear(); if (cal.hand) { calHandStop(); cal.hand = false; if (cal.steam) calStart(); } calFocus = -1; calCursor.visible = false; },
+  };
+}
+drawCalRoll(); drawCalRows(); drawCalControls(); drawCalDisplay();
+
+/* ---------- every frame */
+function updateCalliope(dt) {
+  const sig = org.root + ':' + org.mood;
+  if (sig !== cal.sig) { cal.sig = sig; drawCalRows(); }
+  calTick();
+  // the paper slides under the bar, the spools and the crank turn with it
+  calPaper.t.offset.x = (cal.p - (CP.bar - CP.x0) / CP.dx) / CAL_LEN;
+  const prevP = cal.lastP ?? cal.p; let dp = cal.p - prevP; if (dp < -CAL_LEN / 2) dp += CAL_LEN; if (dp > CAL_LEN / 2) dp -= CAL_LEN; cal.lastP = cal.p;
+  for (const s of calSpools) s.rotation.y -= dp * 0.9;
+  if (!cal.hand) cal.crankA -= dp * Math.PI / 2;
+  calCrank.rotation.z = cal.crankA;
+  // the whistles glow and puff steam while they sound; the drum and cymbal jump
+  const now = performance.now();
+  calWhistles.forEach((W, i) => {
+    const on = cal.wFx && cal.wFx[i] > now;
+    cal.glow[i] = on ? 1 : cal.glow[i] * Math.exp(-dt * 8);
+    W.mat.emissiveIntensity = cal.glow[i] * 0.7;
+    W.g.position.y = 1.8 + cal.glow[i] * 0.012;
+    if (on && (W.nextPuff || 0) < time) {
+      W.nextPuff = time + 0.09;
+      const P = cal.puffs.find((q) => q.life <= 0);
+      if (P) { P.life = 1; P.s.visible = true; P.s.position.set(W.x + (Math.random() - 0.5) * 0.02, 1.8 + W.h + 0.03, -0.75); P.vx = (Math.random() - 0.5) * 0.06; P.sz = 0.05 + (CAL_W - i) * 0.004; }
+    }
+  });
+  for (const P of cal.puffs) {
+    if (P.life <= 0) continue;
+    P.life -= dt / 1.3; if (P.life <= 0) { P.s.visible = false; continue; }
+    P.s.position.y += dt * 0.32; P.s.position.x += P.vx * dt;
+    const k = 1 - P.life; P.s.scale.setScalar(P.sz + k * 0.22); P.s.material.opacity = 0.75 * P.life * Math.min(1, (1 - P.life) * 8);
+  }
+  cal.glow[10] *= Math.exp(-dt * 9); cal.glow[11] *= Math.exp(-dt * 4);
+  calDrum.skin.material.emissiveIntensity = cal.glow[10] * 0.5; calDrum.scale.setScalar(1 + cal.glow[10] * 0.05);
+  calCym.disc.rotation.z = Math.sin(time * 30) * 0.12 * cal.glow[11]; calCym.disc.material.emissiveIntensity = cal.glow[11] * 0.5;
+  calBarMat.emissiveIntensity = 0.15 + Math.max(...cal.glow) * 0.5;
+  // the cursor for keys and controller
+  if (calCursor.visible) {
+    let rel = cal.cur.s - cal.p; rel = ((rel % CAL_LEN) + CAL_LEN) % CAL_LEN; if (rel > CAL_LEN - (CP.bar - CP.x0) / CP.dx - 0.5) rel -= CAL_LEN;
+    const x = CP.bar + (rel + 0.5) * CP.dx;
+    calCursor.visible = x > CP.x0 && x < CP.x1;
+    calCursor.position.set(x, CP.y + 0.004, CP.z0 + (cal.cur.r + 0.5) * CP.dz);
+    if (!calCursor.visible && calFocus >= 0 && CAL_STATIONS[calFocus].t === 'paper') { cal.cur.s = Math.round(cal.p) % CAL_LEN; calCursor.visible = true; }
+  }
+  const foc = playing && curM === CAL_M && calFocus >= 0 ? CAL_STATIONS[calFocus] : null;
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  for (const k in calBtns) glow(calBtns[k].mat, foc && foc.t === 'btn' && foc.key === k);
+  glow(calVolSl.mat, foc && foc.t === 'vol');
+  if (muteBtns.calliope) glow(muteBtns.calliope.mat, foc && foc.t === 'mute');
+  cal.dispT += dt;
+  if (cal.dispT > 0.3 && playing && curM === CAL_M) { cal.dispT = 0; drawCalDisplay(); }
+}
+
 const ORGAN_M = {
   al: ORG_I, base: deskG, fit: FIT_PTS, elev: [0.98, 0.8], stand: 0.82,
   down: organPointerDown, move: organPointerMove, up: organPointerUp,
@@ -5888,6 +6363,7 @@ const TEX_M = makeTexMachine();
 const THER_M = makeTheremin();
 const CHOIR_M = makeChoirMachine();
 const STR_M = makeStringMachine();
+const CAL_M = makeCalliopeMachine();
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
@@ -5956,6 +6432,7 @@ function update(dt) {
   updateTheremin(dt);
   updateChoir(dt);
   updateStrings(dt);
+  updateCalliope(dt);
   updateStress(dt);
   updateProjector(dt);
 
@@ -6090,6 +6567,9 @@ function updateCaption() {
     c.classList.remove('hidden');
   } else if (show === MEL_I) {
     c.innerHTML = `<b>IV</b> · The Melody Console<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} the console to play</span>`;
+    c.classList.remove('hidden');
+  } else if (show === CAL_I) {
+    c.innerHTML = `<b>XI</b> · The Steam Calliope<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} it to play</span>`;
     c.classList.remove('hidden');
   } else if (show === STR_I) {
     c.innerHTML = `<b>I</b> · The String Frame<br><span style="opacity:.7">${isTouch ? 'Tap' : 'Click'} it to play</span>`;
