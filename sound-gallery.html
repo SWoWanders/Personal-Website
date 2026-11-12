@@ -3669,7 +3669,26 @@ function poolNote(m, vel, t) {
   const k = Math.pow(440 / f, 0.3);
   if (v === 'GLASS') { part(1, 1, 1.5 * k); part(2.76, 0.32, 0.4 * k); part(5.4, 0.1, 0.12 * k); }
   else if (v === 'KALIMBA') { part(1, 1, 0.8 * k, 'triangle'); part(5.9, 0.16, 0.05); part(1, 0.35, 0.02, 'square'); }
-  else if (v === 'STEEL') { const o = part(1, 1, 0.9 * k); part(2.01, 0.45, 0.5 * k); part(3.02, 0.18, 0.25 * k); if (o) { o.detune.setValueAtTime(-12, t); o.detune.linearRampToValueAtTime(0, t + 0.03); } }
+  else if (v === 'STEEL') {
+    // a steel pan note is tuned in three partials, fundamental, octave and the twelfth above, all hammered into
+    // harmonic tune. The octave blooms a beat after the stick hits as energy passes from one mode to the next,
+    // a near-twin of it beats slowly against it (the shimmer), and a soft rubber stick adds a short knock
+    const kk = 1.15 * k;
+    const o = part(1, 1, kk); if (o) { o.detune.setValueAtTime(-10, t); o.detune.setTargetAtTime(0, t, 0.012); }
+    part(2, 0.3, 0.75 * kk);
+    if (f * 2 < 15000) {
+      const b = mkOsc('sine', f * 2.004), bg = ac.createGain(); b.connect(bg); bg.connect(g);
+      bg.gain.setValueAtTime(0, t); bg.gain.linearRampToValueAtTime(0.42, t + 0.045); bg.gain.setTargetAtTime(0, t + 0.045, 0.6 * kk);
+      b.start(t); b.stop(t + 0.045 + 3.6 * kk + 0.05); srcs.push(b);
+    }
+    part(3, 0.22, 0.38 * kk); part(4.01, 0.1, 0.12 * kk); part(5.03, 0.05, 0.05);
+    if (typeof rhyAudio !== 'undefined' && rhyAudio && rhyAudio.noise) {   // the stick: a short knock of filtered noise
+      const n = noiseSrc(t, 0.04), bp = ac.createBiquadFilter(), ng = ac.createGain();
+      bp.type = 'bandpass'; bp.frequency.value = Math.min(6000, f * 3); bp.Q.value = 1.2;
+      ng.gain.setValueAtTime(0.5, t); ng.gain.setTargetAtTime(0, t, 0.008);
+      n.connect(bp); bp.connect(ng); ng.connect(g); srcs.push(n);
+    }
+  }
   else {                                                          // BLOOP: a water drop, the pitch rising as the bubble closes
     const o = part(1, 1, 0.13); if (o) { o.frequency.setValueAtTime(f * 0.62, t); o.frequency.exponentialRampToValueAtTime(f * 1.25, t + 0.07); }
     part(2, 0.12, 0.05);
