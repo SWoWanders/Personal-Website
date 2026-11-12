@@ -3956,12 +3956,13 @@ const echoAl = alcoves[ECHO_I];
 echoAl.g.remove(echoAl.plinth); echoAl.g.remove(echoAl.beam);
 plinths.splice(plinths.indexOf(echoAl.plinth), 1);
 const echoHits = [], echoCtrls = [];
-const EC_INPUTS = [['ORGAN', ['organ'], '#8a4bff'], ['WHEEL', ['rhythm'], '#ff3030'], ['CONSOLE', ['strum', 'optigan'], '#66e000'], ['BASS', ['bass'], '#1f6bff'], ['POOL', ['pool'], '#00d0b0'], ['TEXTURE', ['texture'], '#ffd000']];
+const EC_INPUTS = [['ORGAN', ['organ'], '#8a4bff'], ['WHEEL', ['rhythm'], '#ff3030'], ['CONSOLE', ['strum', 'optigan'], '#66e000'], ['BASS', ['bass'], '#1f6bff'], ['POOL', ['pool'], '#00d0b0'], ['TEXTURE', ['texture'], '#ffd000'], ['THEREMIN', ['theremin'], '#ff1f8f'], ['CHOIR', ['choir'], '#c400ff']];
 const EC_SYNC = [['1/16', 1], ['1/8', 2], ['3/16', 3], ['1/4', 4]];        // base delay in sixteenths when synced
-const echo = { ins: [false, false, true, false, true, false], heads: [true, false, true], repeat: 0.45, rate: 0.45, tone: 0.5, wow: 0.25, sync: false, throw: false, freeze: false, vu: 0, inLvl: 0, tapeOff: 0, sig: '', marks: [] };
+const echo = { ins: [false, false, true, false, true, false, true, false], heads: [true, true, false], repeat: 0.45, rate: 0.45, tone: 0.6, wow: 0.25, sync: true, speed: 1, speedT: 1, throw: false, freeze: false, vu: 0, inLvl: 0, tapeOff: 0, sig: '', marks: [] };
 function echoBase() {                                                     // seconds between the record head and head 1
-  if (echo.sync) return stepDur() * EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][1];
-  return 0.09 + echo.rate * 0.33;
+  // (divided by the tape speed: grab the tape and drag to slow it or speed it up, as with a real loop)
+  if (echo.sync) return stepDur() * EC_SYNC[Math.min(3, Math.floor(echo.rate * 4))][1] / echo.speed;
+  return (0.09 + echo.rate * 0.33) / echo.speed;
 }
 
 const echoG = new THREE.Group(); echoG.position.set(0, 0.15, A + 1.25); echoG.rotation.y = Math.PI; echoAl.g.add(echoG);
@@ -3982,8 +3983,7 @@ let echoTape, echoDispL, echoHeadMats = [], echoThrow;
     const o = { mat, L, name, col, b }; if (list) list[k] = o; return o;
   };
   // back row: what the echo listens to
-  EC_INPUTS.forEach(([n, , col], k) => btn(n, col, -0.82 + k * 0.212, -0.2, 0.2, { t: 'in', i: k }, echoBtns.in, k));
-  { const L = flatLabel(0.46, 0.06, 420, 54, echoG, 0.71, top + 0.002, -0.2); printText(L, [['◂ LISTENS TO', 36, '#5a554d']], { align: 'left' }); }
+  EC_INPUTS.forEach(([n, , col], k) => btn(n, col, -0.8 + k * 0.229, -0.2, 0.215, { t: 'in', i: k }, echoBtns.in, k));
   // sliders: REPEAT and RATE, then TONE and WOW, each with its name to the left
   const slider = (key, x0, len, z, label, col, lx, lw) => {
     const slot = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.012, 0.026), mDark); slot.position.set(x0 + len / 2, top + 0.006, z); echoG.add(slot);
@@ -4008,6 +4008,9 @@ let echoTape, echoDispL, echoHeadMats = [], echoThrow;
   // the open tape deck behind the desk: six posts, the heads, and the loop of tape
   echoHits.push(box(1.9, 0.36, 0.62, mW, 0, 0.98, -0.62, echoG));
   echoHits.push(box(1.92, 0.03, 0.64, mC, 0, 1.175, -0.62, echoG));
+  { const L = flatLabel(0.6, 0.07, 600, 70, echoG, -0.6, 1.08, -0.309); L.m.rotation.x = 0; printText(L, [['LISTENS TO ▾', 44, '#efe6d6']], { align: 'left' }); }
+  // the tape itself can be grabbed: drag along it to slow it down or speed it up, and every echo bends
+  { const th = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.62), hitMat); th.position.set(0, 1.24, -0.62); th.userData = { t: 'tape' }; echoG.add(th); echoCtrls.push(th); }
   const deckY = 1.19;
   const posts = [[-0.78, -0.42], [-0.6, -0.86], [0.0, -0.9], [0.62, -0.84], [0.8, -0.44], [0.0, -0.62]];
   for (const [x, z] of posts) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.09, 20), mMetal); p.position.set(x, deckY + 0.045, z); echoG.add(p); }
@@ -4051,10 +4054,11 @@ const echoPos = echoAl.g.localToWorld(new THREE.Vector3(0, 1.3, A + 1.4));
 /* ---------- sound: sends from each machine, three heads, a feedback loop through tone and a soft saturator */
 let echoAudio = null;
 function initEchoAudio() {
-  const out = ac.createGain(); volRegister('echo', out, 1);
-  const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.8;
-  setPannerPos(pan, echoPos); out.connect(pan); pan.connect(hallBus);
-  const send = ac.createGain(); send.gain.value = 0.25; out.connect(send); send.connect(reverbIn);
+  // the echoes come back around you, wherever you stand, not from the machine's corner of the hall:
+  // you hear your own playing bounce, left and right, as through headphones on a real tape echo
+  const out = ac.createGain(); volRegister('echo', out, 0.8);
+  out.connect(hallBus);
+  const send = ac.createGain(); send.gain.value = 0.22; out.connect(send); send.connect(reverbIn);
   micTap(out, echoPos, 1.3);
   const rec = ac.createGain();                                   // what reaches the record head
   const sends = EC_INPUTS.map(([, keys]) => { const g = ac.createGain(); g.gain.value = 0; g.connect(rec); for (const k of keys) if (volNodes[k]) volNodes[k][0].connect(g); return g; });
@@ -4062,13 +4066,14 @@ function initEchoAudio() {
   const w1 = ac.createOscillator(); w1.frequency.value = 0.55; const w1g = ac.createGain(); w1.connect(w1g); w1g.connect(wobble); w1.start();
   const w2 = ac.createOscillator(); w2.frequency.value = 6.8; const w2g = ac.createGain(); w2.connect(w2g); w2g.connect(wobble); w2.start();
   const heads = [1, 2, 3].map((mul) => {
-    const d = ac.createDelay(4); d.delayTime.value = echoBase() * mul; rec.connect(d);
+    const d = ac.createDelay(8); d.delayTime.value = echoBase() * mul; rec.connect(d);
     const wg = ac.createGain(); wg.gain.value = mul; wobble.connect(wg); wg.connect(d.delayTime);
     const hg = ac.createGain(); hg.gain.value = 0; d.connect(hg);
+    // head 1 sounds on the left, head 2 on the right, head 3 in the middle: the repeats bounce across
+    const sp = ac.createStereoPanner(); sp.pan.value = [-0.7, 0.7, 0][mul - 1]; hg.connect(sp); sp.connect(out);
     return { d, hg, mul };
   });
   const sum = ac.createGain(); heads.forEach((h) => h.hg.connect(sum));
-  sum.connect(out);
   const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.Q.value = 0.5;
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.6;
   const fb = ac.createGain(); fb.gain.value = 0;
@@ -4086,7 +4091,7 @@ function applyEcho(instant) {
   const on = echo.heads.filter(Boolean).length || 1;
   E.heads.forEach((h, k) => {
     h.hg.gain.setTargetAtTime(echo.heads[k] ? (echo.freeze ? 1 / on : 1 / Math.sqrt(on)) : 0, t, 0.03);
-    if (instant) h.d.delayTime.value = base * h.mul; else h.d.delayTime.setTargetAtTime(base * h.mul, t, 0.25);   // tape speeding up or slowing: the echoes bend
+    if (instant) h.d.delayTime.value = base * h.mul; else h.d.delayTime.setTargetAtTime(base * h.mul, t, echo.grab ? 0.05 : echo.speed !== 1 ? 0.12 : 0.25);   // tape speeding up or slowing: the echoes bend
   });
   // feedback: below 1 the echoes fade away; THROW pushes it just past 1 and the saturator keeps it in hand
   // the soft saturator in the loop amplifies quiet signals by about 1.74, so the feedback is scaled down by that much:
@@ -4102,7 +4107,7 @@ function applyEcho(instant) {
 /* ---------- display */
 let echoHelp = '', echoValue = '';
 const ECHO_HELP = {
-  start: 'Pick what the echo listens to (back row), switch on some playback heads, and the tape repeats the other machines. Hold THROW for a dub swell. Keys: ← → choose, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  start: 'Pick what the echo listens to (back row) and play: the repeats bounce left and right, in time with the Rhythm Wheel. Grab the tape and drag to bend every echo. Hold THROW for a dub swell. Keys: ← → choose, ↑ ↓ adjust, Enter press.',
   in: 'Listens to: the machines whose sound goes onto the tape (the Texture Machine too: try echoing the thunder). Their own volume and mute still apply.',
   head: 'Playback heads: head 1 repeats after one delay, head 2 after two, head 3 after three. Mix them for rhythmic patterns.',
   repeat: 'Repeat: how much of each echo goes back onto the tape. Low gives one or two echoes; high gives long trails.',
@@ -4112,6 +4117,7 @@ const ECHO_HELP = {
   sync: 'Sync: the delay locks to the Rhythm Wheel’s tempo: a sixteenth, an eighth, a dotted eighth or a quarter note.',
   freeze: 'Freeze: stops recording and loops whatever is on the tape, round and round, until you press it again. Move RATE while frozen to bend the whole loop up or down.',
   throw: 'Throw: hold it and the echoes feed on themselves and swell; let go and they fade. A dub trick.',
+  tape: 'The tape: grab it and drag. Pull right to rush it, left to hold it back, and every echo bends up or down; let go and it runs free again. Keys: hold Space to brake it.',
   vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
   mmute: 'Mute: silences the echo at once. Press again to bring it back.',
 };
@@ -4182,12 +4188,25 @@ function echoDown(e) {
   eFocus = -1;
   const u = h.object.userData; echoPtr.set(e.pointerId, u);
   if (u.t === 'throw') { echoThrowSet(true); return; }
+  if (u.t === 'tape') { u.x = e.clientX; u.x0 = e.clientX; echo.grab = true; echoHelp = ECHO_HELP.tape; echoValue = 'tape in hand'; drawEchoDisplay(); buzz(8); return; }
   echoButton(u); if (u.t === 'slider') echoSliderTo(u.key, e);
 }
-function echoMove(e) { const u = echoPtr.get(e.pointerId); if (u && u.t === 'slider') echoSliderTo(u.key, e); }
-function echoUp(e) { const u = echoPtr.get(e.pointerId); echoPtr.delete(e.pointerId); if (u && u.t === 'throw' && ![...echoPtr.values()].some((v) => v.t === 'throw')) echoThrowSet(false); }
-const E_STATIONS = [...[0, 1, 2, 3, 4, 5].map((i) => ({ t: 'in', i })), { t: 'slider', key: 'repeat' }, { t: 'slider', key: 'rate' }, { t: 'slider', key: 'tone' }, { t: 'slider', key: 'wow' },
-  { t: 'throw' }, { t: 'sync' }, ...[0, 1, 2].map((i) => ({ t: 'head', i })), { t: 'freeze' }, { t: 'mmute' }, { t: 'slider', key: 'vol' }];
+function echoMove(e) {
+  const u = echoPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'slider') echoSliderTo(u.key, e);
+  if (u.t === 'tape') {                                              // drag right (with the tape) to speed it up, left to hold it back
+    const d = (e.clientX - u.x0) / (isTouch ? 0.35 : 0.3) / Math.min(innerWidth, 900);
+    echo.speedT = Math.max(0.5, Math.min(2, Math.pow(2, d)));
+    echoValue = echo.speedT > 1.03 ? 'faster ▲' : echo.speedT < 0.97 ? 'slower ▼' : 'tape in hand';
+  }
+}
+function echoUp(e) {
+  const u = echoPtr.get(e.pointerId); echoPtr.delete(e.pointerId);
+  if (u && u.t === 'throw' && ![...echoPtr.values()].some((v) => v.t === 'throw')) echoThrowSet(false);
+  if (u && u.t === 'tape' && ![...echoPtr.values()].some((v) => v.t === 'tape')) { echo.grab = false; echo.speedT = 1; echoValue = 'let go'; }
+}
+const E_STATIONS = [...EC_INPUTS.map((_, i) => ({ t: 'in', i })), { t: 'slider', key: 'repeat' }, { t: 'slider', key: 'rate' }, { t: 'slider', key: 'tone' }, { t: 'slider', key: 'wow' },
+  { t: 'throw' }, { t: 'sync' }, ...[0, 1, 2].map((i) => ({ t: 'head', i })), { t: 'freeze' }, { t: 'mmute' }, { t: 'slider', key: 'vol' }, { t: 'tape' }];
 let eFocus = -1;
 function eFocusSet(i) {
   eFocus = i; if (i < 0) return;
@@ -4206,6 +4225,7 @@ function echoPress(down) {
   if (eFocus < 0) { if (down) eFocusSet(0); return; }
   const f = E_STATIONS[eFocus];
   if (f.t === 'throw') { echoThrowSet(down); return; }
+  if (f.t === 'tape') { echo.grab = down; echo.speedT = down ? 0.55 : 1; echoValue = down ? 'braking' : 'let go'; drawEchoDisplay(); return; }
   if (down && f.t !== 'slider') echoButton(f);
 }
 function makeEchoMachine() {
@@ -4218,13 +4238,16 @@ function makeEchoMachine() {
     al: ECHO_I, base: echoG, fit, fitL, elev: [1.0, 0.85], stand: 1.05,
     down: echoDown, move: echoMove, up: echoUp, step: echoStepF, adjust: echoAdjust, press: echoPress,
     enter() { eFocus = -1; echoHelp = ECHO_HELP.start; echoValue = ''; drawEchoButtons(); drawEchoDisplay(); },
-    exit() { echoPtr.clear(); echoThrowSet(false); eFocus = -1; },
+    exit() { echoPtr.clear(); echoThrowSet(false); echo.grab = false; echo.speedT = 1; eFocus = -1; },
   };
 }
 
 /* ---------- every frame: the tape runs, heads glow, the VU needle swings */
 function updateEcho(dt) {
-  if (echo.sync && echoAudio) { const b = echoBase(); if (Math.abs(b - (echo.lastBase || 0)) > 0.001) { echo.lastBase = b; applyEcho(); } }
+  // the tape's speed eases towards where your hand holds it (and back to normal when you let go)
+  echo.speed += (echo.speedT - echo.speed) * Math.min(1, dt * (echo.grab ? 10 : 3));
+  if (Math.abs(echo.speed - 1) < 0.002 && !echo.grab) echo.speed = 1;
+  if (echoAudio) { const b = echoBase(); if (Math.abs(b - (echo.lastBase || 0)) > 0.001) { echo.lastBase = b; applyEcho(); } }
   // the tape moves 30 cm (record head to head 1) in one delay time, so its stripes and the marks run at true speed
   const speed = 0.3 / echoBase();
   echo.tapeOff += dt * speed / 0.25;
