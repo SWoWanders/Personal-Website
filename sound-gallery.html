@@ -7018,7 +7018,7 @@ if (STRESS) {
    Rooms: ?room=public (the default) is the public gallery; any other name is a private room, made with
    the PRIVATE ROOM button and shared as a link. With no server set (or none reachable), the gallery runs
    on its own, exactly as before, with a few pretend visitors. */
-const NET_URL = '';                    // the room server, e.g. 'wss://sound-gallery-rooms.yourname.workers.dev' (or ?server=… for a test)
+const NET_URL = 'wss://sound-gallery-rooms.swowanders.workers.dev';                    // the room server, e.g. 'wss://sound-gallery-rooms.yourname.workers.dev' (or ?server=… for a test)
 const NET = {
   url: (params.get('server') || NET_URL).replace(/\/$/, ''),
   room: (params.get('room') || 'public').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'public',
