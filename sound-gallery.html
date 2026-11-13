@@ -39,6 +39,10 @@
   #rec small{font-size:13px;font-weight:400;opacity:.7;letter-spacing:.02em}
   @keyframes blink{50%{opacity:.25}}
   #btns{position:absolute;top:max(12px,env(safe-area-inset-top));right:14px;display:flex;gap:8px;pointer-events:auto}
+  #emoteMenu{position:absolute;top:calc(max(12px,env(safe-area-inset-top)) + 52px);right:14px;display:grid;grid-template-columns:1fr 1fr;gap:6px;pointer-events:auto;background:rgba(250,246,238,.92);padding:8px;border-radius:20px;max-width:300px}
+  #emoteMenu button{font-family:var(--font);font-size:14px;font-weight:700;padding:9px 10px;border-radius:999px;border:0;background:#fff;cursor:pointer;text-align:left;white-space:nowrap}
+  #emoteMenu button:focus-visible,#emoteMenu button:hover{background:#1d1b18;color:#fff}
+  #emoteMenu .k{opacity:.45;font-size:11px;margin-left:4px}
   #btns button{font-family:var(--font);font-size:16px;font-weight:700;padding:10px 14px;border-radius:999px;border:0;background:rgba(250,246,238,.88);cursor:pointer}
   #center{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;width:90%}
   #big{font-size:clamp(80px,26vw,180px);font-weight:800;line-height:1;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.35)}
@@ -116,9 +120,10 @@
 
 <div id="hud" class="hidden">
   <div id="rec" class="hidden"><span class="dot"></span><span id="recTime">5:00</span><span class="meter"><i id="recLvl"></i></span><small id="recSub">centre mic</small></div>
-  <div id="btns"><button id="fsBtn" class="hidden" aria-label="Full screen">⛶</button><button id="viewBtn">👁 View</button><button id="muteBtn">🔊</button></div>
+  <div id="btns"><button id="fsBtn" class="hidden" aria-label="Full screen">⛶</button><button id="emoteBtn" aria-label="Wave, point or dance">🙌</button><button id="viewBtn">👁 View</button><button id="muteBtn">🔊</button></div>
   <div id="center"><div id="big"></div><div id="line"></div></div>
   <div id="caption" class="hidden"></div>
+  <div id="emoteMenu" class="hidden"></div>
   <div id="toast"></div>
   <div id="cross" class="hidden"></div>
   <div id="lockHint" class="hidden">Click to look around<br><small>WASD walk · Shift run · V view · M sound · Esc release mouse</small></div>
@@ -830,6 +835,7 @@ function animateAvatar(av, dt, speed, time) {
   const sw = Math.sin(av.phase) * 0.55 * amt;
   av.legs[0].rotation.x = sw; av.legs[1].rotation.x = -sw;
   av.arms[0].rotation.x = -sw * 0.8; av.arms[1].rotation.x = sw * 0.8;
+  av.arms[0].rotation.z = -0.08; av.arms[1].rotation.z = 0.08; av.legs[0].rotation.z = 0; av.legs[1].rotation.z = 0;
   av.g.position.y = Math.abs(Math.sin(av.phase)) * 0.03 * amt;
   // floating, glancing eyes
   const L = av.look; L.t -= dt;
@@ -839,6 +845,61 @@ function animateAvatar(av, dt, speed, time) {
     e.eye.rotation.set(L.y, L.x, 0);
     e.holder.position.z = Math.sin(time * 1.7 + k * 1.3 + av.phase * 0.1) * 0.012;
   });
+  applyEmote(av, dt, speed);
+}
+
+/* ------------------------------------------------------------------ gestures and dances
+   Every figure can wave hello, point, or dance. Dances keep time with the gallery's tempo, on the shared
+   clock, so everyone dancing in the room dances to the same beat. Walking off ends a dance. */
+const EMOTES = {
+  wave: { n: 'WAVE', icon: '👋', dur: 2.6 }, point: { n: 'POINT', icon: '👉', dur: 3 },
+  disco: { n: 'DISCO', icon: '🕺', dance: true }, robot: { n: 'ROBOT', icon: '🤖', dance: true }, twist: { n: 'TWIST', icon: '💃', dance: true },
+  jump: { n: 'JUMPING JACKS', icon: '⭐', dance: true }, spin: { n: 'SPIN', icon: '🌀', dance: true },
+};
+const EMOTE_KEYS = Object.keys(EMOTES), DANCES = EMOTE_KEYS.filter((k) => EMOTES[k].dance);
+function emoteStart(av, k, pitch = 0) { if (!EMOTES[k]) return; av.emote = { k, t: 0, w: av.emote ? av.emote.w : 0, pitch }; }
+function emoteBeats() { const N = window.__NET; return (Date.now() + (N ? N.off : 0)) / (stepDur() * 4000); }
+function applyEmote(av, dt, speed) {
+  const E = av.emote;
+  if (!E) { if (av.g.rotation.z) av.g.rotation.z = 0; return; }
+  E.t += dt;
+  const D = EMOTES[E.k], ending = E.stop || (!D.dance && E.t > D.dur) || (speed > 0.6 && E.t > 0.3);
+  E.w += ((ending ? 0 : 1) - E.w) * Math.min(1, dt * 9);
+  if (ending && E.w < 0.03) { av.emote = null; av.g.rotation.z = 0; return; }
+  const b = emoteBeats(), ph = b % 1, S = (x) => Math.sin(x * Math.PI * 2);
+  // a pose: right arm, left arm (x forward/back, z out to the side), right and left leg, bounce, turn, lean
+  const P = { ra: [0, -0.08], la: [0, 0.08], rl: [0, 0], ll: [0, 0], y: 0, ry: 0, rz: 0 };
+  switch (E.k) {
+    case 'wave': P.ra = [-0.25, -2.7 + 0.4 * Math.sin(E.t * 11)]; P.rz = 0.04; break;
+    case 'point': P.ra = [-1.55 - E.pitch * 0.9, -0.12]; P.y = 0; P.rz = 0.02; break;
+    case 'disco': {                                                        // up to the corner, down across: two beats each
+      const up = Math.floor(b / 2) % 2 === 0;
+      P.ra = up ? [-0.35, -2.65] : [-0.45, 0.65]; P.la = [0.35, 0.55];
+      P.y = 0.04 * Math.abs(Math.sin(b * Math.PI)); P.rz = (up ? -1 : 1) * 0.08; P.rl = [0.22 * Math.sin(b * Math.PI), -0.05]; P.ry = (up ? 0.25 : -0.2);
+      break;
+    }
+    case 'robot': {                                                        // stiff, on the eighth notes
+      const k = Math.floor(b * 2), q = Math.floor(b) % 4;
+      P.ra = [-1.57 + (k % 2 ? 0.55 : 0), -0.05]; P.la = [-1.57 + (k % 2 ? 0 : 0.55), 0.05];
+      P.ry = [0, 0.45, 0, -0.45][q]; P.y = (k % 2) * 0.015; break;
+    }
+    case 'twist': {
+      const s = Math.sin(b * Math.PI);
+      P.ry = 0.55 * s; P.ra = [-0.6 * s - 0.2, -0.75]; P.la = [0.6 * s - 0.2, 0.75];
+      P.rl = [0.15 * s, -0.08]; P.ll = [-0.15 * s, 0.08]; P.y = -0.05 + 0.03 * Math.abs(S(b)); P.rz = 0.05 * s; break;
+    }
+    case 'jump': {                                                         // a jumping jack every beat
+      const o = Math.sin(ph * Math.PI);
+      P.ra = [0, -0.08 - 2.7 * o]; P.la = [0, 0.08 + 2.7 * o]; P.rl = [0, -0.3 * o]; P.ll = [0, 0.3 * o]; P.y = 0.16 * o; break;
+    }
+    case 'spin': {                                                         // a full turn every two beats, arms out
+      P.ry = b * Math.PI; P.ra = [0.1 * S(b), -1.45 + 0.2 * S(b * 2)]; P.la = [-0.1 * S(b), 1.45 - 0.2 * S(b * 2)];
+      P.y = 0.03 * Math.abs(S(b)); P.rz = 0.06; break;
+    }
+  }
+  const w = E.w, mix = (o, x, z) => { o.rotation.x += (x - o.rotation.x) * w; o.rotation.z += (z - o.rotation.z) * w; };
+  mix(av.arms[0], ...P.ra); mix(av.arms[1], ...P.la); mix(av.legs[0], ...P.rl); mix(av.legs[1], ...P.ll);
+  av.g.position.y += P.y * w; av.g.rotation.y += P.ry * w; av.g.rotation.z = P.rz * w;
 }
 
 /* ------------------------------------------------------------------ player + visitors */
@@ -1309,6 +1370,24 @@ if (document.fullscreenEnabled && matchMedia('(pointer: coarse)').matches) {
 $('pbLeft').onclick = () => { panX = Math.max(-1, panX - 0.6); };
 $('pbRight').onclick = () => { panX = Math.min(1, panX + 0.6); };
 $('viewBtn').onclick = () => toggleView();
+// the player's own gestures and dances: the 🙌 button, keys 1–7 (0 stops), or a controller's X (wave), LB (point), RB (next dance)
+let emoteSeen = false, danceNext = 0;
+function playerEmote(k) {
+  if (!player.av || playing || state === 'exiting' || state === 'done') return;
+  if (k === 'stop') { if (player.av.emote) player.av.emote.stop = true; netEmote(''); return; }
+  emoteStart(player.av, k, player.pitch); netEmote(k, player.pitch);
+  if (!emoteSeen && view === 'first') { emoteSeen = true; toast(`${EMOTES[k].icon} ${EMOTES[k].n.toLowerCase()} · press 👁 View to see yourself`); }
+  // the pretend visitors nearby wave back
+  if (k === 'wave') for (const n of npcs) if (n.av.g.visible && n.pos.distanceTo(player.pos) < 8) setTimeout(() => emoteStart(n.av, 'wave'), 400 + Math.random() * 700);
+  $('emoteMenu').classList.add('hidden');
+}
+function netEmote(k, pitch = 0) { if (window.__NET && window.__NET.admitted) netSend({ t: 'ev', al: 0, f: 'emote', a: [k, Math.round(pitch * 100) / 100] }); }
+{
+  const menu = $('emoteMenu');
+  menu.innerHTML = EMOTE_KEYS.map((k, i) => `<button data-k="${k}">${EMOTES[k].icon} ${EMOTES[k].n}<span class="k">${i + 1}</span></button>`).join('') + '<button data-k="stop">■ STOP<span class="k">0</span></button>';
+  menu.querySelectorAll('button').forEach((b) => { b.onclick = () => playerEmote(b.dataset.k); });
+  $('emoteBtn').onclick = () => { menu.classList.toggle('hidden'); if (!menu.classList.contains('hidden')) menu.querySelector('button').focus(); };
+}
 $('muteBtn').onclick = () => toggleMute();
 function toggleView() { if (state === 'exiting') return; if (playing) { toast('You play the machines in first person'); return; } view = view === 'first' ? 'third' : 'first'; toast(view === 'first' ? 'First-person view' : 'Third-person view'); }
 function toggleMute() { if (!ac) return; muted = !muted; master.gain.setTargetAtTime(muted ? 0 : 0.9, ac.currentTime, 0.05); $('muteBtn').textContent = muted ? '🔇' : '🔊'; toast(muted ? 'Sound off' : 'Sound on'); }
@@ -1320,6 +1399,8 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyV') toggleView();
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'Escape' && playing) exitPlay();
+  if (e.code === 'Escape' && !playing) $('emoteMenu').classList.add('hidden');
+  if (!playing && /^Digit[0-7]$/.test(e.code)) { const d = +e.code.slice(5); playerEmote(d ? EMOTE_KEYS[d - 1] : 'stop'); }
   if (playing) { playKey(e, true); return; }
   if (e.code === 'KeyE' || e.code === 'Space') interactCenter();
 });
@@ -1413,6 +1494,9 @@ function readPad() {
   const out = { mx: dz(p.axes[0] || 0), my: dz(p.axes[1] || 0), lx: dz(p.axes[2] || 0), ly: dz(p.axes[3] || 0), run: b(10) || b(6) };
   if (b(0) && !padPrev[0]) interactCenter();
   if (b(3) && !padPrev[3]) toggleView();
+  if (b(2) && !padPrev[2]) playerEmote('wave');
+  if (b(4) && !padPrev[4]) playerEmote('point');
+  if (b(5) && !padPrev[5]) { playerEmote(DANCES[danceNext % DANCES.length]); danceNext++; }
   padPrev = p.buttons.map(x => x.pressed);
   return out;
 }
@@ -3138,7 +3222,7 @@ function enterPlay(m = ORGAN_M) {
   if (document.pointerLockElement) document.exitPointerLock();
   joy = null; lookT = null; drag = null; $('joy').classList.add('hidden');
   $('playBar').classList.remove('hidden'); $('caption').classList.add('hidden');
-  $('pbLeft').classList.add('hidden'); $('pbRight').classList.add('hidden'); $('viewBtn').classList.add('hidden');
+  $('pbLeft').classList.add('hidden'); $('pbRight').classList.add('hidden'); $('viewBtn').classList.add('hidden'); $('emoteBtn').classList.add('hidden'); $('emoteMenu').classList.add('hidden'); if (player.av && player.av.emote) player.av.emote.stop = true;
   m.enter();
   mSleeve.color.set(SHIRTS[shirtIdx][1]);
   player.av.g.visible = false; handRig.visible = SHOW_HAND;
@@ -3149,7 +3233,7 @@ function exitPlay() {
   if (!playing) return;
   curM.exit();
   playing = false; $('playBar').classList.add('hidden'); handRig.visible = false;
-  $('pbLeft').classList.remove('hidden'); $('pbRight').classList.remove('hidden'); $('viewBtn').classList.remove('hidden');
+  $('pbLeft').classList.remove('hidden'); $('pbRight').classList.remove('hidden'); $('viewBtn').classList.remove('hidden'); $('emoteBtn').classList.remove('hidden');
   const av = player.av;
   av.g.position.y = 0; av.g.visible = view === 'third';
   av.arms.forEach((sh, k) => { sh.quaternion.identity(); sh.rotation.set(0, 0, (k === 0 ? -1 : 1) * 0.08); sh.scale.set(1, 1, 1); });
@@ -7109,7 +7193,9 @@ function netApply(al, str) {
 }
 
 /* ---------- notes struck and ripples dropped: sent as they happen, played by everyone */
-const NET_EV = {};
+const NET_EV = {
+  emote: (from, a) => { const o = NET.others.get(from); if (!o) return; if (a[0]) emoteStart(o.av, a[0], a[1] || 0); else if (o.av.emote) o.av.emote.stop = true; },
+};
 function netWrap(al, name, fn, idArgs = [], every = 0) {
   const lastT = new Map();
   NET_EV[name] = (from, a) => { const b = a.slice(); for (const i of idArgs) if (b[i] !== undefined && b[i] !== null) b[i] = 'r' + from + ':' + b[i]; return fn(...b); };
