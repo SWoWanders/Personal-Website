@@ -1351,8 +1351,8 @@ SHIRTS.forEach(([name, hex], k) => {
   shirtsEl.appendChild(b);
 });
 $('ctrlHint').innerHTML = isTouch
-  ? 'Left thumb: walk · Right thumb: look · Tap a plinth for a test tone<br>Headphones recommended'
-  : 'WASD walk · Mouse look · Click a plinth for a test tone<br>Headphones recommended';
+  ? 'Left thumb: walk · Right thumb: look<br>Headphones recommended'
+  : 'WASD walk · Mouse look<br>Headphones recommended';
 let toastTimer;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
 
