@@ -13,6 +13,10 @@ const ORIGINS = '*';                                 // the page may be served f
 
 const cors = { 'Access-Control-Allow-Origin': ORIGINS, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json', ...cors } });
+// one more Durable Object keeps the day's count of visitors across all rooms (its name can't be a room's: rooms are letters, digits and dashes)
+const statsStub = (env) => env.ROOMS.get(env.ROOMS.idFromName('__stats'));
+// "today" in the gallery's home time zone, so the count starts again at midnight in Ottawa
+const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const roomName = (s) => (String(s || 'public').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'public');
 
 export default {
@@ -21,7 +25,11 @@ export default {
     const url = new URL(request.url);
     const room = roomName(url.searchParams.get('room'));
     const stub = env.ROOMS.get(env.ROOMS.idFromName(room));
-    if (url.pathname === '/ws' || url.pathname === '/status') return stub.fetch(request);
+    if (url.pathname === '/ws') return stub.fetch(request);
+    if (url.pathname === '/status') {                    // this room's numbers, plus everyone who has visited today (any room)
+      const [s, c] = await Promise.all([stub.fetch(request).then((r) => r.json()), statsStub(env).fetch('https://stats/today').then((r) => r.json()).catch(() => ({ today: null }))]);
+      return json({ ...s, today: c.today });
+    }
     return json({ ok: true, service: 'sound-gallery-rooms', hint: 'connect to /ws?room=public' });
   },
 };
@@ -39,6 +47,12 @@ export class Room {
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.hostname === 'stats') {                      // the counter (only ever reached from inside the Worker)
+      const day = today(), saved = (await this.ctx.storage.get('count')) || { day, n: 0 };
+      const c = saved.day === day ? saved : { day, n: 0 };
+      if (url.pathname === '/hit') { c.n++; await this.ctx.storage.put('count', c); }
+      return json({ today: c.n, day });
+    }
     if (url.pathname === '/status') return json({ inside: this.insideCount(), queue: this.queue.length, max: MAX_INSIDE });
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'expected a WebSocket' }, 426);
     const pair = new WebSocketPair();
@@ -108,6 +122,7 @@ export class Room {
 
   admit(v) {
     v.inside = true; v.at = Date.now();
+    try { this.ctx.waitUntil(statsStub(this.env).fetch('https://stats/hit')); } catch (e) {}   // one more visitor today
     const others = [];
     for (const o of this.vis.values()) if (o.inside && o.id !== v.id) others.push({ id: o.id, shirt: o.shirt, pos: o.pos });
     this.send(v, { t: 'welcome', id: v.id, now: Date.now(), others, locks: this.locks, states: this.states, max: MAX_INSIDE });

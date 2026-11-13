@@ -7398,7 +7398,8 @@ async function netStatus() {
   try {
     const r = await fetch(NET.url.replace(/^ws/, 'http') + '/status?room=' + encodeURIComponent(NET.room));
     const s = await r.json();
-    el.textContent = `${NET.room === 'public' ? 'Public gallery' : `Private room “${NET.room}”`} · ${s.inside} of ${s.max} inside${s.queue ? ` · ${s.queue} queueing` : ''}`;
+    const today = typeof s.today === 'number' ? ` · ${s.today.toLocaleString()} ${s.today === 1 ? 'visitor' : 'visitors'} today` : '';
+    el.textContent = `${NET.room === 'public' ? 'Public gallery' : `Private room “${NET.room}”`} · ${s.inside} of ${s.max} inside${s.queue ? ` · ${s.queue} queueing` : ''}${today}`;
   } catch (e) { el.textContent = `${netRoomLabel()[0].toUpperCase() + netRoomLabel().slice(1)} · server not reachable, you’ll play on your own`; }
 }
 {
