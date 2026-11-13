@@ -63,10 +63,12 @@
   }
   #flash{position:fixed;inset:0;background:#fffaf0;opacity:0;pointer-events:none;z-index:15;transition:opacity .2s}
   .rule{height:10px;border-radius:5px;margin:16px 0;background:repeating-linear-gradient(90deg,#1d1b18 0 10px,transparent 10px 20px)}
-  #end .card{max-height:calc(100% - 8px);overflow:auto}
+  #end .card, #title .card{max-height:calc(100% - 8px);overflow:auto}
   #wave{position:static;inset:auto;touch-action:auto;width:100%;height:auto;aspect-ratio:960/200;border-radius:14px;background:#1d1b18;display:block;margin:4px 0 8px}
   #recMeta{font-size:13px;letter-spacing:.06em;opacity:.65;margin-bottom:10px}
   #endAudio{width:100%;margin-bottom:12px}
+  button.big.back{display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:10px;background:transparent;color:var(--ink);border:3px solid var(--ink);font-size:15px;padding:11px 18px}
+  #roomInfo{margin:12px 0 0;font-size:13px;letter-spacing:.06em;opacity:.75}
   a.big.back{display:block;text-decoration:none;box-sizing:border-box;text-align:center;margin-top:10px;background:transparent;color:var(--ink);border:3px solid var(--ink);font-size:17px;padding:13px 20px}
   a.big.dl{display:block;text-decoration:none;box-sizing:border-box;text-align:center}
   button.ghost.on{opacity:1;cursor:pointer}
@@ -88,6 +90,8 @@
     <div class="lbl">Choose your shirt</div>
     <div id="shirts"></div>
     <button id="enterBtn" class="big">JOIN THE QUEUE</button>
+    <button id="privBtn" class="big back">PRIVATE ROOM · SHARE A LINK</button>
+    <p id="roomInfo"></p>
     <a class="big back" href="index.html#/swow">← BACK TO SWOW MUSIC</a>
     <p class="hint" id="ctrlHint"></p>
   </div>
@@ -896,7 +900,8 @@ function updateNpcs(dt, time) {
 }
 const BODY_R = 0.62;   // avatars keep at least this far apart
 function avatarClear(x, z, ox, oz, self) {
-  const others = npcs.map(n => n.pos); if (player.av && state === 'hall') others.push(player.pos);
+  const others = npcs.filter((n) => n.av.g.visible).map((n) => n.pos); if (player.av && state === 'hall') others.push(player.pos);
+  if (window.__NET) for (const o of window.__NET.others.values()) if (o.av.g.visible) others.push(o.pos);
   for (const p of others) {
     if (p === self) continue;
     const dn = Math.hypot(x - p.x, z - p.z);
@@ -1202,7 +1207,7 @@ function chime(i) {
   a.flash = 1;
 }
 function blip(freq, dur = 0.09, vol = 0.07) {
-  if (!ac) return; const t = ac.currentTime;
+  if (!ac || window.__netApplying) return; const t = ac.currentTime;
   const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
   const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
@@ -1284,9 +1289,10 @@ $('enterBtn').onclick = () => {
   initAudio(); ac.resume();
   player.av = makeAvatar(SHIRTS[shirtIdx][1], true); scene.add(player.av.g);
   spawnVisitors();
+  netConnect();
   $('title').classList.add('hidden'); $('hud').classList.remove('hidden');
   state = 'queue'; stateT = 0; player.yaw = 0; player.pitch = 0;
-  toast(`Joined the queue · ${SHIRTS[shirtIdx][0]} shirt`);
+  toast(NET.live ? `Joining ${netRoomLabel()} · ${SHIRTS[shirtIdx][0]} shirt` : `Joined the queue · ${SHIRTS[shirtIdx][0]} shirt`);
   if (!isTouch) tryLock();
 };
 $('againBtn').onclick = () => location.reload();
@@ -1670,7 +1676,7 @@ function updateKeyDots() {
   keyDots.forEach((d, i) => d.material.color.set(i === org.root ? ORG_VOICES[0].col : (i % 2 ? '#d8cfc1' : '#cfc5b5')));
 }
 function orgChanged() { applyOrgan(false); refreshConsole(); updateKeyDots(); }
-function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+function buzz(ms) { if (window.__netApplying) return; try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 scene.updateMatrixWorld(true);
 const organPos = orgAl.g.localToWorld(new THREE.Vector3(0, 2.3, A + 1.9));
 dispHelp = ORG_HELP.start; refreshConsole(); updateKeyDots();
@@ -2114,7 +2120,7 @@ function scheduleRhythm() {
 function setRun(on) {
   if (on === rhy.run) return;
   rhy.run = on;
-  if (on && ac) { rhy.next = 0; rhy.nextT = ac.currentTime + 0.06; rhy.queue = []; scheduleRhythm(); rhy.timer = setInterval(scheduleRhythm, 25); }
+  if (on && ac) { const g = gridNext(0.06); rhy.next = g.k % 16; rhy.nextT = g.t; rhy.queue = []; scheduleRhythm(); rhy.timer = setInterval(scheduleRhythm, 25); }
   else { clearInterval(rhy.timer); rhy.timer = null; rhy.step = -1; rhy.queue = []; }
   bassSync(); drawRhyAll(); buzz(10);
 }
@@ -2711,7 +2717,7 @@ function optRunning() { return mel.style > 0 && mel.chord !== null; }
 function syncOptigan() {
   const want = optRunning();
   if (want && !mel.timer && ac) {
-    if (rhy.run) { mel.next = rhy.next; mel.nextT = rhy.nextT; } else { mel.next = 0; mel.nextT = ac.currentTime + 0.05; }
+    if (rhy.run) { mel.next = rhy.next; mel.nextT = rhy.nextT; } else { const g = gridNext(0.05); mel.next = g.k % 16; mel.nextT = g.t; }
     scheduleOptigan(); mel.timer = setInterval(scheduleOptigan, 25);
   } else if (!want && mel.timer) { clearInterval(mel.timer); mel.timer = null; }
 }
@@ -3369,7 +3375,7 @@ function bassTick() {
 }
 function bassSync() {
   const want = bass.pat > 0 && !rhy.run && !!ac && !!bassAudio;
-  if (want && !bass.timer) { bass.next = 0; bass.nextT = ac.currentTime + 0.05; bassTick(); bass.timer = setInterval(bassTick, 25); }
+  if (want && !bass.timer) { const g = gridNext(0.05); bass.next = g.k % 16; bass.nextT = g.t; bassTick(); bass.timer = setInterval(bassTick, 25); }
   else if (!want && bass.timer) { clearInterval(bass.timer); bass.timer = null; }
   if (!bass.pat && bass.cur && !bass.held.size) { bass.cur.stop(); bass.cur = null; }
 }
@@ -3733,8 +3739,7 @@ function poolDrop(x, z, amp = 1) {
   for (const h of hits) {
     let t = h.t;
     if (pool.inTime) {                                            // snap to the next sixteenth of the Rhythm Wheel's grid
-      const sd = stepDur(), o = rhy.run ? rhy.nextT : 0;
-      t = o + Math.ceil((t - o) / sd - 0.001) * sd;
+      t = gridSnap(t);
     }
     pool.pend.push({ k: h.k, m: notes[h.k], vel: h.vel, t, ripple: h.t });
   }
@@ -3895,7 +3900,7 @@ function updatePool(dt) {
   if (sig !== pool.sig) { pool.sig = sig; poolKeyChanged(); }
   if (ac && poolAudio) {
     if (!pool.timer) pool.timer = setInterval(poolScheduleTick, 25);
-    if (pool.rain && (pool.rainT -= dt) <= 0) {                   // a drop now and then, somewhere on the water
+    if (pool.rain && (pool.rainT -= dt) <= 0 && netAuthority(POOL_I)) {                   // a drop now and then, somewhere on the water
       pool.rainT = 0.7 + Math.random() * 1.6;
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * PL.r * 0.92;
       poolDrop(r * Math.cos(a), PL.cz + r * Math.sin(a), 0.6 + Math.random() * 0.3);
@@ -4626,7 +4631,7 @@ function updateTexture(dt) {
   }
   // thunder: claps come more often, and nearer, the higher the slider
   if (texAudio && tex.lv[6] > 0.02) {
-    if ((tex.thunderT -= dt) <= 0) { thunderClap(); tex.thunderT = 6 + (1 - tex.lv[6]) * 28 + Math.random() * 10; }
+    if ((tex.thunderT -= dt) <= 0 && netAuthority(TEX_I)) { thunderClap(); tex.thunderT = 6 + (1 - tex.lv[6]) * 28 + Math.random() * 10; }
   } else tex.thunderT = Math.min(tex.thunderT, 2.5);
   let fl = 0;
   tex.claps = tex.claps.filter((c) => now < c.end);
@@ -6209,9 +6214,8 @@ const calDur = () => stepDur() * 2;                                     // one s
 function calStart() {
   cal.steam = true;
   // in step with the Rhythm Wheel if it's running: start on its next eighth
-  if (rhy.run) { cal.nextT = rhy.nextT + (rhy.next % 2 ? stepDur() : 0); }
-  else cal.nextT = ac.currentTime + 0.06;
-  cal.step = Math.ceil(cal.p - 1e-6) % CAL_LEN;
+  // every visitor's calliope is at the same place on the roll: on the shared beat grid, in eighths
+  const g = gridNext(0.06, 2); cal.nextT = g.t; cal.step = g.k % CAL_LEN;
 }
 function calTick() {
   if (!ac || !calAudio) return;
@@ -6538,6 +6542,7 @@ function update(dt) {
   updateChoir(dt);
   updateStrings(dt);
   updateCalliope(dt);
+  netUpdate(dt);
   updateStress(dt);
   updateProjector(dt);
 
@@ -6557,8 +6562,13 @@ function update(dt) {
   // --- state machine
   const hud = { big: '', line: '' };
   if (state === 'queue') {
-    hud.line = `QUEUE · YOU'RE NEXT · ${npcs.length} OF 8 INSIDE`;
-    if (stateT > 3) { state = 'corridor'; stateT = 0; lastTick = -1; toast('Your turn. Walk to the door.'); }
+    if (NET.live && !NET.admitted) {                                // waiting for the room server to let us in
+      const q = NET.queue; stateT = Math.min(stateT, 1);
+      hud.line = !q ? 'CONNECTING' : q.ahead ? `QUEUE · ${q.ahead} AHEAD OF YOU · ${q.inside} OF ${q.max} INSIDE` : `QUEUE · YOU'RE NEXT · ${q.inside} OF ${q.max} INSIDE`;
+    } else {
+      hud.line = NET.admitted ? `QUEUE · YOUR TURN · ${NET.others.size + 1} OF 8 INSIDE` : `QUEUE · YOU'RE NEXT · ${npcs.length} OF 8 INSIDE`;
+      if (stateT > 3) { state = 'corridor'; stateT = 0; lastTick = -1; toast('Your turn. Walk to the door.'); }
+    }
   } else if (state === 'corridor') {
     const left = Math.ceil(COUNTDOWN - stateT);
     if (left > 0) {
@@ -6719,6 +6729,7 @@ function beginExit() {
   player.av.g.visible = true;
   shimmer(); whoosh(3.2, true, 0.08);
   toast("Time's up");
+  netBye(true);
   stopRecording();
 }
 function updateExit(dt) {
@@ -6995,6 +7006,320 @@ function stressFinish() {
 if (STRESS) {
   $('enterBtn').addEventListener('click', () => setTimeout(stressStart, 400));
   const s0 = $('title').querySelector('.sub'); if (s0) s0.innerHTML = '<b>Stress test.</b> Press Enter and listen for about 2½ minutes. Tap “I hear crackle” whenever you hear it.';
+}
+
+/* ------------------------------------------------------------------ TOGETHER: up to 8 real visitors
+   The gallery connects to a small room server (gallery-server/ in this repository: a Cloudflare Worker).
+   The server keeps the queue, lets 8 people in, says who is playing which machine (one player each), and
+   passes small messages between everyone: where each visitor is, each machine's settings from whoever is
+   playing it, and the notes they strike. No sound travels: every visitor's browser plays every machine
+   itself, from the same settings, on one shared clock, so everyone hears the same music in the room and
+   everyone's recording from the centre microphone has it all.
+   Rooms: ?room=public (the default) is the public gallery; any other name is a private room, made with
+   the PRIVATE ROOM button and shared as a link. With no server set (or none reachable), the gallery runs
+   on its own, exactly as before, with a few pretend visitors. */
+const NET_URL = '';                    // the room server, e.g. 'wss://sound-gallery-rooms.yourname.workers.dev' (or ?server=… for a test)
+const NET = {
+  url: (params.get('server') || NET_URL).replace(/\/$/, ''),
+  room: (params.get('room') || 'public').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'public',
+  ws: null, live: false, admitted: false, id: 0, off: 0, rtt: 1e9, others: new Map(), locks: {}, queue: null,
+  applying: false, lastSt: {}, stT: 0, posT: 0, pingT: 0, alignT: 0, host: true, failed: false, bpm: 0,
+};
+window.__NET = NET;
+const serverNow = () => Date.now() + NET.off;
+// the shared clock: the beat grid every visitor's machines lock to (sixteenth notes at the Rhythm Wheel's tempo)
+function acAtServer(ms) { return ac.currentTime + (ms - serverNow()) / 1000; }
+function serverAtAc(t) { return serverNow() + (t - ac.currentTime) * 1000; }
+function gridNext(lead = 0.05, every = 1) {
+  const sd = stepDur() * 1000 * every, k = Math.ceil(serverAtAc(ac.currentTime + lead) / sd);
+  return { k, t: acAtServer(k * sd) };
+}
+function gridSnap(t, every = 1) { const sd = stepDur() * 1000 * every; return acAtServer(Math.ceil(serverAtAc(t) / sd - 0.001) * sd); }
+// keep each beat machine's scheduler on the shared grid (clocks drift a little; tempo changes jump)
+function gridAlign(o, nextKey, tKey, len, every = 1) {
+  const sd = stepDur() * 1000 * every, k = Math.round(serverAtAc(o[tKey]) / sd), t = acAtServer(k * sd), idx = ((k % len) + len) % len;
+  if (Math.abs(t - o[tKey]) > 0.012 || o[nextKey] !== idx) { o[tKey] = t; o[nextKey] = idx; }
+}
+function netAlignAll() {
+  if (!ac) return;
+  if (rhy.run) gridAlign(rhy, 'next', 'nextT', 16);
+  if (mel.timer) gridAlign(mel, 'next', 'nextT', 16);
+  if (bass.timer) gridAlign(bass, 'next', 'nextT', 16);
+  if (cal.steam && !cal.hand) gridAlign(cal, 'step', 'nextT', CAL_LEN, 2);
+}
+
+/* ---------- each machine's settings, as the person playing it sends them, and as everyone else applies them */
+const NET_VOL = { 1: ['strings'], 2: ['theremin'], 3: ['texture'], 4: ['strum', 'optigan'], 5: ['pool'], 6: [], 7: ['bass'], 8: ['rhythm'], 9: ['echo'], 10: ['choir'], 11: ['calliope'] };
+const NET_MUTE = { 1: 'strings', 3: 'texture', 4: 'melody', 5: 'pool', 6: 'organ', 7: 'bass', 8: 'rhythm', 9: 'echo', 10: 'choir', 11: 'calliope' };
+const r3 = (v) => Math.round(v * 1000) / 1000;
+const SYNC = {
+  6: { get: () => ({ root: org.root, mood: org.mood, colour: org.colour, levels: org.levels.map(r3), bright: r3(org.bright), breath: r3(org.breath), glide: r3(org.glide), vol: org.vol }),
+    set: (s) => { Object.assign(org, s); orgChanged(); } },
+  8: { get: () => ({ run: rhy.run, bpm: rhy.bpm, swing: rhy.swing, mute: rhy.mute, steps: rhy.steps.map((r) => r.map((b) => (b ? 1 : 0)).join('')) }),
+    set: (s) => { rhy.bpm = s.bpm; rhy.swing = s.swing; rhy.mute = s.mute; rhy.steps = s.steps.map((r) => [...r].map((c) => c === '1')); if (s.run !== rhy.run) setRun(s.run); drawRhyAll(); } },
+  4: { get: () => ({ voice: mel.voice, sus: mel.sus, disc: mel.disc, style: mel.style, chord: mel.style ? mel.chord : null, plate: mel.plateChord }),
+    set: (s) => {
+      const styleChanged = s.style !== mel.style;
+      Object.assign(mel, { voice: s.voice, sus: s.sus, disc: s.disc, style: s.style, plateChord: s.plate });
+      if (s.style) mel.chord = s.chord;
+      if (styleChanged && mel.timer) { clearInterval(mel.timer); mel.timer = null; }
+      syncOptigan(); drawMelButtons(); drawMelDisplay(); drawVolKnob('strum'); drawVolKnob('optigan');
+    } },
+  7: { get: () => ({ voice: bass.voice, pat: bass.pat, tone: bass.tone, root: bass.pat ? bass.root : null }),
+    set: (s) => { const pc = s.pat !== bass.pat; Object.assign(bass, s); if (pc) bassSync(); drawBassButtons(); drawBassSlider('tone'); drawBassSlider('vol'); drawBassDisplay(); } },
+  5: { get: () => ({ voice: pool.voice, speed: pool.speed, rain: pool.rain, inTime: pool.inTime }),
+    set: (s) => { Object.assign(pool, s); drawPoolButtons(); drawPoolSlider('speed'); drawPoolSlider('vol'); drawPoolDisplay(); } },
+  9: { get: () => ({ ins: echo.ins, heads: echo.heads, repeat: echo.repeat, rate: echo.rate, tone: echo.tone, wow: echo.wow, sync: echo.sync, throw: !!echo.throw, freeze: !!echo.freeze, speedT: r3(echo.speedT), grab: !!echo.grab }),
+    set: (s) => { Object.assign(echo, s); applyEcho(); drawEchoButtons(); } },
+  3: { get: () => ({ lv: tex.lv.map(r3), drift: tex.drift, scene: tex.scene }),
+    set: (s) => { tex.glide = null; tex.lv = s.lv; tex.drift = s.drift; tex.scene = s.scene; for (let k = 0; k < 7; k++) drawTexSlider(k); drawTexButtons(); } },
+  2: { get: () => ({ rh: ther.rh ? { d: r3(ther.rh.d), y: r3(ther.rh.y || 1.62) } : null, lh: ther.lh ? { h: r3(ther.lh.h), x: r3(ther.lh.x || -0.47) } : null, tune: ther.tune, voice: ther.voice, guide: ther.guide, snap: ther.snap }),
+    set: (s) => { const vc = s.voice !== ther.voice; Object.assign(ther, s); if (vc && therAudio) therAudio.osc.setPeriodicWave(therAudio.waves[TH_VOICES[ther.voice]]); drawTherControls(); } },
+  10: { get: () => ({ vowel: r3(choir.vowel), voice: choir.voice, hold: choir.hold, follow: choir.follow, latched: choir.latched, held: [...choir.held.values()] }),
+    set: (s) => { const vc = s.voice !== choir.voice; Object.assign(choir, { vowel: s.vowel, voice: s.voice, hold: s.hold, follow: s.follow, latched: s.latched }); choir.held = new Map(s.held.map((d, i) => ['n' + i, d])); if (vc) setChoirTract(false); drawChoirControls(); if (ac) choirSync(); } },
+  1: { get: () => ({ voice: strg.voice, chord: strg.chord, follow: strg.follow, scale: strg.scale }),
+    set: (s) => { const vc = s.voice !== strg.voice; Object.assign(strg, s); if (vc) { for (const k of [...strg.bows.keys()]) strBowStop(k); strVoiceAudio(); } strRetune(); drawStrControls(); } },
+  11: { get: () => ({ roll: cal.roll.map((r) => r.map((b) => (b ? 1 : 0)).join('')), voice: cal.voice, steam: cal.steam, hand: cal.hand, p: cal.hand ? r3(cal.p) : null, preset: cal.preset }),
+    set: (s) => {
+      const roll = s.roll.map((r) => [...r].map((c) => c === '1'));
+      if (JSON.stringify(roll) !== JSON.stringify(cal.roll)) { cal.roll = roll; drawCalRoll(); }
+      if (s.voice !== cal.voice) { cal.voice = s.voice; calVoiceAudio(); }
+      cal.preset = s.preset;
+      if (s.hand) { if (!cal.hand) cal.hand = true; if (s.p !== null && ac) calCrankTo(s.p); }
+      else if (cal.hand) { calHandStop(); cal.hand = false; if (cal.steam) calStart(); }
+      if (s.steam && !cal.steam) calStart(); else if (!s.steam) cal.steam = false;
+      drawCalControls();
+    } },
+};
+function netGet(al) {
+  const S = SYNC[al]; if (!S) return null;
+  const o = S.get(); o.v = (NET_VOL[al] || []).map((k) => VOL[k]); if (NET_MUTE[al]) o.mu = !!MUTED[NET_MUTE[al]];
+  return JSON.stringify(o);
+}
+function netApply(al, str) {
+  const S = SYNC[al]; if (!S) return;
+  NET.applying = window.__netApplying = true;
+  try {
+    const s = JSON.parse(str);
+    (NET_VOL[al] || []).forEach((k, i) => { if (s.v && s.v[i] !== undefined && s.v[i] !== VOL[k]) setVol(k, s.v[i]); });
+    const g = NET_MUTE[al]; if (g && s.mu !== undefined && !!MUTED[g] !== s.mu) machineMute(g);
+    delete s.v; delete s.mu; S.set(s);
+  } catch (e) { console.warn('sync', al, e); }
+  NET.applying = window.__netApplying = false;
+}
+
+/* ---------- notes struck and ripples dropped: sent as they happen, played by everyone */
+const NET_EV = {};
+function netWrap(al, name, fn, idArgs = [], every = 0) {
+  const lastT = new Map();
+  NET_EV[name] = (from, a) => { const b = a.slice(); for (const i of idArgs) if (b[i] !== undefined && b[i] !== null) b[i] = 'r' + from + ':' + b[i]; return fn(...b); };
+  return function (...a) {
+    if (NET.live && NET.admitted && !NET.applying && netAuthority(al)) {
+      const k = idArgs.length ? a[idArgs[0]] : '', now = performance.now();
+      if (!every || now - (lastT.get(k) || 0) > every) { lastT.set(k, now); netSend({ t: 'ev', al, f: name, a: a.map((x) => (typeof x === 'number' ? r3(x) : x)) }); }
+    }
+    return fn(...a);
+  };
+}
+// who makes the room's own random events (rain on the pool, thunder): whoever plays the machine, or the longest-present visitor
+function netAuthority(al) {
+  if (!NET.live || !NET.admitted) return true;
+  const o = NET.locks[al];
+  return o ? o === NET.id : NET.host;
+}
+strPluck = netWrap(1, 'strPluck', strPluck);
+strBowStart = netWrap(1, 'strBowStart', strBowStart, [0]);
+strBowLevel = netWrap(1, 'strBowLevel', strBowLevel, [0], 70);
+strBowStop = netWrap(1, 'strBowStop', strBowStop, [0]);
+strumZone = netWrap(4, 'strumZone', strumZone);
+noteOn = netWrap(4, 'noteOn', noteOn, [0]);
+noteOff = netWrap(4, 'noteOff', noteOff, [0]);
+chordDown = netWrap(4, 'chordDown', chordDown, [1]);
+chordUp = netWrap(4, 'chordUp', chordUp, [0]);
+bassPedalDown = netWrap(7, 'bassPedalDown', bassPedalDown, [0]);
+bassPedalUp = netWrap(7, 'bassPedalUp', bassPedalUp, [0]);
+poolDrop = netWrap(5, 'poolDrop', poolDrop);
+thunderClap = netWrap(3, 'thunderClap', thunderClap);
+
+/* ---------- the connection */
+function netSend(m) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(m)); }
+function netConnect() {
+  if (!NET.url) return false;
+  let ws;
+  try { ws = new WebSocket(NET.url.replace(/^http/, 'ws') + '/ws?room=' + encodeURIComponent(NET.room)); } catch (e) { NET.failed = true; return false; }
+  NET.ws = ws; NET.live = true;
+  const giveUp = setTimeout(() => { if (!NET.admitted && !NET.queue) netFail('The room server didn’t answer · playing on your own'); }, 10000);
+  NET.t0 = performance.now();
+  ws.onopen = () => { NET.t1 = performance.now(); netSend({ t: 'hello', shirt: shirtIdx }); for (let k = 0; k < 4; k++) setTimeout(() => netSend({ t: 'ping', c: performance.now() }), k * 300); };
+  ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } netOn(m); if (m.t === 'welcome' || m.t === 'queued') clearTimeout(giveUp); };
+  ws.onclose = () => { clearTimeout(giveUp); if (state !== 'exiting' && state !== 'done') netFail(NET.admitted ? 'Lost the connection · playing on your own now' : 'Couldn’t reach the room server · playing on your own'); };
+  return true;
+}
+function netFail(msg) {
+  if (!NET.live) return;
+  NET.live = false; NET.admitted = false; NET.failed = true; NET.locks = {};
+  for (const id of [...NET.others.keys()]) netDropAvatar(id, false);
+  try { NET.ws && NET.ws.close(); } catch (e) {}
+  toast(msg);
+}
+function netOn(m) {
+  switch (m.t) {
+    case 'pong': {
+      const now = performance.now(), rtt = now - m.c;
+      if (rtt < NET.rtt * 1.5 || rtt < 120) { NET.rtt = Math.min(NET.rtt, rtt); NET.off = m.s + rtt / 2 - Date.now(); }
+      return;
+    }
+    case 'queued': NET.queue = { ahead: m.ahead, inside: m.inside, max: m.max }; return;
+    case 'welcome':
+      NET.admitted = true; NET.id = m.id; NET.queue = null; NET.locks = m.locks || {};
+      for (const o of m.others) netAddAvatar(o.id, o.shirt, o.pos);
+      for (const al in m.states) netApply(+al, m.states[al]);
+      netHost(); netAlignAll();
+      if (m.others.length) toast(`${m.others.length} ${m.others.length === 1 ? 'other visitor is' : 'others are'} inside`);
+      return;
+    case 'join': netAddAvatar(m.id, m.shirt, null); netHost(); toast(`A ${SHIRTS[m.shirt] ? SHIRTS[m.shirt][0].toLowerCase() : ''} visitor joined the queue to come in`); return;
+    case 'leave': netDropAvatar(m.id, m.beam); netHost(); return;
+    case 'p': { const o = NET.others.get(m.id); if (o) { o.tgt = { x: m.x, z: m.z, y: m.y }; o.a = m.a; o.s = m.s; if (!o.seen) { o.seen = true; o.av.g.position.set(m.x, 0, m.z); } } return; }
+    case 'locks':
+      NET.locks = m.locks || {};
+      if (playing && curM && NET.locks[curM.al] && NET.locks[curM.al] !== NET.id) { exitPlay(true); toast('Someone else got to that machine first'); }
+      return;
+    case 'st': netApply(+m.al, m.s); return;
+    case 'ev': { const f = NET_EV[m.f]; if (!f) return; NET.applying = window.__netApplying = true; try { f(m.from, m.a || []); } catch (e) {} NET.applying = window.__netApplying = false; return; }
+  }
+}
+function netHost() { let min = NET.id; for (const id of NET.others.keys()) min = Math.min(min, id); NET.host = min === NET.id; }
+
+/* ---------- the other visitors, as gramophone-headed figures in their shirts */
+function netAddAvatar(id, shirt, pos) {
+  if (NET.others.has(id)) return;
+  const av = makeAvatar(SHIRTS[shirt] ? SHIRTS[shirt][1] : '#888', true); scene.add(av.g);
+  const o = { id, shirt, av, pos: new THREE.Vector3(pos ? pos.x : 0, 0, pos ? pos.z : A + COR_L - 1.5), tgt: pos ? { x: pos.x, z: pos.z, y: pos.y } : null, a: pos ? pos.a : -1, s: pos ? pos.s : 'queue', seen: !!pos, heading: pos ? pos.y : 0, fade: 0 };
+  av.g.position.copy(o.pos); av.g.visible = !!pos;
+  NET.others.set(id, o);
+}
+const netBeams = [];
+function netDropAvatar(id, beam) {
+  const o = NET.others.get(id); if (!o) return;
+  NET.others.delete(id);
+  if (!beam || !o.av.g.visible) { scene.remove(o.av.g); return; }
+  // time's up for them: the light beam takes them, as it will take you
+  const b1 = beamOuter.clone(), b2 = beamInner.clone(); b1.material = beamOuter.material.clone(); b2.material = beamInner.material.clone();
+  b1.position.set(o.pos.x, 8, o.pos.z); b2.position.copy(b1.position); b1.visible = b2.visible = true; scene.add(b1, b2);
+  netBeams.push({ o, b1, b2, t: 0 });
+  if (ac) shimmer();
+}
+function netUpdateAvatars(dt) {
+  for (const o of NET.others.values()) {
+    if (!o.tgt) continue;
+    const dx = o.tgt.x - o.pos.x, dz = o.tgt.z - o.pos.z, d = Math.hypot(dx, dz);
+    const k = Math.min(1, dt * 8); o.pos.x += dx * k; o.pos.z += dz * k;
+    o.heading += angDiff(o.tgt.y, o.heading) * Math.min(1, dt * 10);
+    o.av.g.position.set(o.pos.x, 0, o.pos.z); o.av.g.rotation.y = o.heading;
+    o.av.g.visible = o.seen && o.s !== 'queue';
+    animateAvatar(o.av, dt, Math.min(2, d * 8), time);
+  }
+  for (let i = netBeams.length - 1; i >= 0; i--) {
+    const B = netBeams[i]; B.t += dt;
+    const a = Math.min(1, B.t / 0.8), out = Math.max(0, (B.t - 3.2) / 0.8);
+    B.b1.material.opacity = 0.35 * a * (1 - out); B.b2.material.opacity = 0.6 * a * (1 - out);
+    const fade = Math.min(1, Math.max(0, (B.t - 1.0) / 1.8));
+    for (const m of B.o.av.allMats) m.opacity = 1 - fade;
+    B.o.av.g.scale.set(1 - fade * 0.4, 1 + fade * 0.25, 1 - fade * 0.4);
+    if (B.t > 4) { scene.remove(B.b1, B.b2, B.o.av.g); netBeams.splice(i, 1); }
+  }
+  // pretend visitors keep an empty gallery company, and step aside as real people arrive
+  const real = NET.admitted ? NET.others.size : 0;
+  npcs.forEach((n, k) => { n.av.g.visible = k < 3 - real; });
+}
+// the machines being played glow at their feet in the player's shirt colour
+const netRings = {};
+function netUpdateRings() {
+  for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M, THER_M, CHOIR_M, STR_M, CAL_M]) {
+    let R = netRings[m.al];
+    const who = NET.admitted ? NET.locks[m.al] : null;
+    if (!R) {
+      if (!who) continue;
+      R = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.75, toneMapped: false, depthWrite: false }));
+      R.rotation.x = -Math.PI / 2; scene.add(R); netRings[m.al] = R;
+      const p = m.base.localToWorld(new THREE.Vector3(0, 0, m.stand)); R.position.set(p.x, 0.02, p.z);
+    }
+    R.visible = !!who;
+    if (who) {
+      const sh = who === NET.id ? shirtIdx : (NET.others.get(who) || {}).shirt;
+      R.material.color.set(SHIRTS[sh] ? SHIRTS[sh][1] : '#ffffff'); R.material.opacity = 0.55 + 0.25 * Math.sin(time * 3);
+    }
+  }
+}
+function netLockedByOther(al) { const o = NET.admitted && NET.locks[al]; return o && o !== NET.id ? o : 0; }
+
+// playing a machine takes it; leaving gives it back (after one last word on its settings)
+const _enterPlay = enterPlay, _exitPlay = exitPlay;
+enterPlay = function (m = ORGAN_M) {
+  const who = netLockedByOther(m.al);
+  if (who) { const o = NET.others.get(who); toast(`The ${o && SHIRTS[o.shirt] ? SHIRTS[o.shirt][0].toLowerCase() + ' ' : ''}visitor is playing this one`); return; }
+  const was = playing; _enterPlay(m);
+  if (!was && playing && NET.admitted) { NET.locks[m.al] = NET.id; netSend({ t: 'lock', al: m.al }); NET.lastSt[m.al] = netGet(m.al); }
+};
+exitPlay = function (lost) {
+  const m = playing ? curM : null;
+  _exitPlay();
+  if (m && NET.admitted && !lost) { const s = netGet(m.al); if (s !== NET.lastSt[m.al]) { netSend({ t: 'st', al: m.al, s }); NET.lastSt[m.al] = s; } netSend({ t: 'unlock', al: m.al }); delete NET.locks[m.al]; }
+};
+
+/* ---------- every frame */
+function netUpdate(dt) {
+  if (!NET.live) { if (npcs.length) netUpdateAvatars(dt); return; }
+  if (NET.admitted) {
+    // the machine I'm playing: its settings, whenever they change, a dozen times a second at most
+    if ((NET.stT += dt) > 0.08) {
+      NET.stT = 0;
+      if (playing && curM && NET.locks[curM.al] === NET.id) {
+        const s = netGet(curM.al);
+        if (s && s !== NET.lastSt[curM.al]) { NET.lastSt[curM.al] = s; netSend({ t: 'st', al: curM.al, s }); }
+      }
+    }
+    if ((NET.posT += dt) > 0.15 && player.av && ['corridor', 'hall'].includes(state)) {
+      NET.posT = 0;
+      const g = player.av.g, p = playing ? playSpot() : player.pos, n = playing && curM ? normals[curM.al] : null;
+      const yaw = n ? Math.atan2(-n.x, -n.z) + Math.PI : g.rotation.y;      // at a machine, facing it
+      netSend({ t: 'p', x: r3(p.x), z: r3(p.z), y: r3(yaw), a: playing && curM ? curM.al : -1, s: state });
+    }
+    if ((NET.alignT += dt) > 2 || NET.bpm !== rhy.bpm) { NET.alignT = 0; NET.bpm = rhy.bpm; netAlignAll(); }
+  }
+  if ((NET.pingT += dt) > 12) { NET.pingT = 0; netSend({ t: 'ping', c: performance.now() }); }
+  netUpdateAvatars(dt); netUpdateRings();
+}
+function netBye(beam) { if (NET.live) { netSend({ t: 'bye', beam }); NET.admitted = false; setTimeout(() => { try { NET.ws.close(); } catch (e) {} }, 500); } }
+
+/* ---------- the title card: which room, how full, and private rooms */
+function netRoomLabel() { return NET.room === 'public' ? 'the public gallery' : `private room “${NET.room}”`; }
+async function netStatus() {
+  const el = $('roomInfo'); if (!el) return;
+  if (!NET.url) { el.textContent = ''; return; }
+  el.textContent = `Joining ${netRoomLabel()}`;
+  try {
+    const r = await fetch(NET.url.replace(/^ws/, 'http') + '/status?room=' + encodeURIComponent(NET.room));
+    const s = await r.json();
+    el.textContent = `${NET.room === 'public' ? 'Public gallery' : `Private room “${NET.room}”`} · ${s.inside} of ${s.max} inside${s.queue ? ` · ${s.queue} queueing` : ''}`;
+  } catch (e) { el.textContent = `${netRoomLabel()[0].toUpperCase() + netRoomLabel().slice(1)} · server not reachable, you’ll play on your own`; }
+}
+{
+  const pb = $('privBtn');
+  if (pb) {
+    if (!NET.url) pb.classList.add('hidden');
+    pb.onclick = async () => {
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('') + '-' + Array.from(crypto.getRandomValues(new Uint8Array(3)), (b) => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+      NET.room = id;
+      const u = new URL(location.href); u.searchParams.set('room', id); history.replaceState(null, '', u);
+      const link = u.toString();
+      let shared = false;
+      try { if (navigator.share && isTouch) { await navigator.share({ title: 'Sound Gallery', text: 'Come and play in the Sound Gallery with me', url: link }); shared = true; } } catch (e) {}
+      if (!shared) { try { await navigator.clipboard.writeText(link); toast('Private room made · link copied'); } catch (e) { toast('Private room made · copy the address bar to share it'); } }
+      netStatus();
+    };
+  }
+  netStatus();
 }
 
 function loop() {

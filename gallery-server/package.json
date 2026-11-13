@@ -1,0 +1,8 @@
+{
+  "name": "sound-gallery-rooms",
+  "private": true,
+  "type": "module",
+  "description": "Room server for the Sound Gallery: the queue, up to 8 visitors, who is playing which machine, and the machines' settings.",
+  "scripts": { "deploy": "wrangler deploy", "dev": "wrangler dev" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
