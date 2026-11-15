@@ -5086,8 +5086,9 @@ function makeTheremin() {
   const fit = [];
   for (const p of [[-0.68, TH.loopY, 0], [TH.rodX + TH.dMax, 1.35, TH.rodZ], [TH.rodX + TH.dMax, 2.15, TH.rodZ], [-0.68, 1.8, 0], [-0.31, 0.88, 0.2], [0.31, 0.88, 0.2], [0, 2.44, -0.9]]) fit.push([therG, new THREE.Vector3(...p)]);
   const fitL = fit.slice(0, 6);
-  // a narrow phone: close in on the cabinet and the near half of the air; the low notes run off the edge
-  const fitP = [[-0.6, TH.loopY, 0], [TH.rodX + 0.36, 1.45, TH.rodZ], [TH.rodX, 2.14, TH.rodZ], [-0.3, 0.92, 0.2], [0.3, 0.92, 0.2]].map((p) => [therG, new THREE.Vector3(...p)]);
+  // a narrow phone: the cabinet, the volume loop and the whole of the air to the right of the rod, so every
+  // note of the guide is on screen
+  const fitP = [[-0.52, TH.loopY, 0], [TH.rodX + TH.dMax + 0.04, 1.5, TH.rodZ], [TH.rodX + TH.dMax + 0.04, 2.14, TH.rodZ], [TH.rodX, 2.14, TH.rodZ], [-0.3, 0.92, 0.2], [0.3, 0.92, 0.2]].map((p) => [therG, new THREE.Vector3(...p)]);
   return {
     al: THER_I, base: therG, fit, fitL, fitP, elev: [0.5, 0.4], stand: 1.0,
     down: therDown, move: therMove, up: therUp, step: therStep, adjust: therAdjust, press: therPress, analog: therAnalog,
@@ -5535,7 +5536,8 @@ function updateChoir(dt) {
    the foot, a yellow sun on the wall behind. One instrument, eleven voices.
    Plucked (HARP, GUITAR, 12-STRING, SITAR, KOTO, BANJO): tap a string to pluck it, swipe across them to
    strum. These are real strings, computed (Karplus–Strong waveguides): a burst of energy runs round a loop as long as the string, losing a little brightness each pass. The
-   sitar's bridge buzzes and six drone strings ring along in sympathy; the 12-string doubles each string.
+   sitar's curved jawari bridge makes each note buzz and sweep, seven sympathetic strings shimmer along in the key,
+   the chikari drone is brushed with each stroke, and now and then a note is pulled up into (meend); the 12-string doubles each string.
    Bowed (VIOLIN, FIDDLE, CELLO, QUARTET, ORCHESTRA): touch a string and draw your finger along it, as a
    bow: the faster you move, the louder it sings; slide across to the next string to change note.
    QUARTET puts a four-part chord under the note you bow, ORCHESTRA a whole section.
@@ -5552,7 +5554,7 @@ const STR_VOICES = [
   { n: 'HARP', base: 43, c: 0.5, t60: 3.6, pos: 0.42, soft: 0.25, body: [['peaking', 240, 1.2, 3], ['peaking', 900, 1, -2], ['lowpass', 6500, 0.6, 0]] },
   { n: 'GUITAR', base: 40, c: 0.68, t60: 3.0, pos: 0.17, soft: 0.6, body: [['peaking', 105, 2.2, 6], ['peaking', 215, 1.8, 3.5], ['lowpass', 8500, 0.6, 0]] },
   { n: '12-STRING', base: 40, c: 0.74, t60: 3.2, pos: 0.15, soft: 0.7, twelve: true, body: [['peaking', 110, 2, 5], ['peaking', 2600, 1.2, 3], ['lowpass', 10000, 0.6, 0]] },
-  { n: 'SITAR', base: 48, c: 0.78, t60: 4.2, pos: 0.09, soft: 0.8, buzz: 0.06, sym: true, body: [['peaking', 650, 1.4, 3], ['peaking', 3200, 2, 5], ['lowpass', 9000, 0.6, 0]] },
+  { n: 'SITAR', base: 48, c: 0.93, t60: 5.0, pos: 0.06, soft: 0.95, jaw: [2.2, 0.5], sym: true, glide: 14, body: [['peaking', 1350, 1.4, 5], ['peaking', 3700, 1.6, 4], ['lowpass', 10500, 0.6, 0]] },
   { n: 'KOTO', base: 50, c: 0.8, t60: 1.9, pos: 0.11, soft: 0.85, body: [['peaking', 420, 1.6, 4], ['peaking', 1800, 1.5, 2], ['lowpass', 7500, 0.6, 0]] },
   { n: 'BANJO', base: 50, c: 0.9, t60: 0.95, pos: 0.07, soft: 0.95, body: [['peaking', 1700, 1.4, 8], ['peaking', 350, 1, -4], ['lowpass', 9500, 0.6, 0]] },
   { n: 'VIOLIN', bow: true, base: 55, saws: 1, vib: 0.00030, slide: 0, noise: 0.03, body: [['peaking', 290, 1.5, 4], ['peaking', 2600, 1, 6], ['lowpass', 7000, 0.6, 0]] },
@@ -5683,10 +5685,33 @@ function strRender(vi, midi, bright) {
     }
   };
   ks(f, 1, 0, 1, V.buzz || 0);
+  if (V.jaw) {
+    // the sitar's jawari: the string rolls on a broad curved bridge, which flattens one side of every swing, at
+    // any loudness, so the buzz lasts the whole note. What it adds rings through a resonance that sweeps down
+    // from a bright zing to a nasal 'ji' as the note settles: the sound that makes a sitar a sitar.
+    const [amt, sweep] = V.jaw; let env = 0, x1 = 0, x2 = 0, y1 = 0, y2 = 0, dc = 0;
+    let k0 = 0, k1 = 0, k2 = 0, thK = 0;
+    for (let i = 0; i < n; i++) {
+      if (!(i & 63)) {                                                 // the slow things, every 64 samples
+        const tt = i / sr, w0 = 2 * Math.PI * (1200 + 2600 * Math.exp(-tt / sweep)) / sr, al = Math.sin(w0) / 5, a0 = 1 + al;
+        k0 = al / a0; k1 = 2 * Math.cos(w0) / a0; k2 = (1 - al) / a0; thK = 0.18 + 0.5 * (1 - Math.exp(-tt / 1.6));
+      }
+      const y = out[i], ay = y < 0 ? -y : y; env = ay > env ? ay : env * 0.9995;
+      const th = env * thK;
+      const b = y < -th ? (-th + (y + th) * 0.12) - y : 0;            // what the bridge takes off
+      const z = k0 * (b - x2) + k1 * y1 - k2 * y2; x2 = x1; x1 = b; y2 = y1; y1 = z;
+      const v = y + b * 0.6 + z * amt; dc += 0.0008 * (v - dc); out[i] = v - dc;
+    }
+  }
   if (V.twelve) ks(midi < 60 ? f * 2 : f * Math.pow(2, 4 / 1200), 0.7, 0.007, 0.8, 0);
-  if (V.sym) {                                                         // the drone strings, ringing in sympathy
-    const src = out.slice(0), r = NOTE_SEMI[org.root], sc = galleryScale();
-    for (const s of [0, sc.includes((r + 3) % 12) ? 3 : 4, 7, 12, 14, 19]) ks(mf(48 + r + s), 0.4, 0, 0, 0, src, 0.004, 0.6, 5);
+  if (V.sym) {
+    // the taraf: seven sympathetic strings under the frets, tuned up the notes of the key, set ringing by
+    // whichever of their notes the played string sounds. Driven by the buzzing string, they shimmer rather
+    // than hum. Then the chikari's bright drone, brushed by the plectrum as it passes.
+    const src = out.slice(0), r = NOTE_SEMI[org.root], sc = galleryScale(), taraf = [];
+    for (let m = 60 + r; taraf.length < 7; m++) if (sc.includes(m % 12)) taraf.push(m);
+    for (const m of taraf) ks(mf(m), 0.26, 0, 0, 0, src, 0.005, 0.84, 6);
+    ks(mf(72 + r), 0.08, 0.015, 0.35, 0, null, 0, 0.88, 2.2);
   }
   const fade = Math.floor(0.25 * sr);                                  // a gentle fade at the very end
   for (let i = 0; i < fade; i++) out[n - 1 - i] *= i / fade;
@@ -5754,6 +5779,9 @@ function strPluck(i, vel, where = 0.5) {
   if (old) { old.g.gain.setTargetAtTime(0, t, 0.015); old.s.stop(t + 0.1); }
   const s = ac.createBufferSource(); s.buffer = strBuf(strg.voice, S.midi, bright);
   s.detune.value = (Math.random() - 0.5) * 4;
+  // a steel string struck hard starts a shade sharp and settles; the sitarist often pulls into a note (meend)
+  if (V.glide) { const d0 = s.detune.value; s.detune.setValueAtTime(d0 + V.glide * (0.5 + vel), t); s.detune.setTargetAtTime(d0, t, 0.07);
+    if (Math.random() < 0.25) { s.detune.setValueAtTime(d0 - 100, t); s.detune.setTargetAtTime(d0, t + 0.04, 0.06); } }
   const g = ac.createGain(); g.gain.value = 0.35 + vel * 0.75;
   s.connect(g); g.connect(strAudio.pIn); s.start(t);
   strAudio.ring[i] = { s, g };
