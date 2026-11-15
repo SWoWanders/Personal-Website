@@ -83,7 +83,40 @@
   a.big.dl{display:block;text-decoration:none;box-sizing:border-box;text-align:center}
   button.ghost.on{opacity:1;cursor:pointer}
   button.ghost{font-family:var(--font);font-size:18px;font-weight:700;padding:14px 26px;border-radius:999px;border:3px solid var(--ink);background:transparent;width:100%;margin-top:10px;opacity:.45}
+  /* the visitor's guide: a sheet of cream paper in a typewriter, typed out before the title card */
+  #intro{z-index:30;padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom))}
+  #intro .sheet{position:relative;max-width:660px;width:100%;max-height:100%;overflow:auto;overscroll-behavior:contain;
+     background:#FEF4C3;
+     background-image:radial-gradient(ellipse at 20% 10%,rgba(255,255,255,.35),transparent 60%),radial-gradient(ellipse at 80% 90%,rgba(160,120,40,.10),transparent 55%),
+       repeating-linear-gradient(0deg,rgba(120,90,30,.025) 0 1px,transparent 1px 3px);
+     border-radius:3px;box-shadow:0 2px 0 rgba(0,0,0,.06),0 24px 60px rgba(0,0,0,.35);
+     padding:clamp(22px,6vw,52px) clamp(20px,6vw,56px) 28px;color:#14110d;
+     font-family:"Special Elite","Courier Prime","Courier New",Courier,monospace;font-size:clamp(16px,4.3vw,19px);line-height:1.55;
+     -webkit-text-stroke:.45px #14110d;text-shadow:0 0 .7px rgba(20,17,13,.75),.3px .2px .4px rgba(20,17,13,.35)}
+  #intro .typed p{margin:0 0 1.05em}
+  #intro .typed .h{font-size:1.5em;letter-spacing:.14em;line-height:1.2;margin:.1em 0 .1em}
+  #intro .typed .sub2{margin-bottom:1.5em;letter-spacing:.06em}
+  #intro .typed .hd{letter-spacing:.16em;margin:1.6em 0 .5em;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px}
+  #intro .typed .m{padding-left:3.2em;text-indent:-3.2em;margin-bottom:.55em}
+  #intro .typed .sig{margin-top:1.4em;padding-left:45%}
+  #intro .c{opacity:0}
+  #intro .c.on{opacity:var(--o,1);animation:strike .09s ease-out}
+  @keyframes strike{from{opacity:0;transform:translateY(-1px) scale(1.12)}to{transform:none}}
+  #intro .caret{display:inline-block;width:.6em;height:1.05em;vertical-align:-.18em;background:#14110d;opacity:.75;animation:blink 1s steps(1) infinite;margin-left:1px}
+  #intro .sheet:focus{outline:none}
+  #intro .tools{position:sticky;top:calc(-1 * clamp(22px,6vw,52px));display:flex;justify-content:flex-end;gap:8px;z-index:2;pointer-events:none;
+     margin:calc(10px - clamp(22px,6vw,52px)) calc(-1 * clamp(20px,6vw,56px)) 6px;padding:10px 12px 16px;background:linear-gradient(#FEF4C3 72%,rgba(254,244,195,0))}
+  #intro .tools button,#intro .go{pointer-events:auto;font-family:var(--font);-webkit-text-stroke:0;text-shadow:none;font-weight:700;cursor:pointer;border-radius:999px}
+  #intro .tools button{font-size:14px;letter-spacing:.06em;padding:8px 14px;border:2px solid #14110d;background:rgba(254,244,195,.92);color:#14110d}
+  #intro .go{display:block;width:100%;margin:18px 0 4px;font-size:20px;letter-spacing:.08em;padding:15px 24px;border:0;background:#14110d;color:#FEF4C3;opacity:0;transition:opacity .5s}
+  #intro .go.show{opacity:1}
+  #intro button:focus-visible{outline:3px solid #1f6bff;outline-offset:3px}
+  .sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #aboutBtn{background:none;border:0;font-family:var(--font);font-size:14px;letter-spacing:.06em;text-decoration:underline;color:inherit;opacity:.7;cursor:pointer;margin-top:10px;padding:6px}
+  @media (prefers-reduced-motion:reduce){#intro .c.on{animation:none}}
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
             "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
@@ -92,6 +125,16 @@
 <body>
 <div id="flash"></div>
 <div id="playBar" class="hidden"><button id="pbLeft" aria-label="Slide left">◀</button><button id="pbLeave">Leave</button><button id="pbRight" aria-label="Slide right">▶</button></div>
+
+<div id="intro" class="screen op hidden" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+  <div class="sheet" id="sheet" tabindex="-1">
+    <div class="tools"><button id="tySound" aria-pressed="false">🔈 SOUND</button><button id="tySkip">SKIP ▸▸</button></div>
+    <h2 id="introTitle" class="sr">Sound Gallery: a visitor's guide</h2>
+    <div class="sr" id="introText"></div>
+    <div class="typed" id="typed" aria-hidden="true"></div>
+    <button class="go" id="tyGo">ON TO THE GALLERY →</button>
+  </div>
+</div>
 
 <div id="title" class="screen op">
   <div class="card">
@@ -104,8 +147,192 @@
     <p id="roomInfo"></p>
     <a class="big back" href="index.html#/swow">← BACK TO SWOW MUSIC</a>
     <p class="hint" id="ctrlHint"></p>
+    <button id="aboutBtn">About the gallery: what to expect</button>
   </div>
 </div>
+<script>
+/* ------------------------------------------------------------------ THE VISITOR'S GUIDE
+   Before the title card, a first-time visitor finds a sheet of cream paper being typed out, letter by
+   letter, on an old typewriter: what the gallery is, what each machine does, how they play together, and
+   what happens to the recording. The typewriter's sounds are synthesized as it goes (key strikes, the
+   duller space bar, the bell and the carriage return) and join in on the first tap or key press, since
+   browsers keep a page quiet until then. Skip types the rest at once; Enter, Space or a controller's Ⓐ
+   does the same, then goes on; Esc or Ⓑ goes straight to the title card. Returning visitors start at the
+   title card, which has an "About the gallery" link back to this page. Reduced motion: no typing. */
+(() => {
+  const DOC = [
+    ['h', 'SOUND GALLERY'],
+    ['sub2', "A visitor's guide"],
+    ['p', "Welcome. You are about to step into a room full of musical machines, and for five minutes they are yours to play."],
+    ['p', "You don't need to know anything about music. There are no wrong notes in here: every machine is tuned to the same key, so whatever you press, pull, strum, splash or punch will fit with everything else. Push every button. Turn every knob. Try the thing you think you shouldn't. The worst that can happen is something interesting."],
+    ['p', "And if you do know music, there is plenty to dig into: chords and moods, bass lines and beats, bowing, bending and tape echo, and a whole hall to arrange them in."],
+    ['hd', 'THE MACHINES'],
+    ['p', "The gallery is a twelve-sided hall. Eleven alcoves hold eleven machines; the twelfth is the door. Walk up to a machine to play it. Many keep going after you walk away, so you can set a beat running, start a drone, and wander on to the next."],
+    ['m', "I.    THE STRING FRAME. Pluck, strum or bow: harp, guitar, sitar, koto, banjo, violin, cello, a whole orchestra."],
+    ['m', "II.   THE THEREMIN. Played without being touched, the eerie voice of old science fiction. Glide, swoop and let the vibrato bloom."],
+    ['m', "III.  THE TEXTURE MACHINE. Wind, rain, sea, thunder, the crackle of an old record: weather to lay under the music."],
+    ['m', "IV.   THE MELODY CONSOLE. An Optigan organ with a strum plate. Pick a chord, sweep your hand across it, and the room follows."],
+    ['m', "V.    THE RIPPLE POOL. Touch the water. Ripples spread and ring the chimes they reach: glass, kalimba, steel drum."],
+    ['m', "VI.   THE DRONE ORGAN. The deep, warm ground under everything. It sets the gallery's key and its mood: bright, dark, floating or ancient."],
+    ['m', "VII.  THE BASS PEDALS. Step out a bass line, or pick a pattern and let it groove."],
+    ['m', "VIII. THE RHYTHM WHEEL. The heartbeat. Light pads around the wheel to build a beat."],
+    ['m', "IX.   THE TAPE ECHO. It listens to the other machines and throws their sound back across the room. Grab the tape to bend it."],
+    ['m', "X.    THE CHOIR WALL. A wall of singers: choir, boys, monks, angels. Slide to change their vowels."],
+    ['m', "XI.   THE STEAM CALLIOPE. Punch holes in a paper roll and let the steam play it, as a brass band, a music box or a pipe organ."],
+    ['hd', 'HOW THEY PLAY TOGETHER'],
+    ['p', "The Drone Organ chooses the key and the mood. The Melody Console chooses the chords, and the strings, the choir and the bass can follow it. The Rhythm Wheel keeps the time that the bass, the echo and the calliope march to. Change one machine and the whole room answers."],
+    ['hd', "YOU'RE NOT ALONE"],
+    ['p', "Up to eight visitors share the gallery, one to a machine, so you may find yourself in a band of strangers. You can wave, point and dance. Or open a private room and send the link to your friends."],
+    ['hd', 'THE RECORDING'],
+    ['p', "At the centre of the hall, two giant ears turn slowly on a stage. They are the microphone. From the moment you step into the hall they record what they hear: nearby machines loud, faraway ones soft, the whole sound swinging slowly around as the stage turns. Only the music is recorded, never the clicks of the controls."],
+    ['p', "After five minutes you are shown out, and you can listen back and download your recording, or a WAV file for the best quality. It's yours to keep: a piece of music nobody else could have made."],
+    ['p', "Curious beginner or seasoned musician, there is something here for you. Play. Listen. Have fun. Headphones help."],
+    ['sig', '— Steve'],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const intro = $('intro'), title = $('title'), typedEl = $('typed'), sheet = $('sheet'), goBtn = $('tyGo'), skipBtn = $('tySkip'), sndBtn = $('tySound');
+  $('introText').textContent = DOC.map(([, t]) => t).join('\n');
+  // every letter laid out at once, unseen, so the page never jumps as it's typed
+  const chars = [];
+  for (const [cls, text] of DOC) {
+    const p = document.createElement('p'); p.className = cls; typedEl.appendChild(p);
+    for (const word of text.split(/( +)/)) {
+      if (!word) continue;
+      if (word[0] === ' ') { const s = document.createElement('span'); s.className = 'c'; s.textContent = word.replace(/ /g, ' ').slice(0, -1) + ' '; p.appendChild(s); chars.push({ el: s, ch: ' ' }); continue; }
+      const w = document.createElement('span'); w.style.whiteSpace = 'nowrap'; p.appendChild(w);
+      for (const ch of word) {
+        const s = document.createElement('span'); s.className = 'c'; s.textContent = ch;
+        s.style.setProperty('--o', (0.78 + Math.random() * 0.22).toFixed(2));        // a ribbon's uneven ink
+        if (Math.random() < 0.3) s.style.position = 'relative', s.style.top = ((Math.random() - 0.5) * 1.4).toFixed(1) + 'px';
+        w.appendChild(s); chars.push({ el: s, ch });
+      }
+    }
+    chars.push({ el: null, ch: '\n' });
+  }
+  const caret = document.createElement('span'); caret.className = 'caret';
+
+  // ---------- the typewriter's sounds
+  let ac = null, out = null, noise = null, sound = true;
+  function audio() {
+    if (ac) { if (ac.state !== 'running') ac.resume().catch(() => {}); return; }
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    out = ac.createGain(); out.gain.value = 0.55; out.connect(ac.destination);
+    noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    sndLabel();
+  }
+  const live = () => sound && ac && ac.state === 'running';
+  function burst(t, dur, f, q, gain, type = 'bandpass') {
+    const s = ac.createBufferSource(); s.buffer = noise; s.playbackRate.value = 0.8 + Math.random() * 0.4;
+    const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+    const g = ac.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(fl); fl.connect(g); g.connect(out); s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.02);
+  }
+  function thump(t, f0, f1, dur, gain) {
+    const o = ac.createOscillator(); o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function keyStrike(heavy) {                    // the typebar slapping the platen, then the carriage stepping on
+    if (!live()) return; const t = ac.currentTime + 0.005, v = 0.8 + Math.random() * 0.4;
+    burst(t, 0.018, 2600 + Math.random() * 1600, 1.4, 0.5 * v);
+    burst(t, 0.045, 900 + Math.random() * 300, 2.5, 0.28 * v);
+    thump(t, 170, 70, 0.05, (heavy ? 0.5 : 0.32) * v);
+    burst(t + 0.035 + Math.random() * 0.01, 0.012, 5200, 3, 0.1 * v);               // the escapement's tick
+  }
+  function spaceBar() { if (!live()) return; const t = ac.currentTime + 0.005; thump(t, 120, 55, 0.07, 0.36); burst(t, 0.03, 700, 1.2, 0.22); burst(t + 0.03, 0.012, 4800, 3, 0.08); }
+  function bellAndReturn() {                      // ding, then the lever thrown and the carriage zipping home
+    if (!live()) return; const t = ac.currentTime + 0.005;
+    for (const [f, a, d] of [[2093, 0.16, 1.2], [5650, 0.05, 0.5], [2093 * 2.76, 0.03, 0.35]]) {
+      const o = ac.createOscillator(); o.frequency.value = f; const g = ac.createGain(); g.gain.setValueAtTime(a, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + d + 0.02);
+    }
+    const t2 = t + 0.18; burst(t2, 0.04, 600, 1.5, 0.35); thump(t2, 140, 60, 0.06, 0.35);
+    for (let k = 0; k < 9; k++) burst(t2 + 0.05 + k * 0.026, 0.014, 2400 + k * 160, 4, 0.14);   // the ratchet
+    burst(t2 + 0.3, 0.06, 300, 1, 0.4, 'lowpass'); thump(t2 + 0.3, 110, 50, 0.08, 0.45);       // the carriage stops
+  }
+  function sndLabel() {
+    const on = sound && ac && ac.state === 'running';
+    sndBtn.textContent = on ? '🔊 SOUND' : '🔈 SOUND'; sndBtn.setAttribute('aria-pressed', String(on));
+  }
+  sndBtn.onclick = (e) => { e.stopPropagation(); if (!ac || ac.state !== 'running') { sound = true; audio(); } else sound = !sound; setTimeout(sndLabel, 60); };
+
+  // ---------- the typing
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let i = 0, timer = null, open = false, follow = true;
+  function place() { for (let k = i - 1; k >= 0; k--) if (chars[k].el) { chars[k].el.after(caret); return; } }
+  function stepDelay(ch, prev) {
+    if (ch === '\n') return 520;
+    let d = 15 + Math.random() * 22;                                     // a brisk typist, never quite even
+    if (ch === ' ') d += 18 + Math.random() * 40;                        // the little gap between words
+    if (/[.!?:]/.test(prev)) d += 160; else if (/[,;—]/.test(prev)) d += 70;
+    if (Math.random() < 0.025) d += 160;                                 // a moment's thought
+    return d;
+  }
+  function type() {
+    timer = null; if (!open) return;
+    if (i >= chars.length) return done();
+    const c = chars[i++];
+    if (c.ch === '\n') bellAndReturn();
+    else { c.el.classList.add('on'); if (c.ch === ' ') spaceBar(); else keyStrike(/[A-Z.]/.test(c.ch)); place(); }
+    if (follow) { const r = caret.getBoundingClientRect(), s = sheet.getBoundingClientRect(); if (r.bottom > s.bottom - 40) sheet.scrollTop += r.bottom - s.bottom + 90; }
+    timer = setTimeout(type, stepDelay(chars[i] ? chars[i].ch : '', c.ch));
+  }
+  function finish() {
+    if (timer) clearTimeout(timer); timer = null;
+    for (; i < chars.length; i++) if (chars[i].el) chars[i].el.classList.add('on');
+    done();
+  }
+  function done() { place(); goBtn.classList.add('show'); skipBtn.textContent = 'GALLERY ▸'; }
+  // the reader scrolling back up stops the page chasing the typing until they come back down
+  sheet.addEventListener('scroll', () => { follow = sheet.scrollTop + sheet.clientHeight > sheet.scrollHeight - 160 || !timer; }, { passive: true });
+
+  function show() {
+    open = true; i = 0; follow = true; sheet.scrollTop = 0; goBtn.classList.remove('show'); skipBtn.textContent = 'SKIP ▸▸';
+    for (const c of chars) if (c.el) c.el.classList.remove('on');
+    intro.classList.remove('hidden'); title.classList.add('hidden');
+    sheet.focus({ preventScroll: true });
+    if (reduced) finish(); else timer = setTimeout(type, 700);
+    pad();
+  }
+  function close() {
+    open = false; if (timer) clearTimeout(timer); timer = null;
+    intro.classList.add('hidden'); title.classList.remove('hidden');
+    try { localStorage.setItem('sg-intro', '1'); } catch (e) {}
+    if (ac) { const a = ac; ac = null; setTimeout(() => a.close().catch(() => {}), 1500); }   // leave the gallery's sound engine the device to itself
+    const b = $('enterBtn'); if (b) b.focus({ preventScroll: true });
+  }
+  goBtn.onclick = close;
+  skipBtn.onclick = (e) => { e.stopPropagation(); if (i < chars.length) finish(); else close(); };
+  // any first touch or key wakes the typewriter's sound
+  intro.addEventListener('pointerdown', () => { if (sound) audio(); setTimeout(sndLabel, 60); });
+  addEventListener('keydown', (e) => {
+    if (!open) return;
+    e.stopPropagation();                                                 // the gallery behind mustn't hear these
+    if (sound) audio(); setTimeout(sndLabel, 60);
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if ((e.key === 'Enter' || e.key === ' ') && !['tySound', 'tySkip', 'tyGo'].includes(document.activeElement && document.activeElement.id)) { e.preventDefault(); if (i < chars.length) finish(); else close(); }
+    else if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); sheet.scrollBy({ top: e.key === 'PageDown' ? sheet.clientHeight * 0.8 : 60 }); }
+    else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); sheet.scrollBy({ top: -(e.key === 'PageUp' ? sheet.clientHeight * 0.8 : 60) }); }
+  }, true);
+  // a game controller: Ⓐ finishes the typing, then goes on; Ⓑ goes straight on; stick or d-pad scrolls
+  let padPrev = [];
+  function pad() {
+    if (!open) return; requestAnimationFrame(pad);
+    const p = navigator.getGamepads && [...navigator.getGamepads()].find(Boolean); if (!p) return;
+    const b = (k) => p.buttons[k] && p.buttons[k].pressed;
+    if (b(0) && !padPrev[0]) { if (i < chars.length) finish(); else close(); }
+    else if (b(1) && !padPrev[1]) close();
+    const y = (Math.abs(p.axes[1] || 0) > 0.2 ? p.axes[1] : 0) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
+    if (y) { sheet.scrollTop += y * 14; follow = false; }
+    padPrev = p.buttons.map((x) => x.pressed);
+  }
+  $('aboutBtn').onclick = show;
+  let seen = false; try { seen = localStorage.getItem('sg-intro') === '1'; } catch (e) {}
+  if (!seen && !/[?&]nointro\b/.test(location.search)) show();
+})();
+</script>
+
 
 <div id="end" class="screen op hidden">
   <div class="card">
