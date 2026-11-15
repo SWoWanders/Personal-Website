@@ -178,6 +178,13 @@ svg use{overflow:visible}
 .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)); gap:5px; background:#000; border:5px solid #000; box-shadow:10px 12px 0 #000}
 .tile{min-height:clamp(110px,16vw,150px); padding:18px 20px; display:flex; flex-direction:column; justify-content:space-between; text-decoration:none; cursor:pointer;
   font-weight:900; font-stretch:90%; font-size:clamp(22px,2.8vw,30px); text-transform:uppercase; line-height:1; transition:filter .2s, transform .2s}
+/* a group of tiles under one heading, across the whole row: the places to buy the music */
+.buy{grid-column:1/-1; background:var(--yellow); color:#000; padding:18px 20px 20px}
+.buy h3{margin:0 0 14px; font-weight:900; font-stretch:90%; font-size:clamp(22px,2.8vw,30px); text-transform:uppercase; line-height:1}
+.buy-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr)); gap:12px}
+.buy .tile{min-height:clamp(88px,11vw,118px); border:4px solid #000; box-shadow:5px 6px 0 #000}
+/* SWoW Music's tiles: two across, then Buy and the Sound Gallery each across the whole width */
+@media (min-width:600px){ #swow-tiles{grid-template-columns:1fr 1fr} #swow-tiles>.t-red{grid-column:1/-1} }
 .tile small{font-weight:600; font-stretch:100%; font-size:13px; letter-spacing:.08em; text-transform:none; opacity:.85}
 .tile:hover{filter:brightness(1.08)}
 .nav-mode .tile:focus{outline:5px solid #000; outline-offset:-12px; box-shadow:inset 0 0 0 12px var(--yellow)}
@@ -416,8 +423,13 @@ svg use{overflow:visible}
     <div class="tiles" id="swow-tiles">
       <a class="tile t-cream" data-link="swow.youtube" data-sub="1" data-name="YouTube">Subscribe<small>YouTube · @swowmusic</small></a>
       <a class="tile t-black" data-link="swow.spotify" data-name="Spotify">Stream<small>Spotify</small></a>
-      <a class="tile t-yellow" data-link="swow.gumroad" data-name="Gumroad">Buy<small>Gumroad · Beat Generations</small></a>
-      <a class="tile t-cyan" data-link="swow.bandcamp" data-name="Bandcamp">Buy<small>Bandcamp · All albums</small></a>
+      <div class="buy" role="group" aria-labelledby="swow-buy">
+        <h3 id="swow-buy">Buy</h3>
+        <div class="buy-row">
+          <a class="tile t-cream" data-link="swow.gumroad" data-name="Gumroad">Gumroad<small>Beat Generations</small></a>
+          <a class="tile t-cyan" data-link="swow.bandcamp" data-name="Bandcamp">Bandcamp<small>All albums</small></a>
+        </div>
+      </div>
       <a class="tile t-red" data-link="swow.soundGallery" data-name="Sound Gallery">Sound Gallery<small>Step inside and play the room · early version</small></a>
     </div>
     <div class="card"><h2>Other channels</h2><div class="others" data-others="swow"></div></div>
