@@ -222,6 +222,15 @@ svg use{overflow:visible}
   background:radial-gradient(circle, var(--cream) 0 14%, #000 15% 18%, transparent 19%), repeating-radial-gradient(circle, #000 0 2px, #1d1d1d 2px 5px);
   animation:spin 5s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* the latest release: its cover in a sleeve, with the record spinning half out of it */
+.release{position:relative; width:clamp(120px,22vw,190px); aspect-ratio:1; flex-shrink:0; margin-right:clamp(34px,6vw,60px)}
+.release img{position:relative; z-index:1; display:block; width:100%; height:100%; border:4px solid #000; box-shadow:6px 7px 0 #000; background:#000}
+.release .vinyl{position:absolute; z-index:0; top:5%; left:28%; width:90%}
+.kick{font-weight:700; font-size:13px; letter-spacing:.14em; text-transform:uppercase; opacity:.75}
+.btn-buy{display:inline-block; padding:12px 20px; background:#000; color:var(--cream); font-weight:900; text-transform:uppercase; letter-spacing:.06em; text-decoration:none; box-shadow:5px 6px 0 var(--blue); cursor:pointer}
+.btn-buy:hover{transform:translate(-1px,-1px)}
+@media (max-width:480px){ .player{flex-direction:column; align-items:flex-start} .release{width:min(62vw,240px)} }
+@media (prefers-reduced-motion:reduce){ .vinyl{animation:none} }
 
 .others{display:flex; flex-wrap:wrap; gap:14px}
 .mini{display:flex; align-items:center; gap:10px; text-decoration:none; background:var(--cream); color:#000; border:3px solid #000; padding:6px 14px 6px 6px; font-weight:800; font-size:14px; min-height:56px}
@@ -417,8 +426,13 @@ svg use{overflow:visible}
       </div>
     </div>
     <div class="card player">
-      <div class="vinyl" aria-hidden="true"></div>
-      <div><h2 style="margin-bottom:6px">Latest release</h2><p style="margin:0">Add your newest album here.</p></div>
+      <div class="release" aria-hidden="true"><div class="vinyl"></div><img src="music/beat-generations.jpg" alt="" width="480" height="480"></div>
+      <div>
+        <small class="kick">Latest release</small>
+        <h2 style="margin:4px 0 6px">Beat Generations</h2>
+        <p style="margin:0 0 14px">Jazzy little numbers, folk-inspired tunes and spoken word.</p>
+        <a class="btn-buy" data-link="swow.gumroad" data-name="Gumroad">Get the album →</a>
+      </div>
     </div>
     <div class="tiles" id="swow-tiles">
       <a class="tile t-cream" data-link="swow.youtube" data-sub="1" data-name="YouTube">Subscribe<small>YouTube · @swowmusic</small></a>
