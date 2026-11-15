@@ -112,7 +112,7 @@
   #intro .go.show{opacity:1}
   #intro button:focus-visible{outline:3px solid #1f6bff;outline-offset:3px}
   .sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  #aboutBtn{background:none;border:0;font-family:var(--font);font-size:14px;letter-spacing:.06em;text-decoration:underline;color:inherit;opacity:.7;cursor:pointer;margin-top:10px;padding:6px}
+  #aboutBtn{background:none;border:0;font-family:var(--font);font-size:14px;letter-spacing:.06em;text-decoration:underline;color:inherit;opacity:.7;cursor:pointer;margin:-4px 0 6px;padding:6px}
   @media (prefers-reduced-motion:reduce){#intro .c.on{animation:none}}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -140,6 +140,7 @@
   <div class="card">
     <h1>SOUND<br>GALLERY</h1>
     <p class="sub">A sound installation for up to 8 visitors.<br>Five minutes. Recorded from the centre of the room.</p>
+    <button id="aboutBtn">Read the visitor's guide ▸</button>
     <div class="lbl">Choose your shirt</div>
     <div id="shirts"></div>
     <button id="enterBtn" class="big">JOIN THE QUEUE</button>
@@ -147,7 +148,6 @@
     <p id="roomInfo"></p>
     <a class="big back" href="index.html#/swow">← BACK TO SWOW MUSIC</a>
     <p class="hint" id="ctrlHint"></p>
-    <button id="aboutBtn">About the gallery: what to expect</button>
   </div>
 </div>
 <script>
@@ -157,8 +157,8 @@
    what happens to the recording. The typewriter's sounds are synthesized as it goes (key strikes, the
    duller space bar, the bell and the carriage return) and join in on the first tap or key press, since
    browsers keep a page quiet until then. Skip types the rest at once; Enter, Space or a controller's Ⓐ
-   does the same, then goes on; Esc or Ⓑ goes straight to the title card. Returning visitors start at the
-   title card, which has an "About the gallery" link back to this page. Reduced motion: no typing. */
+   does the same, then goes on; Esc or Ⓑ goes straight to the title card. It's shown on every visit, and the
+   title card has a "Read the visitor's guide" link back to it. Reduced motion: no typing. */
 (() => {
   const DOC = [
     ['h', 'SOUND GALLERY'],
@@ -298,7 +298,6 @@
   function close() {
     open = false; if (timer) clearTimeout(timer); timer = null;
     intro.classList.add('hidden'); title.classList.remove('hidden');
-    try { localStorage.setItem('sg-intro', '1'); } catch (e) {}
     if (ac) { const a = ac; ac = null; setTimeout(() => a.close().catch(() => {}), 1500); }   // leave the gallery's sound engine the device to itself
     const b = $('enterBtn'); if (b) b.focus({ preventScroll: true });
   }
@@ -328,8 +327,8 @@
     padPrev = p.buttons.map((x) => x.pressed);
   }
   $('aboutBtn').onclick = show;
-  let seen = false; try { seen = localStorage.getItem('sg-intro') === '1'; } catch (e) {}
-  if (!seen && !/[?&]nointro\b/.test(location.search)) show();
+  // shown on every visit (Skip, Esc or Ⓑ goes straight past it); ?nointro leaves it out
+  if (!/[?&]nointro\b/.test(location.search)) show();
 })();
 </script>
 
