@@ -149,6 +149,12 @@ svg use{overflow:visible}
 .pill.dark{background:#000; color:var(--cream)}
 .pill:hover{background:var(--yellow)}
 .pill.dark:hover{background:var(--red); color:#fff}
+.visits{display:inline-flex; align-items:center; gap:8px; background:#000; color:var(--cream); padding:5px 8px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase}
+.visits[hidden]{display:none}
+.visits .vd{display:inline-flex; gap:2px}
+.visits .vd i{font-style:normal; font:700 15px/1 ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; background:var(--cream); color:#000; padding:3px 4px; min-width:1.1em; text-align:center}
+.visits .vd i:nth-last-child(-n+1){background:var(--yellow)}
+.visits .vt{opacity:.8; font-weight:600}
 .hint{font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; background:var(--cream); border:2px solid #000; padding:4px 8px}
 @media (orientation:landscape) and (max-height:520px){ .hint{display:none} }
 
@@ -335,6 +341,7 @@ svg use{overflow:visible}
         <button class="pill" type="button" id="contactBtn">Contact</button>
       </div>
       <span class="hint">Tap · click · arrow keys · game controller</span>
+      <span class="visits" id="visits" hidden><span class="vl">Visitors</span><span class="vd" id="visitsN" aria-label=""></span><span class="vt" id="visitsT"></span></span>
     </footer>
   </div>
 </section>
@@ -784,6 +791,24 @@ function frame(t){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/* ---------- the visitor counter at the foot of the hub, kept by the Sound Gallery's Cloudflare Worker.
+   Each browser counts once a day; the number shows as a row of counter wheels, with today's count beside it. */
+(function () {
+  const el = document.getElementById('visits'); if (!el) return;
+  const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+  let counted = false; try { counted = localStorage.getItem('swow-visit') === day; } catch (e) {}
+  fetch('https://sound-gallery-rooms.swowanders.workers.dev/site' + (counted ? '' : '?hit=1'))
+    .then((r) => r.json()).then((d) => {
+      if (typeof d.total !== 'number') return;
+      try { localStorage.setItem('swow-visit', day); } catch (e) {}
+      const n = document.getElementById('visitsN'), s = String(d.total).padStart(6, '0');
+      n.innerHTML = s.split('').map((c) => '<i>' + c + '</i>').join('');
+      n.setAttribute('aria-label', d.total.toLocaleString('en-CA') + ' visitors');
+      document.getElementById('visitsT').textContent = d.today + ' today';
+      el.hidden = false;
+    }).catch(() => {});                                   // no counter rather than a broken one
+})();
 </script>
 </body>
 </html>

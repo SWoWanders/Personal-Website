@@ -26,6 +26,10 @@ export default {
     const room = roomName(url.searchParams.get('room'));
     const stub = env.ROOMS.get(env.ROOMS.idFromName(room));
     if (url.pathname === '/ws') return stub.fetch(request);
+    if (url.pathname === '/site') {                      // swow.ca's visitor counter: ?hit=1 counts one more visitor
+      const r = await statsStub(env).fetch('https://stats/site' + (url.searchParams.get('hit') ? '-hit' : ''));
+      return json(await r.json());
+    }
     if (url.pathname === '/status') {                    // this room's numbers, plus everyone who has visited today (any room)
       const [s, c] = await Promise.all([stub.fetch(request).then((r) => r.json()), statsStub(env).fetch('https://stats/today').then((r) => r.json()).catch(() => ({ today: null }))]);
       return json({ ...s, today: c.today });
@@ -47,6 +51,12 @@ export class Room {
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.hostname === 'stats' && url.pathname.startsWith('/site')) {   // the website's own count: all time, and today
+      const day = today(), s = (await this.ctx.storage.get('site')) || { total: 0, day, today: 0 };
+      if (s.day !== day) { s.day = day; s.today = 0; }
+      if (url.pathname === '/site-hit') { s.total++; s.today++; await this.ctx.storage.put('site', s); }
+      return json({ total: s.total, today: s.today, day });
+    }
     if (url.hostname === 'stats') {                      // the counter (only ever reached from inside the Worker)
       const day = today(), saved = (await this.ctx.storage.get('count')) || { day, n: 0 };
       const c = saved.day === day ? saved : { day, n: 0 };
