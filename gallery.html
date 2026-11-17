@@ -35,8 +35,12 @@ button{font:inherit; color:inherit; cursor:pointer}
 .title-chip{font-weight:900; font-stretch:115%; font-size:13px; letter-spacing:.14em; text-transform:uppercase; background:#000; border:2px solid var(--cream); padding:6px 10px}
 @media (max-width:560px){ .title-chip{display:none} }
 
-.bottom{bottom:max(14px, env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%)}
-.counter{min-width:120px; text-align:center; font-weight:800; font-size:14px; background:#000; border:2px solid var(--cream); padding:10px 12px; white-space:nowrap}
+/* the arrows always stay on screen: the bar spans the width, and a long title wraps (two lines at most) between them */
+.bottom{bottom:max(14px, env(safe-area-inset-bottom)); left:12px; right:12px; justify-content:center; flex-wrap:nowrap}
+.bottom .btn{flex:none}
+.counter{flex:0 1 auto; min-width:0; text-align:center; font-weight:800; font-size:14px; line-height:1.25; background:#000; border:2px solid var(--cream); padding:8px 12px;
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere}
+@media (max-width:560px){ .counter{font-size:13px; padding:7px 10px} }
 
 .reticle{position:fixed; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; background:rgba(254,244,195,.55); box-shadow:0 0 0 2px rgba(0,0,0,.5); z-index:4; pointer-events:none; transition:transform .15s, background .15s}
 .reticle.on{transform:scale(1.8); background:var(--yellow)}
