@@ -1716,6 +1716,8 @@ function doRay() {
     const oh = ray.intersectObjects(orgHits, false)[0], rh = ray.intersectObjects(rhyHits, false)[0], mh = ray.intersectObjects(melHits, false)[0], bh = ray.intersectObjects(bassHits, false)[0], ph = ray.intersectObjects(poolHits, false)[0], eh = ray.intersectObjects(echoHits, false)[0], th = ray.intersectObjects(texHits, false)[0], thr = ray.intersectObjects(therHits, false)[0], chh = ray.intersectObjects(choirHits, false)[0], sth = ray.intersectObjects(strHits, false)[0], cah = ray.intersectObjects(calHits, false)[0];
     const best = [[oh, ORGAN_M], [rh, RHY_M], [mh, MEL_M], [bh, BASS_M], [ph, POOL_M], [eh, ECHO_M], [th, TEX_M], [thr, THER_M], [chh, CHOIR_M], [sth, STR_M], [cah, CAL_M]].filter(([h]) => h && h.distance < 16).sort((a, b) => a[0].distance - b[0].distance)[0];
     if (best) { enterPlay(best[1]); return true; }
+    const zh = ray.intersectObjects(zoneHits, false)[0];
+    if (zh && zh.distance < 18) { enterPlay(zh.object.userData.m); return true; }
   }
   const hit = ray.intersectObjects(plinths, false)[0];
   if (hit && hit.distance < 12) { chime(hit.object.userData.alcove); return true; }
@@ -3539,17 +3541,41 @@ let bassDispL, bassCone, bassCap;
   const mInk = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.5 });
   // the pedal cabinet, with a ledge along the front for the volume slider
   bassHits.push(box(1.9, 0.72, 0.85, mW, 0, 0.36, 0.125, bassG));
-  bassHits.push(box(1.92, 0.04, 0.87, mC, 0, 0.74, 0.125, bassG));
-  // thirteen pedals: eight long naturals, five short raised sharps at the back, as on a Taurus
+  // an organ pedalboard: a dark wooden bed between two side cheeks, a cream ledge along the front for the
+  // volume slider, and a toe board at the back where the pedals come out from under the case
+  const mBed = new THREE.MeshStandardMaterial({ color: '#2e1d12', roughness: 0.6, envMapIntensity: 0.5 });
+  bassHits.push(box(1.92, 0.04, 0.7, mBed, 0, 0.74, 0.04, bassG));
+  bassHits.push(box(1.92, 0.04, 0.17, mC, 0, 0.74, 0.475, bassG));
+  for (const sx of [-0.93, 0.93]) bassHits.push(box(0.07, 0.14, 0.72, mW, sx, 0.81, 0.04, bassG));
+  bassHits.push(box(1.8, 0.16, 0.06, mW, 0, 0.82, -0.31, bassG));
+  // thirteen pedals, C to C: eight long, narrow naturals in pale maple with wide gaps between them, and five
+  // sharps raised on wooden stems at the back, capped in black. Each is hinged at the back, so a press
+  // tips its toe end down. Their hit areas are wider than the wood, so a fingertip can't fall in a gap.
   const NAT = [0, 2, 4, 5, 7, 9, 11, 12], SHARP = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+  const mStem = new THREE.MeshStandardMaterial({ color: '#7a5434', roughness: 0.55, envMapIntensity: 0.5 });
   for (let i = 0; i < BP_N; i++) {
     const semi = i, black = !NAT.includes(semi), m = BP_LO + i;
-    const mat = new THREE.MeshStandardMaterial({ color: black ? '#1d1b18' : '#fbf8f2', roughness: 0.35, envMapIntensity: 0.6, emissive: '#000000' });
-    let mesh;
-    if (!black) { const k = NAT.indexOf(semi); mesh = new THREE.Mesh(new THREE.BoxGeometry(0.188, 0.05, 0.5), mat); mesh.position.set(-0.7 + k * 0.2, 0.785, 0.05); }
-    else { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.27), mat); mesh.position.set(-0.6 + SHARP[semi] * 0.2, 0.81, -0.085); }
-    mesh.userData = { t: 'pedal', m }; bassG.add(mesh); bassCtrls.push(mesh);
-    bassPedals.push({ m, mesh, mat, black, y0: mesh.position.y, down: 0 });
+    const mat = new THREE.MeshStandardMaterial({ color: black ? '#1d1b18' : '#e2c595', roughness: black ? 0.3 : 0.45, envMapIntensity: 0.6, emissive: '#000000' });
+    // pivot: an empty group at the hinge (back end); the pedal hangs forward of it
+    const piv = new THREE.Group(); bassG.add(piv);
+    let mesh, hit;
+    if (!black) {
+      const k = NAT.indexOf(semi), x = -0.7 + k * 0.2;
+      piv.position.set(x, 0.785, -0.26);
+      mesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.045, 0.56), mat); mesh.position.set(0, 0, 0.28); piv.add(mesh);
+      // a darker toe piece at the front end, worn smooth
+      box(0.1, 0.05, 0.05, mStem, 0, 0.001, 0.535, piv);
+      hit = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.06, 0.56), hitMat); hit.position.set(x, 0.785, 0.02);
+    } else {
+      const x = -0.6 + SHARP[semi] * 0.2;
+      piv.position.set(x, 0.785, -0.26);
+      box(0.08, 0.06, 0.22, mStem, 0, 0.045, 0.12, piv);                  // the raised wooden stem
+      mesh = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.03, 0.2), mat); mesh.position.set(0, 0.09, 0.12); piv.add(mesh);
+      hit = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.24), hitMat); hit.position.set(x, 0.85, -0.14);
+    }
+    bassG.add(hit);
+    for (const o of [mesh, hit]) { o.userData = { t: 'pedal', m }; bassCtrls.push(o); }
+    bassPedals.push({ m, mesh, piv, mat, black, y0: piv.position.y, down: 0 });
   }
   // the control tier behind the pedals
   bassHits.push(box(1.9, 0.24, 0.36, mW, 0, 0.86, -0.47, bassG));
@@ -3755,11 +3781,13 @@ function drawBassButtons() {
   bassBtns.pat.forEach((b, k) => printText(b.L, [[b.name, b.name.length > 7 ? 40 : 46, k === bass.pat ? '#ffffff' : '#1d1b18']], k === bass.pat ? { bg: '#1d1b18' } : {}));
   drawBassSlider('tone'); drawBassSlider('vol');
 }
+// the naturals are wood: pale maple in the key, a darker stained wood outside it, green-tinged for the home note
+const PED_TINT = { in: new THREE.Color('#e8cc9c'), out: new THREE.Color('#8c6844'), home: new THREE.Color('#bcd88e') };
 function bassKeyChanged() {
   const sc = galleryScale(), home = NOTE_SEMI[org.root];
   for (const p of bassPedals) {
     const pc = p.m % 12, inS = sc.includes(pc);
-    p.base = p.black ? (pc === home ? KEY_TINT.homeB : inS ? KEY_TINT.inB : KEY_TINT.outB) : (pc === home ? KEY_TINT.homeW : inS ? KEY_TINT.inW : KEY_TINT.outW);
+    p.base = p.black ? (pc === home ? KEY_TINT.homeB : inS ? KEY_TINT.inB : KEY_TINT.outB) : (pc === home ? PED_TINT.home : inS ? PED_TINT.in : PED_TINT.out);
     p.mat.color.copy(p.base);
   }
   drawBassButtons(); drawBassDisplay();
@@ -3879,8 +3907,8 @@ function updateBass(dt) {
     const target = sounding ? (sounding.m >= BP_LO && sounding.m < BP_LO + BP_N ? sounding.m : BP_LO + ((sounding.m % 12) + 12) % 12) : -1;
     const lit = p.m === target;
     const isF = foc && foc.t === 'pedal' && foc.m === p.m;
-    const ty = p.y0 - (p.down > 0 ? 0.018 : 0);
-    p.mesh.position.y += (ty - p.mesh.position.y) * Math.min(1, dt * 30);
+    const tr = p.down > 0 ? (p.black ? 0.09 : 0.06) : 0;               // tips down on its back hinge
+    p.piv.rotation.x += (tr - p.piv.rotation.x) * Math.min(1, dt * 30);
     p.mat.emissive.set(lit ? ALCOVE_COL[BASS_I] : '#ffffff'); p.mat.emissiveIntensity = lit ? 0.55 : isF ? 0.3 : 0;
   }
   const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
@@ -6822,6 +6850,16 @@ const THER_M = makeTheremin();
 const CHOIR_M = makeChoirMachine();
 const STR_M = makeStringMachine();
 const CAL_M = makeCalliopeMachine();
+// Each machine's whole alcove (its stage, its dais, the air above them, and a step of the hall floor in front)
+// is a touch target too: tapping anywhere on it goes straight to playing the machine, so nobody has to land
+// a tap on a thin knob or leg. Invisible boxes, one per alcove; the machines' own parts still take priority.
+const zoneHits = [];
+for (const m of [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M, THER_M, CHOIR_M, STR_M, CAL_M]) {
+  const zg = new THREE.Group(); zg.rotation.y = m.al * Math.PI * 2 / N; hall.add(zg);
+  const z = new THREE.Mesh(new THREE.BoxGeometry(AW, AH, AD + 1.5), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
+  z.position.set(0, AH / 2, A + (AD - 1.5) / 2); z.userData.m = m; zg.add(z); zoneHits.push(z);
+}
+hall.updateMatrixWorld(true);
 
 /* ------------------------------------------------------------------ main loop */
 scene.updateMatrixWorld(true);
