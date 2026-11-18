@@ -3540,14 +3540,17 @@ let bassDispL, bassCone, bassCap;
   const mC = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
   const mInk = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.5 });
   // the pedal cabinet, with a ledge along the front for the volume slider
-  bassHits.push(box(1.9, 0.72, 0.85, mW, 0, 0.36, 0.125, bassG));
-  // an organ pedalboard: a dark wooden bed between two side cheeks, a cream ledge along the front for the
-  // volume slider, and a toe board at the back where the pedals come out from under the case
-  const mBed = new THREE.MeshStandardMaterial({ color: '#2e1d12', roughness: 0.6, envMapIntensity: 0.5 });
-  bassHits.push(box(1.92, 0.04, 0.7, mBed, 0, 0.74, 0.04, bassG));
-  bassHits.push(box(1.92, 0.04, 0.17, mC, 0, 0.74, 0.475, bassG));
-  for (const sx of [-0.93, 0.93]) bassHits.push(box(0.07, 0.14, 0.72, mW, sx, 0.81, 0.04, bassG));
-  bassHits.push(box(1.8, 0.16, 0.06, mW, 0, 0.82, -0.31, bassG));
+  // the console stands at the back; the pedalboard lies on the floor in front of it, where feet can reach
+  bassHits.push(box(1.9, 0.74, 0.36, mW, 0, 0.37, -0.47, bassG));
+  bassHits.push(box(1.92, 0.04, 0.87, mW, 0, 0.02, 0.125, bassG));
+  // an organ pedalboard on the floor: a teal bed between two wooden side cheeks (so the black sharps stand
+  // out against it), a cream ledge along the front for the volume slider, and a teal toe board at the back
+  // where the pedals come out from under the console
+  const mBed = new THREE.MeshStandardMaterial({ color: '#1f8f8c', roughness: 0.55, envMapIntensity: 0.5 });
+  bassHits.push(box(1.92, 0.04, 0.7, mBed, 0, 0.06, 0.04, bassG));
+  bassHits.push(box(1.92, 0.04, 0.17, mC, 0, 0.06, 0.475, bassG));
+  for (const sx of [-0.93, 0.93]) bassHits.push(box(0.07, 0.14, 0.72, mW, sx, 0.13, 0.04, bassG));
+  bassHits.push(box(1.8, 0.16, 0.06, mBed, 0, 0.14, -0.31, bassG));
   // thirteen pedals, C to C: eight long, narrow naturals in pale maple with wide gaps between them, and five
   // sharps raised on wooden stems at the back, capped in black. Each is hinged at the back, so a press
   // tips its toe end down. Their hit areas are wider than the wood, so a fingertip can't fall in a gap.
@@ -3561,17 +3564,17 @@ let bassDispL, bassCone, bassCap;
     let mesh, hit;
     if (!black) {
       const k = NAT.indexOf(semi), x = -0.7 + k * 0.2;
-      piv.position.set(x, 0.785, -0.26);
+      piv.position.set(x, 0.105, -0.26);
       mesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.045, 0.56), mat); mesh.position.set(0, 0, 0.28); piv.add(mesh);
       // a darker toe piece at the front end, worn smooth
       box(0.1, 0.05, 0.05, mStem, 0, 0.001, 0.535, piv);
-      hit = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.06, 0.56), hitMat); hit.position.set(x, 0.785, 0.02);
+      hit = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.06, 0.56), hitMat); hit.position.set(x, 0.105, 0.02);
     } else {
       const x = -0.6 + SHARP[semi] * 0.2;
-      piv.position.set(x, 0.785, -0.26);
+      piv.position.set(x, 0.105, -0.26);
       box(0.08, 0.06, 0.22, mStem, 0, 0.045, 0.12, piv);                  // the raised wooden stem
       mesh = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.03, 0.2), mat); mesh.position.set(0, 0.09, 0.12); piv.add(mesh);
-      hit = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.24), hitMat); hit.position.set(x, 0.85, -0.14);
+      hit = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.24), hitMat); hit.position.set(x, 0.17, -0.14);
     }
     bassG.add(hit);
     for (const o of [mesh, hit]) { o.userData = { t: 'pedal', m }; bassCtrls.push(o); }
@@ -3599,7 +3602,7 @@ let bassDispL, bassCone, bassCap;
   };
   slider('tone', 0.22, 0.5, 1.01, -0.375, 'TONE', '#ffd000', 0.47, 0.5);
   bassSl.tone.lb.m.position.z = -0.47;
-  slider('vol', -0.2, 1.1, 0.76, 0.445, 'BASS VOLUME', '#1f6bff', -0.6, 0.66);
+  slider('vol', -0.2, 1.1, 0.08, 0.445, 'BASS VOLUME', '#1f6bff', -0.6, 0.66);
   // quick mute, right end of the pattern row
   { const b = makeMuteBtn('bass', bassG, 0.84, 1.02, -0.565, 0.2, 0.12); b.userData = { t: 'mmute' }; bassCtrls.push(b); }
   // the back board: a woofer in a Bauhaus field of colour, and the display strip under it
@@ -3884,8 +3887,8 @@ function bassPress(down) {
 function makeBassMachine() {
   const fit = [], fitL = [];
   for (const x of [-0.97, 0.97]) {
-    fit.push([bassG, new THREE.Vector3(x, 0.76, 0.56)]); fit.push([bassG, new THREE.Vector3(x, 1.0, -0.64)]); fit.push([bassG, new THREE.Vector3(x, 2.56, -0.7)]);
-    fitL.push([bassG, new THREE.Vector3(x, 0.76, 0.56)]); fitL.push([bassG, new THREE.Vector3(x, 1.0, -0.64)]); fitL.push([bassG, new THREE.Vector3(x * 0.9, 1.33, -0.68)]);
+    fit.push([bassG, new THREE.Vector3(x, 0.08, 0.56)]); fit.push([bassG, new THREE.Vector3(x, 1.0, -0.64)]); fit.push([bassG, new THREE.Vector3(x, 2.56, -0.7)]);
+    fitL.push([bassG, new THREE.Vector3(x, 0.08, 0.56)]); fitL.push([bassG, new THREE.Vector3(x, 1.0, -0.64)]); fitL.push([bassG, new THREE.Vector3(x * 0.9, 1.33, -0.68)]);
   }
   return {
     al: BASS_I, base: bassG, fit, fitL, elev: [0.95, 0.78], stand: 1.0,
