@@ -358,7 +358,7 @@
   <div id="emoteMenu" class="hidden"></div>
   <div id="toast"></div>
   <div id="cross" class="hidden"></div>
-  <div id="lockHint" class="hidden">Click to look around<br><small>WASD walk · Shift run · V view · M sound · Esc release mouse</small></div>
+  <div id="lockHint" class="hidden">Click to look around<br><small>WASD walk · Shift run · 1–9 − = go to a machine · Shift+1–7 gestures · V view · M sound · Esc release mouse</small></div>
   <div id="joy" class="hidden"><div id="knob"></div></div>
 </div>
 
@@ -1578,7 +1578,7 @@ SHIRTS.forEach(([name, hex], k) => {
 });
 $('ctrlHint').innerHTML = isTouch
   ? 'Left thumb: walk · Right thumb: look<br>Headphones recommended'
-  : 'WASD walk · Mouse look<br>Headphones recommended';
+  : 'WASD walk · Mouse look · 1–9, − and = walk to a machine<br>Headphones recommended';
 let toastTimer;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
 
@@ -1607,7 +1607,7 @@ if (document.fullscreenEnabled && matchMedia('(pointer: coarse)').matches) {
 $('pbLeft').onclick = () => { panX = Math.max(-1, panX - 0.6); };
 $('pbRight').onclick = () => { panX = Math.min(1, panX + 0.6); };
 $('viewBtn').onclick = () => toggleView();
-// the player's own gestures and dances: the 🙌 button, keys 1–7 (0 stops), or a controller's X (wave), LB (point), RB (next dance)
+// the player's own gestures and dances: the 🙌 button, Shift + 1–7 (Shift + 0 stops), or a controller's X (wave), LB (point), RB (next dance)
 let emoteSeen = false, danceNext = 0;
 function playerEmote(k) {
   if (!player.av || playing || state === 'exiting' || state === 'done') return;
@@ -1621,7 +1621,7 @@ function playerEmote(k) {
 function netEmote(k, pitch = 0) { if (window.__NET && window.__NET.admitted) netSend({ t: 'ev', al: 0, f: 'emote', a: [k, Math.round(pitch * 100) / 100] }); }
 {
   const menu = $('emoteMenu');
-  menu.innerHTML = EMOTE_KEYS.map((k, i) => `<button data-k="${k}">${EMOTES[k].icon} ${EMOTES[k].n}<span class="k">${i + 1}</span></button>`).join('') + '<button data-k="stop">■ STOP<span class="k">0</span></button>';
+  menu.innerHTML = EMOTE_KEYS.map((k, i) => `<button data-k="${k}">${EMOTES[k].icon} ${EMOTES[k].n}<span class="k">⇧${i + 1}</span></button>`).join('') + '<button data-k="stop">■ STOP<span class="k">⇧0</span></button>';
   menu.querySelectorAll('button').forEach((b) => { b.onclick = () => playerEmote(b.dataset.k); });
   $('emoteBtn').onclick = () => { menu.classList.toggle('hidden'); if (!menu.classList.contains('hidden')) menu.querySelector('button').focus(); };
 }
@@ -1637,7 +1637,9 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'Escape' && playing) exitPlay();
   if (e.code === 'Escape' && !playing) $('emoteMenu').classList.add('hidden');
-  if (!playing && /^Digit[0-7]$/.test(e.code)) { const d = +e.code.slice(5); playerEmote(d ? EMOTE_KEYS[d - 1] : 'stop'); }
+  if (!playing && e.shiftKey && /^Digit[0-7]$/.test(e.code)) { const d = +e.code.slice(5); playerEmote(d ? EMOTE_KEYS[d - 1] : 'stop'); return; }
+  const hk = HOTKEYS[e.code];
+  if (hk && !e.repeat && !(e.shiftKey && /^Digit/.test(e.code)) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); goToMachine(hk); return; }
   if (playing) { playKey(e, true); return; }
   if (e.code === 'KeyE' || e.code === 'Space') interactCenter();
 });
@@ -7019,6 +7021,47 @@ function update(dt) {
   $('lockHint').classList.toggle('hidden', isTouch || locked || playing || !['corridor', 'hall', 'queue'].includes(state));
 }
 
+/* ---------- hot keys: 1–9, − and = (or the number pad's 1–9, − and +) walk you to machines I–XI and start
+   playing it. The walk goes round the central stage, never through it. Any walking key, the stick or the
+   joystick takes back control; a machine someone else is playing says so instead. */
+const HOTKEYS = {}, MACHINE_NAMES = ['', 'The String Frame', 'The Theremin', 'The Texture Machine', 'The Melody Console', 'The Ripple Pool',
+  'The Drone Organ', 'The Bass Pedals', 'The Rhythm Wheel', 'The Tape Echo', 'The Choir Wall', 'The Steam Calliope'];
+for (let i = 1; i <= 9; i++) { HOTKEYS['Digit' + i] = i; HOTKEYS['Numpad' + i] = i; }
+HOTKEYS.Minus = HOTKEYS.NumpadSubtract = 10; HOTKEYS.Equal = HOTKEYS.NumpadAdd = 11;
+let autoWalk = null;
+function machineByAl(al) { return [ORGAN_M, RHY_M, MEL_M, BASS_M, POOL_M, ECHO_M, TEX_M, THER_M, CHOIR_M, STR_M, CAL_M].find((m) => m.al === al); }
+function goToMachine(al) {
+  if (state !== 'hall') { if (['queue', 'corridor'].includes(state)) toast('Hot keys work once you are in the hall'); return; }
+  const m = machineByAl(al); if (!m) return;
+  if (playing && curM === m) return;
+  if (netLockedByOther(al)) { toast(`${MACHINE_NAMES[al]} is in use: please choose another sound machine`); return; }
+  if (playing) exitPlay();
+  autoWalk = { m, stuck: 0 };
+  toast(`Walking to ${MACHINE_NAMES[al]}…`);
+}
+// one step of the walk: returns the [forward, sideways] input, turning the player toward the next waypoint
+function autoWalkStep(dt) {
+  const m = autoWalk.m, n = normals[m.al];
+  if (netLockedByOther(m.al)) { toast(`${MACHINE_NAMES[m.al]} is in use: please choose another sound machine`); autoWalk = null; return null; }
+  const tx = n.x * (A - 1.3), tz = n.z * (A - 1.3);
+  const px = player.pos.x, pz = player.pos.z, r = Math.hypot(px, pz);
+  let wx = tx, wz = tz;
+  const th = Math.atan2(px, pz), tth = Math.atan2(n.x, n.z);
+  let d = tth - th; d = Math.atan2(Math.sin(d), Math.cos(d));
+  if (Math.abs(d) > 0.35) {                           // still the other side of the room: go round the ring
+    const rr = Math.min(Math.max(r, STAGE_R + 2.2), A - 1.6), a = th + Math.sign(d) * Math.min(Math.abs(d), 0.6);
+    wx = Math.sin(a) * rr; wz = Math.cos(a) * rr;
+  }
+  const dist = Math.hypot(tx - px, tz - pz);
+  if (dist < 0.35 || autoWalk.stuck > 1.5) {         // arrived (or blocked by someone): face the machine and play
+    player.yaw = Math.atan2(-n.x, -n.z); player.pitch = 0;
+    const mm = autoWalk.m; autoWalk = null; enterPlay(mm); return null;
+  }
+  const want = Math.atan2(-(wx - px), -(wz - pz));
+  let dy = want - player.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  player.yaw += dy * Math.min(1, dt * 8); player.pitch *= 1 - Math.min(1, dt * 4);
+  return Math.abs(dy) > 1.2 ? 0.2 : Math.min(1, dist + 0.3);
+}
 function movePlayer(dt) {
   let mf = 0, ms = 0, run = false;
   if (keys.has('KeyW') || keys.has('ArrowUp')) mf += 1;
@@ -7029,6 +7072,10 @@ function movePlayer(dt) {
   if (joy) { mf -= joy.dy; ms += joy.dx; run = Math.hypot(joy.dx, joy.dy) > 0.95; }
   const pad = readPad();
   if (pad) { mf -= pad.my; ms += pad.mx; player.yaw -= pad.lx * dt * 2.6; player.pitch -= pad.ly * dt * 2; clampPitch(); run = run || pad.run; }
+  if (autoWalk && (mf || ms || keys.has('KeyW') || keys.has('KeyS'))) { autoWalk = null; toast('Walking stopped'); }
+  let autoF = null;
+  if (autoWalk && state === 'hall') { autoF = autoWalkStep(dt); if (autoF !== null) { mf = autoF; run = true; } }
+  else if (autoWalk) autoWalk = null;
   const mag = Math.hypot(mf, ms); if (mag > 1) { mf /= mag; ms /= mag; }
   const sp = run ? 4 : 2.2;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
@@ -7038,6 +7085,7 @@ function movePlayer(dt) {
   if (walkable(nx, oz) && avatarClear(nx, oz, ox, oz, player.pos)) player.pos.x = nx;
   if (walkable(player.pos.x, nz) && avatarClear(player.pos.x, nz, player.pos.x, oz, player.pos)) player.pos.z = nz;
   player.speed = Math.hypot(player.pos.x - ox, player.pos.z - oz) / Math.max(dt, 1e-4);
+  if (autoWalk) autoWalk.stuck = player.speed < 0.3 && autoF > 0.15 ? autoWalk.stuck + dt : 0;
   const av = player.av;
   av.g.position.x = player.pos.x; av.g.position.z = player.pos.z; av.g.rotation.y = player.yaw + Math.PI;
   animateAvatar(av, dt, player.speed, time);
