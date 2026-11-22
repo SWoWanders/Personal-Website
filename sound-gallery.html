@@ -2454,7 +2454,7 @@ function setRun(on) {
 /* ---------- labels and display */
 let rhyHelp = '', rhyValue = '';
 const RHY_HELP = {
-  djembe: 'The djembe: hit the middle for the deep BASS, nearer the rim for TONE, the very edge for a sharp SLAP. Use several fingers. SNAP (on its foot) puts each hit on the beat.',
+  djembe: 'The hand drum: its skin shows where to hit for each sound. VOICE (on its foot) changes it: DJEMBE, BONGOS, TOMS or TABLA (tuned to the home note). Use several fingers. SNAP puts each hit on the beat.',
   start: 'Press the black centre to start. Light pads to make a beat: outer ring kick, then snare, hi-hat, shaker, and a tone in the gallery’s key. The djembe beside the wheel is yours to play by hand. Keys: ← → choose, ↑ ↓ adjust or change ring, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
   pad: 'Tap pads to light them, or drag across the ring to paint a pattern. The playhead goes once round per bar; the white marks are the four beats.',
   play: 'Start and stop the wheel. It keeps playing for everyone in the room after you step away.',
@@ -2499,16 +2499,30 @@ function drawRhyAll() {
 
 /* ---------- touch, mouse, keys, controller */
 let rGrab = null;
-/* ---------- the djembe: a hand drum on its own stand beside the wheel, to play freely. Hit the middle for
-   the deep BASS, nearer the rim for the round TONE, the very edge for the sharp SLAP. Several fingers at
-   once work. SNAP (the brass button on its stand) puts every hit on the wheel's next sixteenth. */
-const djembe = { snap: false, flash: 0, zone: 1 };
-let djHead = null, djSnapB = null;
+/* ---------- the hand drum: on its own stand beside the wheel, to play freely with your fingers. VOICE (the
+   lower brass button on its foot) changes the drum: DJEMBE, BONGOS, TOMS or TABLA, and the skin is painted
+   with where to hit for each sound:
+   - DJEMBE: middle for the deep BASS, nearer the rim for TONE, the very edge for SLAP;
+   - BONGOS: the left half is the small high MACHO, the right the larger HEMBRA; the edge of either slaps;
+   - TOMS: a HIGH tom on the left, a MID tom on the right, the FLOOR tom in the middle; the edge clicks the rim;
+   - TABLA: the right half is the dayan, tuned to the gallery's home note (NA at the edge, TIN, TUN in the
+     middle); the left half is the bayan, the bass drum (GE, which booms and rises, and the dry KE at its edge).
+   Several fingers at once work. SNAP (the upper button) puts every hit on the wheel's next sixteenth. */
+const DR_VOICES = [
+  { n: 'DJEMBE', shell: '#c8362a', head: '#e9dcc0', zones: ['BASS', 'TONE', 'SLAP'] },
+  { n: 'BONGOS', shell: '#e0a020', head: '#efe3c6', zones: ['MACHO', 'HEMBRA', 'SLAP'] },
+  { n: 'TOMS', shell: '#1f6bff', head: '#f4f2ee', zones: ['HIGH', 'MID', 'FLOOR', 'RIM'] },
+  { n: 'TABLA', shell: '#7a4a28', head: '#e4d3b0', zones: ['NA', 'TIN', 'TUN', 'GE', 'KE'] },
+];
+const djembe = { snap: false, flash: 0, zone: 0, voice: 0 };
+let djHead = null, djSnapB = null, djVoiceB = null, djShellMat = null, djHeadL = null;
 {
-  const DX = 2.0, DZ = 0.8, wood = new THREE.MeshStandardMaterial({ color: '#c8362a', roughness: 0.55 });
+  const DX = 2.0, DZ = 0.8;
+  djShellMat = new THREE.MeshStandardMaterial({ color: DR_VOICES[0].shell, roughness: 0.55 });
+  const wood = djShellMat;
   const dark = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.6 });
   const g = new THREE.Group(); g.position.set(DX, 0, DZ); rhyG.add(g);
-  // the goblet: a foot, a narrow waist, a wide bowl, a rope ring and the goatskin head
+  // the goblet: a foot, a narrow waist, a wide bowl, a rope ring and the skin
   const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.3, 32), wood); foot.position.y = 0.15; g.add(foot); rhyHits.push(foot);
   const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.1, 0.12, 32), wood); waist.position.y = 0.36; g.add(waist);
   const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.075, 0.3, 40), wood); bowl.position.y = 0.57; g.add(bowl); rhyHits.push(bowl);
@@ -2519,31 +2533,91 @@ let djHead = null, djSnapB = null;
     const len = p0.distanceTo(p1), rope = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, len, 5), dark);
     rope.position.copy(p0).add(p1).multiplyScalar(0.5); rope.lookAt(p1); rope.rotateX(Math.PI / 2); g.add(rope);
   }
-  const headMat = new THREE.MeshStandardMaterial({ color: '#e9dcc0', roughness: 0.85, emissive: '#ffffff', emissiveIntensity: 0 });
-  djHead = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.012, 48), headMat); djHead.position.y = 0.726; g.add(djHead);
+  // the skin, painted with its playing zones
+  djHeadL = canvasTex(512, 512);
+  const headMat = new THREE.MeshStandardMaterial({ color: '#ffffff', map: djHeadL.t, roughness: 0.85, emissive: '#ffffff', emissiveIntensity: 0 });
+  djHead = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.012, 48), new THREE.MeshStandardMaterial({ color: '#d8c9a8', roughness: 0.85 }));
+  djHead.position.y = 0.726; g.add(djHead);
+  const skin = new THREE.Mesh(new THREE.CircleGeometry(0.205, 48), headMat); skin.rotation.x = -Math.PI / 2; skin.position.y = 0.0065; djHead.add(skin);
   const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.1, 32), hitMat); hit.position.y = 0.74; g.add(hit);
   for (const o of [djHead, hit]) { o.userData = { t: 'djembe' }; rhyCtrls.push(o); }
   djHead.userData.mat = headMat;
-  // SNAP: a little brass button on the drum's foot, facing you
-  const smat = capMat('#c9a227'); djSnapB = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.03), smat); djSnapB.position.set(0, 0.2, 0.15); g.add(djSnapB);
-  const L = flatLabel(0.15, 0.08, 240, 128, djSnapB, 0, 0, 0.016); L.m.rotation.x = 0; djSnapB.userData = { t: 'dsnap', mat: smat, L };
-  const sh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.08), hitMat); sh.position.copy(djSnapB.position); g.add(sh); sh.userData = { t: 'dsnap' };
-  rhyCtrls.push(djSnapB, sh);
+  // two little brass buttons on the drum's foot, facing you: SNAP above, VOICE below
+  const mkB = (y, t) => {
+    const mat = capMat('#c9a227'), b = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.085, 0.03), mat); b.position.set(0, y, 0.15); g.add(b);
+    const L = flatLabel(0.16, 0.078, 256, 125, b, 0, 0, 0.016); L.m.rotation.x = 0; b.userData = { t, mat, L };
+    const sh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.08), hitMat); sh.position.copy(b.position); g.add(sh); sh.userData = { t };
+    rhyCtrls.push(b, sh); return b;
+  };
+  djSnapB = mkB(0.235, 'dsnap'); djVoiceB = mkB(0.125, 'dvoice');
 }
-function drawDjSnap() { const u = djSnapB.userData; u.mat.color.set(djembe.snap ? '#1d1b18' : '#c9a227'); printText(u.L, [['SNAP', 56, djembe.snap ? '#ffd000' : '#1d1b18'], [djembe.snap ? 'ON' : 'OFF', 48, djembe.snap ? '#ffffff' : '#1d1b18']]); }
+// the skin's painting: the zones for this voice, in their names, so you can see where to hit
+function drawDrumHead() {
+  const V = DR_VOICES[djembe.voice], { g, c, t } = djHeadL, W = c.width, cx = W / 2, R = W / 2;
+  g.fillStyle = V.head; g.fillRect(0, 0, W, W);
+  g.strokeStyle = 'rgba(29,27,24,0.35)'; g.lineWidth = 5; g.fillStyle = 'rgba(29,27,24,0.75)';
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold 34px ${FONT}`;
+  const ring = (f) => { g.beginPath(); g.arc(cx, cx, R * f, 0, Math.PI * 2); g.stroke(); };
+  const split = () => { g.beginPath(); g.moveTo(cx, cx - R * 0.82); g.lineTo(cx, cx + R * 0.82); g.stroke(); };
+  // the canvas is seen from the player's side: its left is the drum's left as you face it
+  if (V.n === 'DJEMBE') { ring(0.45); ring(0.82); g.fillText('BASS', cx, cx); g.fillText('TONE', cx, cx - R * 0.63); g.fillText('SLAP', cx, cx - R * 0.91); }
+  else if (V.n === 'BONGOS') { ring(0.82); split(); g.fillText('MACHO', cx - R * 0.42, cx); g.fillText('HEMBRA', cx + R * 0.42, cx); g.fillText('SLAP', cx, cx - R * 0.91); }
+  else if (V.n === 'TOMS') { ring(0.45); ring(0.82); g.beginPath(); g.moveTo(cx, cx - R * 0.82); g.lineTo(cx, cx - R * 0.45); g.moveTo(cx, cx + R * 0.45); g.lineTo(cx, cx + R * 0.82); g.stroke();
+    g.fillText('FLOOR', cx, cx); g.fillText('HIGH', cx - R * 0.63, cx); g.fillText('MID', cx + R * 0.63, cx); g.fillText('RIM', cx, cx - R * 0.91); }
+  else {                                                                // tabla: the dayan's black syahi on the right
+    g.fillStyle = '#1d1b18'; g.beginPath(); g.arc(cx + R * 0.42, cx, R * 0.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(29,27,24,0.75)'; split(); ring(0.82);
+    g.beginPath(); g.arc(cx + R * 0.42, cx, R * 0.36, 0, Math.PI * 2); g.stroke();
+    g.fillText('GE', cx - R * 0.42, cx); g.fillText('KE', cx - R * 0.5, cx - R * 0.91 + 6); g.fillText('NA', cx + R * 0.5, cx - R * 0.91 + 6);
+    g.fillText('TIN', cx + R * 0.42, cx - R * 0.55); g.fillStyle = '#f4f2ee'; g.fillText('TUN', cx + R * 0.42, cx);
+  }
+  t.needsUpdate = true;
+}
+function drawDjSnap() {
+  for (const [b, top, val, on] of [[djSnapB, 'SNAP', djembe.snap ? 'ON' : 'OFF', djembe.snap], [djVoiceB, 'VOICE', DR_VOICES[djembe.voice].n, false]]) {
+    const u = b.userData; u.mat.color.set(on ? '#1d1b18' : '#c9a227');
+    printText(u.L, [[top, 46, on ? '#ffd000' : '#1d1b18'], [val, val.length > 4 ? 40 : 46, on ? '#ffffff' : '#1d1b18']]);
+  }
+  djShellMat.color.set(DR_VOICES[djembe.voice].shell); drawDrumHead();
+}
 drawDjSnap();
-const DJ_ZONES = ['BASS', 'TONE', 'SLAP'];
-function djembeHit(zone, vel) {
+// which sound: from where on the skin (x: -1 left … 1 right as you face it, z: toward you, r: 0 centre … 1 edge)
+function drumZone(x, z, r) {
+  const n = DR_VOICES[djembe.voice].n;
+  if (n === 'DJEMBE') return r < 0.45 ? 0 : r < 0.82 ? 1 : 2;
+  if (n === 'BONGOS') return r >= 0.82 ? 2 : x < 0 ? 0 : 1;
+  if (n === 'TOMS') return r >= 0.82 ? 3 : r < 0.45 ? 2 : x < 0 ? 0 : 1;
+  if (x < 0) return r >= 0.82 ? 4 : 3;                                  // tabla: the bayan on the left
+  const d = Math.hypot(x - 0.42, z); return r >= 0.82 ? 0 : d < 0.22 ? 2 : 1;
+}
+function djembeHit(zone, vel, voice = djembe.voice) {
   if (!ac || !rhyAudio) return;
   const t = djembe.snap ? gridSnap(ac.currentTime + 0.005) : ac.currentTime + 0.003, out = rhyAudio.out;
-  const sine = (f0, f1, dec, peak, type = 'sine') => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dec * 0.6); env(g, t, peak * vel, dec); o.connect(g); g.connect(out); o.start(t); o.stop(t + dec + 0.05); };
+  const sine = (f0, f1, dec, peak, type = 'sine', bend = 0.6) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dec * bend); env(g, t, peak * vel, dec); o.connect(g); g.connect(out); o.start(t); o.stop(t + dec + 0.05); };
   const noise = (type, f, q, dec, peak) => { const n = noiseSrc(t, dec + 0.05), fl = ac.createBiquadFilter(), g = ac.createGain(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; env(g, t, peak * vel, dec, 0.001); n.connect(fl); fl.connect(g); g.connect(out); };
-  if (zone === 0) {                                                    // bass: the whole skin and the air in the goblet
-    sine(105, 62, 0.34, 0.85); sine(170, 140, 0.12, 0.18); noise('lowpass', 420, 0.7, 0.06, 0.3);
-  } else if (zone === 1) {                                             // tone: the skin's ringing modes, fingers flat near the rim
-    sine(330, 316, 0.16, 0.42); sine(520, 505, 0.11, 0.2); sine(735, 0, 0.07, 0.1); noise('bandpass', 1100, 1.1, 0.04, 0.22);
-  } else {                                                             // slap: fingertips cracking at the edge
-    noise('bandpass', 2900, 0.9, 0.06, 0.55); noise('highpass', 5200, 0.7, 0.025, 0.3); sine(880, 0, 0.05, 0.16, 'triangle'); sine(420, 0, 0.05, 0.12);
+  // a struck round skin rings at ratios 1, 1.59, 2.14, 2.30 of its lowest mode (a circular membrane)
+  const skin = (f, dec, peak, drop = 0.97) => { sine(f, f * drop, dec, peak); sine(f * 1.59, f * 1.59 * drop, dec * 0.6, peak * 0.45); sine(f * 2.14, 0, dec * 0.45, peak * 0.25); sine(f * 2.3, 0, dec * 0.35, peak * 0.15); };
+  const n = DR_VOICES[voice].n;
+  if (n === 'DJEMBE') {
+    if (zone === 0) { sine(105, 62, 0.34, 0.85); sine(170, 140, 0.12, 0.18); noise('lowpass', 420, 0.7, 0.06, 0.3); }
+    else if (zone === 1) { sine(330, 316, 0.16, 0.42); sine(520, 505, 0.11, 0.2); sine(735, 0, 0.07, 0.1); noise('bandpass', 1100, 1.1, 0.04, 0.22); }
+    else { noise('bandpass', 2900, 0.9, 0.06, 0.55); noise('highpass', 5200, 0.7, 0.025, 0.3); sine(880, 0, 0.05, 0.16, 'triangle'); sine(420, 0, 0.05, 0.12); }
+  } else if (n === 'BONGOS') {                                            // two little drums, tight and high
+    if (zone < 2) { const f = zone === 0 ? 470 : 330; skin(f, 0.16, 0.5, 0.96); noise('bandpass', f * 3, 1.2, 0.02, 0.2); }
+    else { noise('bandpass', 3400, 0.9, 0.05, 0.6); sine(600, 0, 0.04, 0.2); }
+  } else if (n === 'TOMS') {                                              // big skins that boom and drop in pitch
+    if (zone < 3) { const f = [196, 147, 98][zone]; skin(f, 0.45 + zone * 0.12, 0.55, 0.88); noise('lowpass', 900, 0.7, 0.03, 0.25); }
+    else { noise('bandpass', 2600, 2, 0.03, 0.45); sine(1650, 0, 0.03, 0.2, 'triangle'); }
+  } else {                                                                // tabla: the dayan is tuned to the home note
+    const r = NOTE_SEMI[org.root], f = mf(60 + ((r - 60 % 12) + 12) % 12);
+    // the black syahi loads the skin so its overtones fall nearly in tune: 1, 2, 3, 4, 5 times the note
+    const ring = (amps, dec) => amps.forEach((a, k) => { if (a) sine(f * (k + 1) * (k ? 1 : 1.003), 0, dec * (1 - k * 0.12), a); });
+    if (zone === 0) { ring([0.25, 0.4, 0.3, 0.22, 0.12], 0.9); noise('highpass', 4000, 0.7, 0.015, 0.25); }   // NA: ringing, bright
+    else if (zone === 1) { ring([0.35, 0.35, 0.18, 0.08, 0], 0.5); noise('bandpass', 2500, 1, 0.012, 0.2); }  // TIN
+    else if (zone === 2) { ring([0.7, 0.2, 0.06, 0, 0], 0.8); }                                               // TUN: the open fundamental
+    else if (zone === 3) { const o = ac.createOscillator(), gg = ac.createGain(); o.frequency.setValueAtTime(88, t); o.frequency.exponentialRampToValueAtTime(118, t + 0.22);   // GE: the boom, the palm sliding to raise it
+      env(gg, t, 0.85 * vel, 0.7); o.connect(gg); gg.connect(out); o.start(t); o.stop(t + 0.75); sine(176, 230, 0.3, 0.15); noise('lowpass', 500, 0.7, 0.03, 0.2); }
+    else { noise('lowpass', 700, 0.8, 0.035, 0.5); sine(140, 100, 0.04, 0.25); }                               // KE: flat and dry
   }
   setTimeout(() => { djembe.flash = 1; djembe.zone = zone; }, Math.max(0, (t - ac.currentTime) * 1000));
 }
@@ -2559,8 +2633,9 @@ function rhyAct(u, ext) {                              // press / toggle a contr
     rhyHelp = RHY_HELP.clear; drawRhyAll();
   }
   if (u.t === 'knob') { rhyHelp = RHY_HELP[u.key]; rhyValue = ''; drawRhyDisplay(); }
-  if (u.t === 'dsnap') { djembe.snap = !djembe.snap; drawDjSnap(); rhyHelp = RHY_HELP.djembe; rhyValue = `Djembe snap ${djembe.snap ? 'on' : 'off'}`; drawRhyDisplay(); buzz(8); }
-  if (u.t === 'dj') { djembeHit(u.z, 1); rhyHelp = RHY_HELP.djembe; rhyValue = DJ_ZONES[u.z]; drawRhyDisplay(); }
+  if (u.t === 'dsnap') { djembe.snap = !djembe.snap; drawDjSnap(); rhyHelp = RHY_HELP.djembe; rhyValue = `Hand drum snap ${djembe.snap ? 'on' : 'off'}`; drawRhyDisplay(); buzz(8); }
+  if (u.t === 'dvoice') { djembe.voice = (djembe.voice + 1) % DR_VOICES.length; drawDjSnap(); rhyHelp = RHY_HELP.djembe; rhyValue = DR_VOICES[djembe.voice].n; drawRhyDisplay(); buzz(8); }
+  if (u.t === 'dj') { const Z = DR_VOICES[djembe.voice].zones, z = u.z % Z.length; djembeHit(z, 1, djembe.voice); rhyHelp = RHY_HELP.djembe; rhyValue = `${DR_VOICES[djembe.voice].n} ${Z[z]}`; drawRhyDisplay(); }
 }
 const knobText = (key) => key === 'tempo' ? `${rhy.bpm} BPM` : key === 'vol' ? `Volume ${Math.round(VOL.rhythm * 100)}%` : `Swing ${Math.round(rhy.swing * 100)}%`;
 function knobBy(key, dv) {
@@ -2576,8 +2651,8 @@ function rhyDown(e) {
     const n = new THREE.Vector3(0, 1, 0).transformDirection(djHead.matrixWorld), o = djHead.localToWorld(new THREE.Vector3(0, 0.006, 0));
     const q = ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, o), new THREE.Vector3()) || h.point.clone();
     const p = djHead.worldToLocal(q), r = Math.hypot(p.x, p.z) / 0.205;
-    const zone = r < 0.45 ? 0 : r < 0.82 ? 1 : 2;
-    djembeHit(zone, 1); rhyHelp = RHY_HELP.djembe; rhyValue = DJ_ZONES[zone]; drawRhyDisplay(); buzz(6); return;
+    const zone = drumZone(p.x / 0.205, p.z / 0.205, r);
+    djembeHit(zone, 1, djembe.voice); rhyHelp = RHY_HELP.djembe; rhyValue = `${DR_VOICES[djembe.voice].n} ${DR_VOICES[djembe.voice].zones[zone]}`; drawRhyDisplay(); buzz(6); return;
   }
   if (rGrab) return;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -2595,14 +2670,14 @@ function rhyMove(e) {
 function rhyUp(e) { if (rGrab && e.pointerId === rGrab.id) rGrab = null; }
 // keyboard / controller: the controls in order, then every pad ring by ring (kick first)
 const R_STATIONS = [{ t: 'play' }, { t: 'knob', key: 'tempo' }, { t: 'knob', key: 'swing' }, { t: 'knob', key: 'vol' }, { t: 'mmute' }, ...RING_ORDER.map((k) => ({ t: 'mute', k })), { t: 'clear' },
-  { t: 'dj', z: 0 }, { t: 'dj', z: 1 }, { t: 'dj', z: 2 }, { t: 'dsnap' }];
+  { t: 'dj', z: 0 }, { t: 'dj', z: 1 }, { t: 'dj', z: 2 }, { t: 'dj', z: 3 }, { t: 'dj', z: 4 }, { t: 'dvoice' }, { t: 'dsnap' }];
 for (const k of RING_ORDER) for (let st = 0; st < 16; st++) R_STATIONS.push({ t: 'pad', k, s: st });
 let rFocus = -1;
 function rFocusSet(i) {
   rFocus = i; if (i < 0) return;
   const f = R_STATIONS[i]; rhyHelp = RHY_HELP[f.t === 'knob' ? f.key : f.t];
-  if (f.t === 'dj' || f.t === 'dsnap') rhyHelp = RHY_HELP.djembe;
-  rhyValue = f.t === 'dj' ? `Djembe ${DJ_ZONES[f.z]}` : f.t === 'dsnap' ? 'Djembe snap' : f.t === 'pad' ? `${RINGS[f.k].name} step ${f.s + 1}` : f.t === 'knob' ? knobText(f.key) : '';
+  if (f.t === 'dj' || f.t === 'dsnap' || f.t === 'dvoice') rhyHelp = RHY_HELP.djembe;
+  rhyValue = f.t === 'dj' ? `${DR_VOICES[djembe.voice].n} ${DR_VOICES[djembe.voice].zones[f.z % DR_VOICES[djembe.voice].zones.length]}` : f.t === 'dsnap' ? 'Hand drum snap' : f.t === 'dvoice' ? 'Hand drum voice' : f.t === 'pad' ? `${RINGS[f.k].name} step ${f.s + 1}` : f.t === 'knob' ? knobText(f.key) : '';
   drawRhyDisplay(); blip(660, 0.04, 0.03);
 }
 function rhyStep(d) { rFocusSet(rFocus < 0 ? (d > 0 ? 0 : R_STATIONS.length - 1) : (rFocus + d + R_STATIONS.length) % R_STATIONS.length); }
@@ -2657,9 +2732,9 @@ function updateRhythm(dt) {
   const glow = (mat, f) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = f ? 0.3 : 0; };
   glow(playMat, foc && foc.t === 'play'); glow(clearMat, foc && foc.t === 'clear');
   djembe.flash = Math.max(0, djembe.flash - dt * 6);
-  djHead.userData.mat.emissiveIntensity = djembe.flash * 0.35 + (foc && foc.t === 'dj' ? 0.25 : 0);
+  djHead.userData.mat.emissiveIntensity = djembe.flash * 0.2 + (foc && foc.t === 'dj' ? 0.25 : 0);
   djHead.position.y = 0.726 - djembe.flash * 0.004;
-  glow(djSnapB.userData.mat, foc && foc.t === 'dsnap');
+  glow(djSnapB.userData.mat, foc && foc.t === 'dsnap'); glow(djVoiceB.userData.mat, foc && foc.t === 'dvoice');
   for (const key of ['tempo', 'swing', 'vol']) glow(knobs[key].mat, foc && foc.t === 'knob' && foc.key === key);
   glow(muteBtns.rhythm.mat, foc && foc.t === 'mmute');
   muteMats.forEach(({ mat, R }, k) => { mat.emissive.set(foc && foc.t === 'mute' && foc.k === k ? '#ffffff' : '#000000'); mat.emissiveIntensity = 0.3; mat.color.set(rhy.mute[k] ? '#5a554d' : R.col); });
@@ -5824,12 +5899,14 @@ const LEDGE_Y = 0.66, LTOP = LEDGE_Y + 0.008;
       for (const o of [hit, s.face, s.robe]) { o.userData = { t: 'sect', r }; choirCtrls.push(o); }
       singers.push(s);
     }
-    // the section's name on a little sign at the row's left end, lit when it sings (tap it, too)
-    const plq = flatLabel(0.3, 0.09, 360, 108, chG, -1.27, ROW_B[r] + 0.55, ROW_Z[r]); plq.m.rotation.x = 0;
-    const ph = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.08), hitMat); ph.position.copy(plq.m.position); chG.add(ph);
+    // the section's name on a stepped black side wall at the risers' left end: each step stands a little above
+    // its row, and the name sits on its face (lit when that section sings; tap it, too)
+    const sh = ROW_B[r] + 0.78, sz = ROW_Z[r] + (r === 0 ? -0.05 : 0), sd = r === 0 ? 0.42 : 0.32;
+    choirHits.push(box(0.32, sh, sd, lacq, -1.31, sh / 2, sz, chG));
+    const plq = flatLabel(0.28, 0.1, 336, 120, chG, -1.31, sh - 0.09, sz + sd / 2 + 0.003); plq.m.rotation.x = 0;
+    const ph = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.08), hitMat); ph.position.copy(plq.m.position); chG.add(ph);
     ph.userData = { t: 'sect', r }; choirCtrls.push(ph);
     chSecPlq.push(plq);
-    if (r === 0) box(0.025, ROW_B[0] + 0.55, 0.025, lacq, -1.27, (ROW_B[0] + 0.55) / 2, ROW_Z[0] - 0.03, chG);   // the signs' post
   });
   // the soloist on a round gold-edged podium at the side
   { const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.1, 40), lacq); pod.position.set(1.15, 0.05, -0.3); chG.add(pod); choirHits.push(pod);
@@ -6229,8 +6306,8 @@ function choirAnalog(p) {                                            // the righ
 }
 function makeChoirMachine() {
   const P = (x, y, z) => [chG, new THREE.Vector3(x, y, z)];
-  const fit = [P(-1.06, LEDGE_Y, 0.96), P(1.06, LEDGE_Y, 0.96), P(-1.3, 1.9, -1.28), P(1.3, 1.3, -0.3), P(0, 2.66, -1.55), P(-0.75, 2.2, -1.55), P(0.75, 2.2, -1.55)];
-  const fitL = [P(-1.06, LEDGE_Y, 0.96), P(1.06, LEDGE_Y, 0.96), P(-1.0, 1.8, -1.28), P(1.3, 1.3, -0.3), P(0, 1.95, -1.28)];
+  const fit = [P(-1.06, LEDGE_Y, 0.96), P(1.06, LEDGE_Y, 0.96), P(-1.47, 1.6, -1.28), P(1.3, 1.3, -0.3), P(0, 2.66, -1.55), P(-0.75, 2.2, -1.55), P(0.75, 2.2, -1.55)];
+  const fitL = [P(-1.06, LEDGE_Y, 0.96), P(1.06, LEDGE_Y, 0.96), P(-1.47, 1.6, -1.28), P(1.3, 1.3, -0.3), P(0, 1.95, -1.28)];
   return {
     al: CHOIR_I, base: chG, fit, fitL, elev: [0.65, 0.55], stand: 1.25,
     down: choirDown, move: choirMove, up: choirUp, step: choirStep, adjust: choirAdjust, press: choirKeyPress, analog: choirAnalog,
@@ -8180,7 +8257,7 @@ chordUp = netWrap(4, 'chordUp', chordUp, [0]);
 bassPedalDown = netWrap(7, 'bassPedalDown', bassPedalDown, [0]);
 bassPedalUp = netWrap(7, 'bassPedalUp', bassPedalUp, [0]);
 bassSnare = netWrap(7, 'bassSnare', bassSnare);
-djembeHit = netWrap(8, 'djembeHit', djembeHit);
+djembeHit = netWrap(8, 'djembeHit', djembeHit);   // (zone, velocity, voice)
 poolDrop = netWrap(5, 'poolDrop', poolDrop);
 thunderClap = netWrap(3, 'thunderClap', thunderClap);
 
