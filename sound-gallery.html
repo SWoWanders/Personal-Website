@@ -2454,7 +2454,8 @@ function setRun(on) {
 /* ---------- labels and display */
 let rhyHelp = '', rhyValue = '';
 const RHY_HELP = {
-  start: 'Press the black centre to start. Light pads to make a beat: outer ring kick, then snare, hi-hat, shaker, and a tone in the gallery’s key. Keys: ← → choose, ↑ ↓ adjust or change ring, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  djembe: 'The djembe: hit the middle for the deep BASS, nearer the rim for TONE, the very edge for a sharp SLAP. Use several fingers. SNAP (on its foot) puts each hit on the beat.',
+  start: 'Press the black centre to start. Light pads to make a beat: outer ring kick, then snare, hi-hat, shaker, and a tone in the gallery’s key. The djembe beside the wheel is yours to play by hand. Keys: ← → choose, ↑ ↓ adjust or change ring, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
   pad: 'Tap pads to light them, or drag across the ring to paint a pattern. The playhead goes once round per bar; the white marks are the four beats.',
   play: 'Start and stop the wheel. It keeps playing for everyone in the room after you step away.',
   tempo: 'Tempo: how fast the wheel turns, 60 to 160 beats a minute.',
@@ -2498,6 +2499,54 @@ function drawRhyAll() {
 
 /* ---------- touch, mouse, keys, controller */
 let rGrab = null;
+/* ---------- the djembe: a hand drum on its own stand beside the wheel, to play freely. Hit the middle for
+   the deep BASS, nearer the rim for the round TONE, the very edge for the sharp SLAP. Several fingers at
+   once work. SNAP (the brass button on its stand) puts every hit on the wheel's next sixteenth. */
+const djembe = { snap: false, flash: 0, zone: 1 };
+let djHead = null, djSnapB = null;
+{
+  const DX = 2.0, DZ = 0.8, wood = new THREE.MeshStandardMaterial({ color: '#c8362a', roughness: 0.55 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.6 });
+  const g = new THREE.Group(); g.position.set(DX, 0, DZ); rhyG.add(g);
+  // the goblet: a foot, a narrow waist, a wide bowl, a rope ring and the goatskin head
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.3, 32), wood); foot.position.y = 0.15; g.add(foot); rhyHits.push(foot);
+  const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.1, 0.12, 32), wood); waist.position.y = 0.36; g.add(waist);
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.075, 0.3, 40), wood); bowl.position.y = 0.57; g.add(bowl); rhyHits.push(bowl);
+  for (const [y, r] of [[0.69, 0.215], [0.46, 0.13]]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.014, 8, 40), dark); ring.rotation.x = Math.PI / 2; ring.position.y = y; g.add(ring); }
+  for (let k = 0; k < 12; k++) {                                       // the rope, zig-zagging down the bowl
+    const a = k / 12 * Math.PI * 2, b = (k + 0.5) / 12 * Math.PI * 2;
+    const p0 = new THREE.Vector3(Math.sin(a) * 0.212, 0.69, Math.cos(a) * 0.212), p1 = new THREE.Vector3(Math.sin(b) * 0.135, 0.46, Math.cos(b) * 0.135);
+    const len = p0.distanceTo(p1), rope = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, len, 5), dark);
+    rope.position.copy(p0).add(p1).multiplyScalar(0.5); rope.lookAt(p1); rope.rotateX(Math.PI / 2); g.add(rope);
+  }
+  const headMat = new THREE.MeshStandardMaterial({ color: '#e9dcc0', roughness: 0.85, emissive: '#ffffff', emissiveIntensity: 0 });
+  djHead = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.012, 48), headMat); djHead.position.y = 0.726; g.add(djHead);
+  const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.1, 32), hitMat); hit.position.y = 0.74; g.add(hit);
+  for (const o of [djHead, hit]) { o.userData = { t: 'djembe' }; rhyCtrls.push(o); }
+  djHead.userData.mat = headMat;
+  // SNAP: a little brass button on the drum's foot, facing you
+  const smat = capMat('#c9a227'); djSnapB = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.03), smat); djSnapB.position.set(0, 0.2, 0.15); g.add(djSnapB);
+  const L = flatLabel(0.15, 0.08, 240, 128, djSnapB, 0, 0, 0.016); L.m.rotation.x = 0; djSnapB.userData = { t: 'dsnap', mat: smat, L };
+  const sh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.08), hitMat); sh.position.copy(djSnapB.position); g.add(sh); sh.userData = { t: 'dsnap' };
+  rhyCtrls.push(djSnapB, sh);
+}
+function drawDjSnap() { const u = djSnapB.userData; u.mat.color.set(djembe.snap ? '#1d1b18' : '#c9a227'); printText(u.L, [['SNAP', 56, djembe.snap ? '#ffd000' : '#1d1b18'], [djembe.snap ? 'ON' : 'OFF', 48, djembe.snap ? '#ffffff' : '#1d1b18']]); }
+drawDjSnap();
+const DJ_ZONES = ['BASS', 'TONE', 'SLAP'];
+function djembeHit(zone, vel) {
+  if (!ac || !rhyAudio) return;
+  const t = djembe.snap ? gridSnap(ac.currentTime + 0.005) : ac.currentTime + 0.003, out = rhyAudio.out;
+  const sine = (f0, f1, dec, peak, type = 'sine') => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dec * 0.6); env(g, t, peak * vel, dec); o.connect(g); g.connect(out); o.start(t); o.stop(t + dec + 0.05); };
+  const noise = (type, f, q, dec, peak) => { const n = noiseSrc(t, dec + 0.05), fl = ac.createBiquadFilter(), g = ac.createGain(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; env(g, t, peak * vel, dec, 0.001); n.connect(fl); fl.connect(g); g.connect(out); };
+  if (zone === 0) {                                                    // bass: the whole skin and the air in the goblet
+    sine(105, 62, 0.34, 0.85); sine(170, 140, 0.12, 0.18); noise('lowpass', 420, 0.7, 0.06, 0.3);
+  } else if (zone === 1) {                                             // tone: the skin's ringing modes, fingers flat near the rim
+    sine(330, 316, 0.16, 0.42); sine(520, 505, 0.11, 0.2); sine(735, 0, 0.07, 0.1); noise('bandpass', 1100, 1.1, 0.04, 0.22);
+  } else {                                                             // slap: fingertips cracking at the edge
+    noise('bandpass', 2900, 0.9, 0.06, 0.55); noise('highpass', 5200, 0.7, 0.025, 0.3); sine(880, 0, 0.05, 0.16, 'triangle'); sine(420, 0, 0.05, 0.12);
+  }
+  setTimeout(() => { djembe.flash = 1; djembe.zone = zone; }, Math.max(0, (t - ac.currentTime) * 1000));
+}
 function rhyRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(rhyCtrls, false)[0]; }
 function rhyAct(u, ext) {                              // press / toggle a control
   if (u.t === 'pad') { const v = ext !== undefined ? ext : !rhy.steps[u.k][u.s]; rhy.steps[u.k][u.s] = v; rhyHelp = RHY_HELP.pad; rhyValue = `${RINGS[u.k].name} step ${u.s + 1} ${v ? 'on' : 'off'}`; if (v && ac && rhyAudio && !rhy.mute[u.k]) DRUM[RINGS[u.k].key](ac.currentTime + 0.005, 0.7, u.s); buzz(6); drawRhyDisplay(); return v; }
@@ -2510,6 +2559,8 @@ function rhyAct(u, ext) {                              // press / toggle a contr
     rhyHelp = RHY_HELP.clear; drawRhyAll();
   }
   if (u.t === 'knob') { rhyHelp = RHY_HELP[u.key]; rhyValue = ''; drawRhyDisplay(); }
+  if (u.t === 'dsnap') { djembe.snap = !djembe.snap; drawDjSnap(); rhyHelp = RHY_HELP.djembe; rhyValue = `Djembe snap ${djembe.snap ? 'on' : 'off'}`; drawRhyDisplay(); buzz(8); }
+  if (u.t === 'dj') { djembeHit(u.z, 1); rhyHelp = RHY_HELP.djembe; rhyValue = DJ_ZONES[u.z]; drawRhyDisplay(); }
 }
 const knobText = (key) => key === 'tempo' ? `${rhy.bpm} BPM` : key === 'vol' ? `Volume ${Math.round(VOL.rhythm * 100)}%` : `Swing ${Math.round(rhy.swing * 100)}%`;
 function knobBy(key, dv) {
@@ -2520,8 +2571,15 @@ function knobBy(key, dv) {
   drawDial(key); drawRhyDisplay();
 }
 function rhyDown(e) {
-  if (rGrab) return;
   const h = rhyRay(e); if (!h) return;
+  if (h.object.userData.t === 'djembe') {                            // where on the skin: middle, ring or edge
+    const n = new THREE.Vector3(0, 1, 0).transformDirection(djHead.matrixWorld), o = djHead.localToWorld(new THREE.Vector3(0, 0.006, 0));
+    const q = ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, o), new THREE.Vector3()) || h.point.clone();
+    const p = djHead.worldToLocal(q), r = Math.hypot(p.x, p.z) / 0.205;
+    const zone = r < 0.45 ? 0 : r < 0.82 ? 1 : 2;
+    djembeHit(zone, 1); rhyHelp = RHY_HELP.djembe; rhyValue = DJ_ZONES[zone]; drawRhyDisplay(); buzz(6); return;
+  }
+  if (rGrab) return;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   rFocus = -1;
   const u = h.object.userData;
@@ -2536,13 +2594,15 @@ function rhyMove(e) {
 }
 function rhyUp(e) { if (rGrab && e.pointerId === rGrab.id) rGrab = null; }
 // keyboard / controller: the controls in order, then every pad ring by ring (kick first)
-const R_STATIONS = [{ t: 'play' }, { t: 'knob', key: 'tempo' }, { t: 'knob', key: 'swing' }, { t: 'knob', key: 'vol' }, { t: 'mmute' }, ...RING_ORDER.map((k) => ({ t: 'mute', k })), { t: 'clear' }];
+const R_STATIONS = [{ t: 'play' }, { t: 'knob', key: 'tempo' }, { t: 'knob', key: 'swing' }, { t: 'knob', key: 'vol' }, { t: 'mmute' }, ...RING_ORDER.map((k) => ({ t: 'mute', k })), { t: 'clear' },
+  { t: 'dj', z: 0 }, { t: 'dj', z: 1 }, { t: 'dj', z: 2 }, { t: 'dsnap' }];
 for (const k of RING_ORDER) for (let st = 0; st < 16; st++) R_STATIONS.push({ t: 'pad', k, s: st });
 let rFocus = -1;
 function rFocusSet(i) {
   rFocus = i; if (i < 0) return;
   const f = R_STATIONS[i]; rhyHelp = RHY_HELP[f.t === 'knob' ? f.key : f.t];
-  rhyValue = f.t === 'pad' ? `${RINGS[f.k].name} step ${f.s + 1}` : f.t === 'knob' ? knobText(f.key) : '';
+  if (f.t === 'dj' || f.t === 'dsnap') rhyHelp = RHY_HELP.djembe;
+  rhyValue = f.t === 'dj' ? `Djembe ${DJ_ZONES[f.z]}` : f.t === 'dsnap' ? 'Djembe snap' : f.t === 'pad' ? `${RINGS[f.k].name} step ${f.s + 1}` : f.t === 'knob' ? knobText(f.key) : '';
   drawRhyDisplay(); blip(660, 0.04, 0.03);
 }
 function rhyStep(d) { rFocusSet(rFocus < 0 ? (d > 0 ? 0 : R_STATIONS.length - 1) : (rFocus + d + R_STATIONS.length) % R_STATIONS.length); }
@@ -2562,6 +2622,7 @@ function makeRhythmMachine() {
   const fit = [];
   for (const x of [-1.7, 1.7]) for (const z of [-1.1, 1.24]) fit.push([wheelT, new THREE.Vector3(x, 0.06, z)]);
   for (const x of [-0.66, 0.66]) for (const y of [1.84, 2.26]) fit.push([rhyG, new THREE.Vector3(x, y, -1.12)]);
+  fit.push([rhyG, new THREE.Vector3(2.4, 0.76, 0.8)], [rhyG, new THREE.Vector3(2.0, 0.1, 1.1)]);
   return {
     al: RHY_I, base: rhyG, fit, elev: [1.1, 0.92], stand: 1.5,
     down: rhyDown, move: rhyMove, up: rhyUp, step: rhyStep, adjust: rhyAdjust, press: rhyPress,
@@ -2595,6 +2656,10 @@ function updateRhythm(dt) {
   }
   const glow = (mat, f) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = f ? 0.3 : 0; };
   glow(playMat, foc && foc.t === 'play'); glow(clearMat, foc && foc.t === 'clear');
+  djembe.flash = Math.max(0, djembe.flash - dt * 6);
+  djHead.userData.mat.emissiveIntensity = djembe.flash * 0.35 + (foc && foc.t === 'dj' ? 0.25 : 0);
+  djHead.position.y = 0.726 - djembe.flash * 0.004;
+  glow(djSnapB.userData.mat, foc && foc.t === 'dsnap');
   for (const key of ['tempo', 'swing', 'vol']) glow(knobs[key].mat, foc && foc.t === 'knob' && foc.key === key);
   glow(muteBtns.rhythm.mat, foc && foc.t === 'mmute');
   muteMats.forEach(({ mat, R }, k) => { mat.emissive.set(foc && foc.t === 'mute' && foc.k === k ? '#ffffff' : '#000000'); mat.emissiveIntensity = 0.3; mat.color.set(rhy.mute[k] ? '#5a554d' : R.col); });
@@ -7919,6 +7984,7 @@ chordUp = netWrap(4, 'chordUp', chordUp, [0]);
 bassPedalDown = netWrap(7, 'bassPedalDown', bassPedalDown, [0]);
 bassPedalUp = netWrap(7, 'bassPedalUp', bassPedalUp, [0]);
 bassSnare = netWrap(7, 'bassSnare', bassSnare);
+djembeHit = netWrap(8, 'djembeHit', djembeHit);
 poolDrop = netWrap(5, 'poolDrop', poolDrop);
 thunderClap = netWrap(3, 'thunderClap', thunderClap);
 
