@@ -170,12 +170,12 @@
     ['p', "The gallery is a twelve-sided hall. Eleven alcoves hold eleven machines; the twelfth is the door. Walk up to a machine to play it. Many keep going after you walk away, so you can set a beat running, start a drone, and wander on to the next."],
     ['m', "I.    THE STRING FRAME. Pluck, strum or bow: harp, guitar, sitar, koto, banjo, violin, cello, a whole orchestra."],
     ['m', "II.   THE THEREMIN. Played without being touched, the eerie voice of old science fiction. Glide, swoop and let the vibrato bloom."],
-    ['m', "III.  THE TEXTURE MACHINE. Wind, rain, sea, thunder, the crackle of an old record: weather to lay under the music."],
+    ['m', "III.  THE TEXTURE MACHINE. Wind, rain, sea, thunder, the crackle of an old record: weather to lay under the music. Turn on the chimes and the wind plays them."],
     ['m', "IV.   THE MELODY CONSOLE. An Optigan organ with a strum plate. Pick a chord, sweep your hand across it, and the room follows."],
     ['m', "V.    THE RIPPLE POOL. Touch the water. Ripples spread and ring the chimes they reach: glass, kalimba, steel drum."],
     ['m', "VI.   THE DRONE ORGAN. The deep, warm ground under everything. It sets the gallery's key and its mood: bright, dark, floating or ancient."],
-    ['m', "VII.  THE BASS PEDALS. Step out a bass line, or pick a pattern and let it groove."],
-    ['m', "VIII. THE RHYTHM WHEEL. The heartbeat. Light pads around the wheel to build a beat."],
+    ['m', "VII.  THE BASS PEDALS. Step out a bass line, or pick a pattern and let it groove. Or switch to timpani and roll, or hold the snare for a drum roll."],
+    ['m', "VIII. THE RHYTHM WHEEL. The heartbeat. Light pads around the wheel to build a beat, and play the djembe beside it with your hands."],
     ['m', "IX.   THE TAPE ECHO. It listens to the other machines and throws their sound back across the room. Grab the tape to bend it."],
     ['m', "X.    THE CHOIR WALL. Conduct sixteen singers: bring basses, tenors, altos and sopranos in and out, set them a looping \"doo-wop\" or \"la la\", or call up a barbershop quartet or a soloist."],
     ['m', "XI.   THE STEAM CALLIOPE. Punch holes in a paper roll and let the steam play it, as a brass band, a music box or a pipe organ."],
@@ -4249,15 +4249,28 @@ function poolNote(m, vel, t) {
     // a steel pan note is tuned in three partials, fundamental, octave and the twelfth above, all hammered into
     // harmonic tune. The octave blooms a beat after the stick hits as energy passes from one mode to the next,
     // a near-twin of it beats slowly against it (the shimmer), and a soft rubber stick adds a short knock
-    const kk = 1.15 * k;
-    const o = part(1, 1, kk); if (o) { o.detune.setValueAtTime(-10, t); o.detune.setTargetAtTime(0, t, 0.012); }
-    part(2, 0.3, 0.75 * kk);
+    // What the acoustics papers find: the note's domes are tuned f, 2f, and 3f (low notes, mellow) or 4f (high
+    // notes, bright); the 2f mode comes as a near-pair (a 1:2:2 resonance), and when struck the energy
+    // sloshes from the fundamental up into the octave and back a few times, which is the pan's singing 'wah'.
+    // Struck hard it's a shade sharp for an instant; the rubber stick touches for a millisecond or two; the
+    // neighbouring note an octave down rings faintly in sympathy; and the attack flashes 6f and 8f.
+    const kk = 1.15 * k, low = f < 400;
+    const o = part(1, 1, kk); if (o) { o.detune.setValueAtTime(7, t); o.detune.setTargetAtTime(0, t, 0.03); }
+    part(2, 0.28, 0.75 * kk);
     if (f * 2 < 15000) {
       const b = mkOsc('sine', f * 2.004), bg = ac.createGain(); b.connect(bg); bg.connect(g);
       bg.gain.setValueAtTime(0, t); bg.gain.linearRampToValueAtTime(0.42, t + 0.045); bg.gain.setTargetAtTime(0, t + 0.045, 0.6 * kk);
       b.start(t); b.stop(t + 0.045 + 3.6 * kk + 0.05); srcs.push(b);
+      // the exchange: a slow wobble that moves energy between fundamental and octave, fading as the note settles
+      const x = mkOsc('sine', 5.5 + Math.random() * 1.5), xg = ac.createGain();
+      xg.gain.setValueAtTime(0.22, t); xg.gain.setTargetAtTime(0, t + 0.05, 0.35 * kk);
+      x.connect(xg); xg.connect(bg.gain);
+      x.start(t); x.stop(t + 2.5 * kk); srcs.push(x);
     }
-    part(3, 0.22, 0.38 * kk); part(4.01, 0.1, 0.12 * kk); part(5.03, 0.05, 0.05);
+    if (low) part(3, 0.24, 0.4 * kk); else part(4, 0.16, 0.22 * kk);
+    part(low ? 4.01 : 3.0, 0.07, 0.12 * kk);
+    part(6, 0.07, 0.025); part(8, 0.04, 0.015);                    // the bright flash at the stroke
+    if (f > 220) part(0.5, 0.05, 0.9 * kk);                       // the octave-below note area, ringing in sympathy
     if (typeof rhyAudio !== 'undefined' && rhyAudio && rhyAudio.noise) {   // the stick: a short knock of filtered noise
       const n = noiseSrc(t, 0.04), bp = ac.createBiquadFilter(), ng = ac.createGain();
       bp.type = 'bandpass'; bp.frequency.value = Math.min(6000, f * 3); bp.Q.value = 1.2;
@@ -4854,11 +4867,13 @@ const texHits = [], texCtrls = [];
 const TX_LAYERS = [['WIND', '#00b7ff'], ['RAIN', '#1f6bff'], ['SEA', '#00d0b0'], ['CRACKLE', '#ff9a5a'], ['HISS', '#c9ccd0'], ['SHIMMER', '#ffd000'], ['THUNDER', '#6a4fc4']];
 const TX_SCENES = [['STILL', [0.1, 0, 0, 0, 0.05, 0.35, 0]], ['SEASIDE', [0.35, 0, 0.75, 0, 0, 0.3, 0]], ['RAINY NIGHT', [0.25, 0.7, 0, 0.1, 0.1, 0.25, 0.2]],
   ['OLD RECORD', [0, 0, 0, 0.75, 0.45, 0.3, 0]], ['STORM', [0.85, 0.85, 0.45, 0, 0, 0.15, 0.8]]];
-const tex = { lv: [0, 0, 0, 0, 0, 0, 0], glide: null, drift: false, scene: -1, sig: '', breath: [0, 0, 0, 0, 0, 0, 0], thunderT: 3, claps: [], dim: 0, flash: 0 };
+const tex = { chimes: false, lv: [0, 0, 0, 0, 0, 0, 0], glide: null, drift: false, scene: -1, sig: '', breath: [0, 0, 0, 0, 0, 0, 0], thunderT: 3, claps: [], dim: 0, flash: 0 };
 
 const texG = new THREE.Group(); texG.position.set(0, 0.15, A + 1.25); texG.rotation.y = Math.PI; texAl.g.add(texG);
 const texSl = {}, texBtns = { scene: [] }, texPanels = [];
-let texDispL, texDrift;
+let texDispL, texDrift, texChimeB;
+const chimeTubes = [];
+let chimeRing = null;
 {
   const mW = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
   const mC = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
@@ -4891,7 +4906,37 @@ let texDispL, texDrift;
   TX_SCENES.forEach(([n], k) => { texBtns.scene[k] = btn(n, '#f6f2ea', -0.79 + k * 0.265, 0.25, { t: 'scene', i: k }); });
   texDrift = btn('DRIFT', '#f6f2ea', 0.56, 0.22, { t: 'drift' });
   { const b = makeMuteBtn('texture', texG, 0.83, top + 0.02, 0.52, 0.2, 0.12); b.userData = { t: 'mmute' }; texCtrls.push(b); }
-  slider('vol', -0.2, 1.1, 0.7, 'TEXTURE VOLUME', '#ffd000', -0.6, 0.66, 0.13);
+  slider('vol', 0.14, 0.76, 0.7, 'TEXTURE VOLUME', '#ffd000', -0.6, 0.66, 0.13);
+  texSl.vol.lb.m.position.x = -0.62; texSl.vol.lb.m.scale.x = 0.95;
+  { const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 0.13), mat); b.position.set(-0.08, top + 0.02, 0.7); texG.add(b);
+    b.userData = { t: 'chimes' }; texCtrls.push(b);
+    texChimeB = { mat, L: flatLabel(0.23, 0.125, 300, 163, b, 0, 0.0205, 0), name: 'CHIMES', b }; }
+  // THE WIND CHIMES: a sculpture hung from the alcove's ceiling beside the desk. A steel ring turns slowly
+  // on a rod; eight tubes in the gallery's colours hang from it, longest to shortest, round a black striker
+  // with a red sail that catches the wind. They sway with the WIND slider's gusts and, with CHIMES on,
+  // ring: the windier, the more often and the louder. Tuned to the gallery's key.
+  { const C = new THREE.Group(); C.position.set(1.55, 0, -0.15); texG.add(C);
+    const steel = new THREE.MeshStandardMaterial({ color: '#c9ccd0', metalness: 0.85, roughness: 0.3 });
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 2.2, 8), steel); rod.position.y = 4.9; C.add(rod);
+    chimeRing = new THREE.Group(); chimeRing.position.y = 3.8; C.add(chimeRing);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.022, 10, 64), steel); ring.rotation.x = Math.PI / 2; chimeRing.add(ring);
+    for (let k = 0; k < 3; k++) { const a = k * Math.PI * 2 / 3, w = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.5, 4), steel);
+      w.position.set(Math.sin(a) * 0.21, 0.22, Math.cos(a) * 0.21); w.lookAt(0, 0.44, 0); w.rotateX(Math.PI / 2); chimeRing.add(w); }
+    const COLS = ['#e8262b', '#ffd000', '#1f6bff', '#1d1b18', '#e8262b', '#f6f2ea', '#1f6bff', '#ffd000'];
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2, len = 1.45 - i * 0.1;
+      const piv = new THREE.Group(); piv.position.set(Math.sin(a) * 0.4, -0.02, Math.cos(a) * 0.4); chimeRing.add(piv);
+      const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.12, 4), steel); wire.position.y = -0.06; piv.add(wire);
+      const mat = new THREE.MeshStandardMaterial({ color: COLS[i], metalness: COLS[i] === '#1d1b18' ? 0.4 : 0.55, roughness: 0.3, emissive: COLS[i], emissiveIntensity: 0 });
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, len, 20), mat); tube.position.y = -0.12 - len / 2; piv.add(tube);
+      chimeTubes.push({ piv, mat, ph: Math.random() * 6.28, kick: 0, glow: 0, len });
+    }
+    const striker = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 32), new THREE.MeshStandardMaterial({ color: '#1d1b18', roughness: 0.5 }));
+    striker.position.y = -0.75; chimeRing.add(striker);
+    const sail = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.5, 3), new THREE.MeshStandardMaterial({ color: '#e8262b', roughness: 0.6 }));
+    sail.position.y = -1.9; sail.rotation.z = Math.PI; sail.scale.z = 0.1; chimeRing.add(sail);
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 1.65, 4), steel); line.position.y = -0.85; chimeRing.add(line);
+    chimeRing.userData.sail = sail; chimeRing.userData.striker = striker; }
   // the Mondrian cabinet: six coloured panels in a black grid, each glowing with its layer
   texHits.push(box(1.9, 1.62, 0.12, mW, 0, 1.62, -0.52, texG));
   const face = -0.455;
@@ -5059,6 +5104,7 @@ const texLevel = (k) => (k === 6 ? Math.pow(tex.lv[k], 1.3) * 1.1 : Math.pow(tex
 /* ---------- display */
 let texHelp = '', texValue = '';
 const TEX_HELP = {
+  chimes: 'Chimes: the sculpture hanging beside the desk rings in the wind. Turn CHIMES on and raise WIND: the stronger the wind, the more often and the louder they ring. Tuned to the gallery\'s key.',
   start: 'Slide up the sounds you want under the music, or press a scene. DRIFT lets the mix wander like weather. Keys: ← → choose, ↑ ↓ adjust, Enter press. Controller: d-pad, Ⓐ, Ⓑ leave.',
   layer: 'Each slider brings up one sound: wind, rain, the sea, vinyl crackle, tape hiss, a shimmering drone in the gallery’s key, and thunder. The higher the thunder, the darker the room and the nearer and more often the storm.',
   scene: 'Scenes glide every slider to a mood. Change any slider afterwards to make it your own.',
@@ -5094,6 +5140,8 @@ function drawTexButtons() {
     printText(b.L, words.map((w) => [w, words.length > 1 ? 40 : 46, col]), on ? { bg: '#1d1b18' } : {});
   });
   tog(texDrift, tex.drift, 46);
+  printText(texChimeB.L, [['CHIMES', 44, tex.chimes ? '#ffffff' : '#1d1b18'], [tex.chimes ? 'ON' : 'OFF', 40, tex.chimes ? '#ffd000' : '#7a7368']], tex.chimes ? { bg: '#1d1b18' } : {});
+  texChimeB.mat.color.set(tex.chimes ? '#1d1b18' : '#f6f2ea');
   for (const key in texSl) drawTexSlider(key);
 }
 drawTexButtons();
@@ -5109,6 +5157,7 @@ function texSet(key, v, keepScene) {
 function texButton(u) {
   if (u.t === 'scene') { tex.scene = u.i; tex.glide = { from: tex.lv.slice(), to: TX_SCENES[u.i][1], t: 0 }; texHelp = TEX_HELP.scene; texValue = TX_SCENES[u.i][0].toLowerCase(); }
   if (u.t === 'drift') { tex.drift = !tex.drift; texHelp = TEX_HELP.drift; texValue = tex.drift ? 'drifting' : 'steady'; }
+  if (u.t === 'chimes') { tex.chimes = !tex.chimes; texHelp = TEX_HELP.chimes; texValue = tex.chimes ? (tex.lv[0] > 0.02 ? 'chimes on' : 'chimes on: raise the wind') : 'chimes off'; }
   if (u.t === 'mmute') { const on = machineMute('texture'); texHelp = TEX_HELP.mmute; texValue = on ? 'texture muted' : 'sound on'; }
   if (u.t === 'slider') texHelp = u.key === 'vol' ? TEX_HELP.vol : TEX_HELP.layer;
   buzz(8); drawTexButtons(); drawTexDisplay();
@@ -5124,7 +5173,7 @@ function texDown(e) {
 }
 function texMove(e) { const u = texPtr.get(e.pointerId); if (u && u.t === 'slider') texSliderTo(u.key, e); }
 function texUp(e) { texPtr.delete(e.pointerId); }
-const T_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'scene', i })), { t: 'drift' }, { t: 'mmute' }, ...[0, 1, 2, 3, 4, 5, 6].map((k) => ({ t: 'slider', key: k })), { t: 'slider', key: 'vol' }];
+const T_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'scene', i })), { t: 'drift' }, { t: 'mmute' }, { t: 'chimes' }, ...[0, 1, 2, 3, 4, 5, 6].map((k) => ({ t: 'slider', key: k })), { t: 'slider', key: 'vol' }];
 let tFocus = -1;
 function tFocusSet(i) {
   tFocus = i; if (i < 0) return;
@@ -5155,7 +5204,55 @@ function makeTexMachine() {
 }
 
 /* ---------- every frame */
+/* ---------- the wind chimes: each strike rings a tube's first partials (a tube's overtones sit at about
+   2.76 and 5.40 times its note), the pairs slightly apart so they shimmer as they die away */
+let chimeAudio = null, chimeVoices = 0;
+const windChimePos = texAl.g.localToWorld(new THREE.Vector3(-1.55, 3.0, A + 1.4));
+function chimeNotes() {                                              // eight notes of the key's pentatonic, high up
+  const sc = galleryScale(), r = NOTE_SEMI[org.root], minor = (sc[2] - sc[0] + 12) % 12 === 3;
+  const pent = (minor ? [0, 2, 3, 4, 6] : [0, 1, 2, 4, 5]).map((k) => sc[k]), out = [];   // no half steps to clash
+  for (let m = 72 + r; out.length < 8; m++) if (pent.includes(m % 12)) out.push(m);
+  return out;
+}
+function chimeStrike(i, vel) {
+  if (!ac || !texAudio || chimeVoices > 14) return;
+  if (!chimeAudio) {
+    const out = ac.createGain(); out.gain.value = 1;              // its loudness follows the Texture Machine's volume, per strike
+    const pan = ac.createPanner(); pan.panningModel = PANNING; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.rolloffFactor = 0.7;
+    setPannerPos(pan, windChimePos); out.connect(pan); pan.connect(hallBus);
+    const send = ac.createGain(); send.gain.value = 0.5; out.connect(send); send.connect(reverbIn);
+    micTap(out, windChimePos, 1.0); chimeAudio = { out };
+  }
+  const t = ac.currentTime + 0.01, f = mf(chimeNotes()[7 - i]), dec = isTouch ? 2.6 : 3.6;
+  const lvl = MUTED.texture ? 0 : volGain(VOL.texture);
+  const parts = isTouch ? [[1, 1, 1], [2.756, 0.35, 0.45]] : [[1, 1, 1], [1.0025, 0.5, 0.9], [2.756, 0.32, 0.45], [5.404, 0.12, 0.2]];
+  chimeVoices++; setTimeout(() => chimeVoices--, dec * 1000);
+  for (const [r, a, d] of parts) {
+    const o = ac.createOscillator(); o.frequency.value = f * r;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.07 * a * vel * lvl + 0.0001, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + dec * d);
+    o.connect(g); g.connect(chimeAudio.out); o.start(t); o.stop(t + dec * d + 0.05);
+  }
+  const T = chimeTubes[i]; T.kick = Math.min(1, T.kick + 0.6 * vel); T.glow = 1;
+}
+function updateChimes(dt) {
+  const wind = Math.min(1, tex.lv[0] * (0.4 + tex.breath[0] * 1.4));   // the slider, with the loop's own gusts in it
+  chimeRing.rotation.y += dt * (0.05 + wind * 0.4);
+  chimeRing.userData.sail.rotation.y = Math.sin(time * 0.7) * 0.5 * wind;
+  chimeTubes.forEach((T, i) => {
+    T.kick *= Math.exp(-dt * 2.5); T.glow *= Math.exp(-dt * 3);
+    T.piv.rotation.x = Math.sin(time * (1.1 + i * 0.07) + T.ph) * (0.03 + wind * 0.16) + T.kick * 0.12 * Math.sin(time * 9 + i);
+    T.piv.rotation.z = Math.cos(time * (0.9 + i * 0.05) + T.ph) * (0.02 + wind * 0.12);
+    T.mat.emissiveIntensity = T.glow * 0.35;
+  });
+  if (!tex.chimes || !texAudio || wind < 0.02) return;
+  // strikes: a few a second in a breeze, a clatter in a gale; neighbours tend to ring together
+  if (Math.random() < dt * (0.4 + wind * wind * 9)) {
+    const i = Math.floor(Math.random() * 8); chimeStrike(i, 0.35 + wind * 0.65 * Math.random() + 0.15 * wind);
+    if (Math.random() < wind * 0.5) setTimeout(() => chimeStrike((i + 1 + Math.floor(Math.random() * 2) * 6) % 8, 0.3 + wind * 0.4), 60 + Math.random() * 140);
+  }
+}
 function updateTexture(dt) {
+  updateChimes(dt);
   const sig = org.root + ':' + org.mood;
   if (sig !== tex.sig) { tex.sig = sig; texRetune(); }
   if (tex.glide) {                                                    // a scene: the sliders glide over two seconds
@@ -6215,7 +6312,7 @@ const STR_VOICES = [
   { n: 'HARP', base: 43, c: 0.5, t60: 3.6, pos: 0.42, soft: 0.25, body: [['peaking', 240, 1.2, 3], ['peaking', 900, 1, -2], ['lowpass', 6500, 0.6, 0]] },
   { n: 'GUITAR', base: 40, c: 0.68, t60: 3.0, pos: 0.17, soft: 0.6, body: [['peaking', 105, 2.2, 6], ['peaking', 215, 1.8, 3.5], ['lowpass', 8500, 0.6, 0]] },
   { n: '12-STRING', base: 40, c: 0.74, t60: 3.2, pos: 0.15, soft: 0.7, twelve: true, body: [['peaking', 110, 2, 5], ['peaking', 2600, 1.2, 3], ['lowpass', 10000, 0.6, 0]] },
-  { n: 'SITAR', base: 48, c: 0.93, t60: 5.0, pos: 0.06, soft: 0.95, jaw: [2.2, 0.5], sym: true, glide: 14, body: [['peaking', 1350, 1.4, 5], ['peaking', 3700, 1.6, 4], ['lowpass', 10500, 0.6, 0]] },
+  { n: 'SITAR', base: 48, c: 0.93, t60: 5.0, pos: 0.06, soft: 0.95, jaw: [2.2, 0.9], sym: true, glide: 14, body: [['peaking', 210, 1.2, 4], ['peaking', 1350, 1.4, 5], ['peaking', 3700, 1.6, 4]] },
   { n: 'KOTO', base: 50, c: 0.8, t60: 1.9, pos: 0.11, soft: 0.85, body: [['peaking', 420, 1.6, 4], ['peaking', 1800, 1.5, 2], ['lowpass', 7500, 0.6, 0]] },
   { n: 'BANJO', base: 50, c: 0.9, t60: 0.95, pos: 0.07, soft: 0.95, body: [['peaking', 1700, 1.4, 8], ['peaking', 350, 1, -4], ['lowpass', 9500, 0.6, 0]] },
   { n: 'VIOLIN', bow: true, base: 55, saws: 1, vib: 0.00030, slide: 0, noise: 0.03, body: [['peaking', 290, 1.5, 4], ['peaking', 2600, 1, 6], ['lowpass', 7000, 0.6, 0]] },
@@ -6350,18 +6447,23 @@ function strRender(vi, midi, bright) {
     // the sitar's jawari: the string rolls on a broad curved bridge, which flattens one side of every swing, at
     // any loudness, so the buzz lasts the whole note. What it adds rings through a resonance that sweeps down
     // from a bright zing to a nasal 'ji' as the note settles: the sound that makes a sitar a sitar.
-    const [amt, sweep] = V.jaw; let env = 0, x1 = 0, x2 = 0, y1 = 0, y2 = 0, dc = 0;
-    let k0 = 0, k1 = 0, k2 = 0, thK = 0;
+    // Two sweeping bands, an octave apart, give the zing its glassy upper edge; the sweep takes most of a
+    // second, as the buzzing slowly settles down the string's harmonics.
+    const [amt, sweep] = V.jaw; let env = 0, x1 = 0, x2 = 0, y1 = 0, y2 = 0, dc = 0, u1 = 0, u2 = 0;
+    let k0 = 0, k1 = 0, k2 = 0, thK = 0, q0 = 0, q1 = 0, q2 = 0;
     for (let i = 0; i < n; i++) {
       if (!(i & 63)) {                                                 // the slow things, every 64 samples
-        const tt = i / sr, w0 = 2 * Math.PI * (1200 + 2600 * Math.exp(-tt / sweep)) / sr, al = Math.sin(w0) / 5, a0 = 1 + al;
+        const tt = i / sr, fc = 1100 + 3400 * Math.exp(-tt / sweep), w0 = 2 * Math.PI * fc / sr, al = Math.sin(w0) / 5, a0 = 1 + al;
         k0 = al / a0; k1 = 2 * Math.cos(w0) / a0; k2 = (1 - al) / a0; thK = 0.18 + 0.5 * (1 - Math.exp(-tt / 1.6));
+        const w1 = 2 * Math.PI * Math.min(sr * 0.4, fc * 2) / sr, a1 = Math.sin(w1) / 6, b0 = 1 + a1;
+        q0 = a1 / b0; q1 = 2 * Math.cos(w1) / b0; q2 = (1 - a1) / b0;
       }
       const y = out[i], ay = y < 0 ? -y : y; env = ay > env ? ay : env * 0.9995;
       const th = env * thK;
       const b = y < -th ? (-th + (y + th) * 0.12) - y : 0;            // what the bridge takes off
-      const z = k0 * (b - x2) + k1 * y1 - k2 * y2; x2 = x1; x1 = b; y2 = y1; y1 = z;
-      const v = y + b * 0.6 + z * amt; dc += 0.0008 * (v - dc); out[i] = v - dc;
+      const z = k0 * (b - x2) + k1 * y1 - k2 * y2; y2 = y1; y1 = z;
+      const z2 = q0 * (b - x2) + q1 * u1 - q2 * u2; x2 = x1; x1 = b; u2 = u1; u1 = z2;
+      const v = y + b * 0.6 + z * amt + z2 * amt * 0.45; dc += 0.0008 * (v - dc); out[i] = v - dc;
     }
   }
   if (V.twelve) ks(midi < 60 ? f * 2 : f * Math.pow(2, 4 / 1200), 0.7, 0.007, 0.8, 0);
@@ -7257,6 +7359,99 @@ const THER_M = makeTheremin();
 const CHOIR_M = makeChoirMachine();
 const STR_M = makeStringMachine();
 const CAL_M = makeCalliopeMachine();
+/* ------------------------------------------------------------------ REACTIVE SPOTLIGHTS
+   A spotlight high in the mouth of each alcove, shining down on its machine, that answers to one thing that
+   machine does: the Rhythm Wheel flashes in the colour of each drum it plays; the Theremin's beam swings with
+   its pitch; the Bass Pedals give a slow heavy pulse in the colour of the note; the Choir's light warms on
+   AH and cools on OO; the Strings flicker with each pluck; the Texture Machine's goes white with thunder;
+   the Ripple Pool's circles; the Tape Echo's repeats itself; the Calliope's puffs; the Organ's breathes; the
+   Melody Console's changes colour with each chord. How bright each one is comes from how loud its machine
+   is, read off the sound it sends to the centre mic. Painted light (glowing cones and pools), not real
+   lights, so the phone doesn't feel it. */
+const mSpots = [];
+{
+  const cone = new THREE.ConeGeometry(1, 1, 24, 1, true); cone.translate(0, -0.5, 0);
+  for (let i = 1; i < N; i++) {
+    const a = alcoves[i]; if (!a) continue;
+    const fixPos = new THREE.Vector3(0, AH - 0.32, A + 0.45);
+    const fx = new THREE.Group(); fx.position.copy(fixPos); a.g.add(fx);
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.3, 12), mDark); can.position.y = -0.05; fx.add(can);
+    const bracket = box(0.04, 0.32, 0.04, mDark, 0, AH - 0.16, A + 0.45, a.g);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.11, 18), new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }));
+    lens.rotation.x = Math.PI / 2; lens.position.y = -0.205; fx.add(lens);
+    const beam = new THREE.Mesh(cone, new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.copy(fixPos); a.g.add(beam);
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: RAD, color: '#fff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    pool.rotation.x = -Math.PI / 2; a.g.add(pool);
+    mSpots[i] = { fx, beam, pool, lens, fixPos, col: new THREE.Color(ALCOVE_COL[i]), c: new THREE.Color(), b: 0, lvl: 0, hist: [], tgt: new THREE.Vector3(), an: null };
+  }
+}
+const _sv = new THREE.Vector3(), _sd = new THREE.Vector3(), SP_DOWN = new THREE.Vector3(0, -1, 0);
+const SPOT_VOWEL = ['#8a4bff', '#1f6bff', '#00d0b0', '#ff7a1a', '#ffd000', '#f4f2ff'].map((c) => new THREE.Color(c));
+const SPOT_CHORD = ['#ff3030', '#ff9a00', '#ffd000', '#66e000', '#00b7ff', '#1f6bff', '#c400ff'].map((c) => new THREE.Color(c));
+let spotBuf = null, spotFrame = 0;
+function spotLevels() {                                                // each alcove's loudness, from what reaches the mic
+  if (!ac) return;
+  if (!spotBuf) spotBuf = new Float32Array(256);
+  for (const tp of micTaps) {
+    if (tp.until || tp.an === false) continue;
+    if (!tp.an) {
+      const i = ((Math.round(Math.atan2(tp.pos.x, tp.pos.z) / (Math.PI * 2 / N)) % N) + N) % N;
+      if (!mSpots[i]) { tp.an = false; continue; }
+      tp.an = ac.createAnalyser(); tp.an.fftSize = 256; tp.node.connect(tp.an); tp.spot = i;
+    }
+  }
+  const L = new Array(N).fill(0);
+  for (const tp of micTaps) {
+    if (!tp.an) continue;
+    tp.an.getFloatTimeDomainData(spotBuf); let s = 0; for (let k = 0; k < 256; k += 2) s += spotBuf[k] * spotBuf[k];
+    L[tp.spot] = Math.max(L[tp.spot], Math.sqrt(s / 128));
+  }
+  for (let i = 1; i < N; i++) { const S = mSpots[i]; if (!S) continue; const v = Math.min(1, L[i] * 6); S.lvl += (v - S.lvl) * (v > S.lvl ? 0.6 : 0.12); }
+}
+function updateMachineSpots(dt) {
+  spotFrame++;
+  if (!isTouch || spotFrame % 2) spotLevels();
+  for (let i = 1; i < N; i++) {
+    const S = mSpots[i]; if (!S) continue;
+    const L = S.lvl; let b = L, ox = 0, oz = 0;
+    S.c.copy(S.col);
+    if (i === RHY_I) {                                                   // a flash in the colour of each drum as it plays
+      let k0 = -1, f0 = 0; rhy.flash.forEach((f, k) => { if (f > f0) { f0 = f; k0 = k; } });
+      b = Math.max(L * 0.25, f0); if (k0 >= 0) S.c.set(RINGS[k0].col);
+    } else if (i === THER_I) {                                           // swings with pitch, bright with volume
+      b = ther.vol; ox = Math.max(-1.2, Math.min(1.2, (ther.semi - 66) / 14)); S.c.setHSL(((ther.semi - 48) / 40 + 0.8) % 1, 0.9, 0.62);
+    } else if (i === BASS_I) {                                           // a slow heavy pulse in the note's colour
+      b = Math.pow(bass.lvl, 0.7); let best = 0; bassLamps.forEach((Lp) => { if (Lp.lvl > best) { best = Lp.lvl; S.c.copy(Lp.col); } });
+    } else if (i === CHOIR_I) {                                          // warm on AH, cool on OO
+      b = Math.max(L, choir.level * 0.5); const v = Math.max(0, Math.min(5, choir.dispV)), k = Math.floor(v); S.c.copy(SPOT_VOWEL[Math.min(5, k)]).lerp(SPOT_VOWEL[Math.min(5, k + 1)], v - k);
+    } else if (i === STR_I) {                                            // flickers with each pluck
+      b = L * (0.75 + 0.25 * Math.random());
+    } else if (i === TEX_I) {                                            // white with the thunder, a cold glimmer in the wind
+      b = Math.max(L * 0.4, tex.flash * 1.6); if (tex.flash > 0.05) S.c.lerp(_flashCol, Math.min(1, tex.flash * 2)); ox = Math.sin(time * 0.3) * 0.4 * tex.lv[0];
+    } else if (i === POOL_I) {                                           // circles, faster when the pool is busy
+      S.ang = (S.ang || 0) + dt * (0.4 + L * 3); ox = Math.cos(S.ang) * 0.7; oz = Math.sin(S.ang) * 0.5;
+    } else if (i === ECHO_I) {                                           // repeats itself, like the tape
+      S.hist.push(L); if (S.hist.length > 40) S.hist.shift(); const n = S.hist.length;
+      b = Math.max(L, (S.hist[n - 15] || 0) * 0.6, (S.hist[n - 30] || 0) * 0.36);
+    } else if (i === MEL_I) {                                            // changes colour with each chord
+      const d = mel.chord ?? mel.plateChord ?? 0; S.c.copy(SPOT_CHORD[d % 7]);
+    } else if (i === ORG_I) {                                            // breathes
+      b = L * (0.8 + 0.2 * Math.sin(time * 1.2));
+    } else if (i === CAL_I) {                                            // puffs and bobs
+      b = L * (0.7 + 0.3 * Math.abs(Math.sin(time * 7))); oz = Math.sin(time * 2) * 0.15 * L;
+    }
+    S.b += (Math.min(1.3, b) - S.b) * Math.min(1, dt * (b > S.b ? 25 : 5));
+    S.tgt.set(ox, 0.17, A + 1.4 + oz);
+    _sd.subVectors(S.tgt, S.fixPos); const len = _sd.length(); _sd.normalize();
+    S.beam.quaternion.setFromUnitVectors(SP_DOWN, _sd); S.fx.quaternion.copy(S.beam.quaternion);
+    const r = Math.tan(0.17) * len; S.beam.scale.set(r, len, r);
+    S.beam.material.color.copy(S.c); S.beam.material.opacity = S.b * 0.13;
+    S.pool.position.copy(S.tgt); S.pool.material.color.copy(S.c); S.pool.material.opacity = S.b * 0.55;
+    S.lens.material.color.copy(S.c).lerp(_flashCol, 0.3).multiplyScalar(0.25 + S.b);
+  }
+}
+
 // Each machine's whole alcove (its stage, its dais, the air above them, and a step of the hall floor in front)
 // is a touch target too: tapping anywhere on it goes straight to playing the machine, so nobody has to land
 // a tap on a thin knob or leg. Invisible boxes, one per alcove; the machines' own parts still take priority.
@@ -7325,6 +7520,7 @@ function update(dt) {
     a.beam.material.opacity = 0.06 + a.flash * 0.12;
   }
   if (npcs.length) updateNpcs(dt, time);
+  updateMachineSpots(dt);
   updateOrgan(dt);
   updateRhythm(dt);
   updateMelody(dt);
@@ -7911,8 +8107,8 @@ const SYNC = {
     set: (s) => { Object.assign(pool, s); drawPoolButtons(); drawPoolSlider('speed'); drawPoolSlider('vol'); drawPoolDisplay(); } },
   9: { get: () => ({ ins: echo.ins, heads: echo.heads, repeat: echo.repeat, rate: echo.rate, tone: echo.tone, wow: echo.wow, sync: echo.sync, throw: !!echo.throw, freeze: !!echo.freeze, speedT: r3(echo.speedT), grab: !!echo.grab }),
     set: (s) => { Object.assign(echo, s); applyEcho(); drawEchoButtons(); } },
-  3: { get: () => ({ lv: tex.lv.map(r3), drift: tex.drift, scene: tex.scene }),
-    set: (s) => { tex.glide = null; tex.lv = s.lv; tex.drift = s.drift; tex.scene = s.scene; for (let k = 0; k < 7; k++) drawTexSlider(k); drawTexButtons(); } },
+  3: { get: () => ({ lv: tex.lv.map(r3), drift: tex.drift, scene: tex.scene, chimes: tex.chimes }),
+    set: (s) => { tex.glide = null; tex.lv = s.lv; tex.drift = s.drift; tex.scene = s.scene; tex.chimes = !!s.chimes; for (let k = 0; k < 7; k++) drawTexSlider(k); drawTexButtons(); } },
   2: { get: () => ({ rh: ther.rh ? { d: r3(ther.rh.d), y: r3(ther.rh.y || 1.62) } : null, lh: ther.lh ? { h: r3(ther.lh.h), x: r3(ther.lh.x || -0.47) } : null, tune: ther.tune, voice: ther.voice, guide: ther.guide, snap: ther.snap }),
     set: (s) => { const vc = s.voice !== ther.voice; Object.assign(ther, s); if (vc && therAudio) therAudio.osc.setPeriodicWave(therAudio.waves[TH_VOICES[ther.voice]]); drawTherControls(); } },
   10: { get: () => ({ vowel: r3(choir.vowel), style: choir.style, mode: choir.mode, follow: choir.follow, chord: choir.chord, sec: choir.sec.join(''), loop: choir.loop, pat: choir.pat.join(','), patI: choir.patI, solo: [...choir.solo.values()] }),
