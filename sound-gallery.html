@@ -3511,7 +3511,7 @@ const bassAl = alcoves[BASS_I];
 bassAl.g.remove(bassAl.plinth); bassAl.g.remove(bassAl.beam);
 plinths.splice(plinths.indexOf(bassAl.plinth), 1);
 const bassHits = [], bassCtrls = [];
-const BS_VOICES = [['TAURUS', '#e8262b'], ['UPRIGHT', '#c08a2b'], ['SUB', '#1f6bff'], ['ACID', '#66c000']];
+const BS_VOICES = [['TAURUS', '#e8262b'], ['UPRIGHT', '#c08a2b'], ['SUB', '#1f6bff'], ['ACID', '#66c000'], ['TIMPANI', '#8a4bff']];
 const BS_PATS = ['LIVE', 'PULSE', 'ROOT·5TH', 'OCTAVES', 'WALK'];
 const BP_LO = 36, BP_N = 13;                                 // pedals C2 to C3
 // patterns: per 16th step, [interval, length in steps, velocity]. R root, 8 octave, 5 fifth above,
@@ -3522,7 +3522,9 @@ const BPAT = [null,
   { 0: ['R', 0.9, 1], 2: ['8', 0.9, 0.75], 4: ['R', 0.9, 0.9], 6: ['8', 0.9, 0.75], 8: ['R', 0.9, 1], 10: ['8', 0.9, 0.75], 12: ['R', 0.9, 0.9], 14: ['8', 0.9, 0.75] },
   { 0: ['R', 3.6, 1], 4: ['3', 3.6, 0.85], 8: ['5', 3.6, 0.9], 12: ['6', 3.6, 0.85] },
 ];
-const bass = { voice: 0, pat: 0, tone: 0.55, root: null, cur: null, curM: BP_LO, held: new Map(), next: 0, nextT: 0, timer: null, lvl: 0, notes: [], sig: '' };
+const bass = { voice: 0, pat: 0, tone: 0.55, root: null, cur: null, curM: BP_LO, held: new Map(), next: 0, nextT: 0, timer: null, lvl: 0, notes: [], sig: '', rolls: new Map(), snare: null, lampHits: [] };
+const bassLamps = [], bassMeter = [];
+let bassSnareBtn = null;
 function bassChordRoot() { const pc = (NOTE_SEMI[org.root] + triad(mel.chord ?? mel.plateChord)[0]) % 12; return BP_LO + pc; }
 function bassInterval(root, sym) {
   if (sym === 'R') return 0; if (sym === '8') return 12; if (sym === '-5') return -5;
@@ -3546,6 +3548,32 @@ let bassDispL, bassCone, bassCap;
   // the console stands at the back; the pedalboard lies on the floor in front of it, where feet can reach
   bassHits.push(box(1.9, 0.74, 0.36, mW, 0, 0.37, -0.47, bassG));
   bassHits.push(box(1.92, 0.04, 0.87, mW, 0, 0.02, 0.125, bassG));
+  // on the console's face, above the pedals: a lamp for each pedal that lights in its note's colour when it
+  // sounds, a level meter across the top that follows the bass, and the big SNARE ROLL pad
+  { const NATK = [0, 2, 4, 5, 7, 9, 11, 12], SHK = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+    box(1.86, 0.3, 0.01, mInk, 0, 0.55, -0.285, bassG);
+    for (let i = 0; i < BP_N; i++) {
+      const black = !NATK.includes(i), x = black ? -0.6 + SHK[i] * 0.2 : -0.7 + NATK.indexOf(i) * 0.2;
+      const mat = new THREE.MeshBasicMaterial({ color: '#2a2420', toneMapped: false });
+      const lamp = new THREE.Mesh(new THREE.CircleGeometry(black ? 0.034 : 0.042, 28), mat); lamp.position.set(x, black ? 0.6 : 0.5, -0.279); bassG.add(lamp);
+      const rim = new THREE.Mesh(new THREE.RingGeometry(black ? 0.034 : 0.042, (black ? 0.034 : 0.042) + 0.008, 28), new THREE.MeshStandardMaterial({ color: '#c9ccd0', metalness: 0.8, roughness: 0.35 })); rim.position.copy(lamp.position); rim.position.z += 0.001; bassG.add(rim);
+      bassLamps.push({ mat, lvl: 0, col: new THREE.Color().setHSL(((i % 12) * 30) / 360, 0.95, 0.55) });
+    }
+    for (let k = 0; k < 24; k++) {
+      const mat = new THREE.MeshBasicMaterial({ color: '#2a2420', toneMapped: false });
+      const c = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.03), mat); c.position.set(-0.84 + k * 0.073, 0.675, -0.279); bassG.add(c);
+      bassMeter.push({ mat, col: new THREE.Color(k < 15 ? '#36d05a' : k < 20 ? '#ffd000' : '#e8262b') });
+    }
+    // the SNARE ROLL pad: a drumhead in a chrome hoop, hold it to roll
+    const pad = new THREE.Group(); pad.position.set(0, 0.25, -0.282); bassG.add(pad);
+    const headMat = new THREE.MeshStandardMaterial({ color: '#f3ecdf', roughness: 0.7, emissive: '#ffffff', emissiveIntensity: 0 });
+    const head = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.15), headMat); head.position.z = 0.004; pad.add(head);
+    const hoop = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.19, 0.012), new THREE.MeshStandardMaterial({ color: '#c9ccd0', metalness: 0.8, roughness: 0.35 })); pad.add(hoop);
+    const L = flatLabel(0.6, 0.14, 860, 200, pad, 0, 0, 0.006); L.m.rotation.x = 0;
+    printText(L, [['SNARE ROLL', 96, '#1d1b18'], ['hold to roll', 56, '#7a2fa0', '600']]);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 0.08), hitMat); pad.add(hit);
+    for (const o of [head, hit]) { o.userData = { t: 'snare' }; bassCtrls.push(o); }
+    bassSnareBtn = { headMat }; }
   // an organ pedalboard on the floor: a teal bed between two wooden side cheeks (so the black sharps stand
   // out against it), a cream ledge along the front for the volume slider, and a teal toe board at the back
   // where the pedals come out from under the console
@@ -3591,7 +3619,7 @@ let bassDispL, bassCone, bassCap;
     b.position.set(x, 1.02, z); bassG.add(b); b.userData = { t, i: k }; bassCtrls.push(b);
     const L = flatLabel(0.18, 0.115, 256, 164, b, 0, 0.0205, 0); list[k] = { mat, L, name, col };
   };
-  BS_VOICES.forEach(([n, col], k) => btn(bassBtns.voice, k, n, col, -0.8 + k * 0.2, -0.375, 'voice'));
+  BS_VOICES.forEach(([n, col], k) => btn(bassBtns.voice, k, n, col, -0.8 + k * 0.2, -0.375, 'voice'));          // five: the timpani at the end
   BS_PATS.forEach((n, k) => btn(bassBtns.pat, k, n, '#f6f2ea', -0.8 + k * 0.2, -0.565, 'pat'));
   // sliders: tone on the control tier, volume on the front ledge
   const slider = (key, x0, len, y, z, label, col, lx, lw) => {
@@ -3658,7 +3686,34 @@ function initBassAudio() {
 const bassCut = (f) => Math.min(12000, 90 * Math.pow(2, bass.tone * 6.6) + f * 1.5);
 function lp(f, q) { const b = ac.createBiquadFilter(); b.type = 'lowpass'; b.frequency.value = f; b.Q.value = q; return b; }
 // one bass note starting at t; returns { stop(at), glide(m, at) }
+/* timpani: a tuned kettledrum. Its pitch comes from a set of nearly harmonic membrane modes (1, 1.5, 2, 2.44,
+   2.9 times the note), each dying away at its own rate, over a short soft thud and the felt of the mallet.
+   A roll keeps one set of modes ringing and strikes them again and again, swelling as you hold. */
+const TIMP_MODES = [[1, 1, 2.4], [1.504, 0.5, 1.3], [1.742, 0.22, 0.8], [2.0, 0.32, 0.9], [2.245, 0.14, 0.55], [2.494, 0.12, 0.45], [2.8, 0.06, 0.35]];
+function timpaniModes(m, t, n) {                                 // n mode oscillators into one gain per mode
+  const f = mf(m + 12), out = ac.createGain(); out.connect(bassAudio.out);
+  const modes = TIMP_MODES.slice(0, n).map(([r, a, d]) => {
+    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f * r * 1.012, t); o.frequency.setTargetAtTime(f * r, t, 0.09);
+    const g = ac.createGain(); g.gain.value = 0; o.connect(g); g.connect(out); o.start(t); return { o, g, a, d };
+  });
+  return { out, modes, f };
+}
+function timpaniStrike(T, vel, t, tone) {                        // excite the modes, with a felt thud and a little noise
+  for (const M of T.modes) { M.g.gain.cancelScheduledValues(t); M.g.gain.setTargetAtTime(M.a * 0.16 * vel, t, 0.004); M.g.gain.setTargetAtTime(0, t + 0.012, M.d * (0.55 + tone * 0.5)); }
+  const th = ac.createOscillator(); th.type = 'sine'; th.frequency.setValueAtTime(T.f * 0.62, t); th.frequency.exponentialRampToValueAtTime(T.f * 0.4, t + 0.12);
+  const tg = ac.createGain(); tg.gain.setValueAtTime(0.0001, t); tg.gain.exponentialRampToValueAtTime(0.2 * vel, t + 0.006); tg.gain.setTargetAtTime(0, t + 0.01, 0.05);
+  th.connect(tg); tg.connect(T.out); th.start(t); th.stop(t + 0.4);
+  const n = ac.createBufferSource(); n.buffer = bassAudio.noise; const nf = lp(700 + tone * 900, 0.8), ng = ac.createGain();
+  ng.gain.setValueAtTime(0.18 * vel, t); ng.gain.setTargetAtTime(0, t, 0.01); n.connect(nf); nf.connect(ng); ng.connect(T.out); n.start(t, Math.random() * 0.4); n.stop(t + 0.08);
+  bass.lampHits.push({ m: T.m, t, v: vel });
+}
 function bassVoice(m, vel, t) {
+  if (BS_VOICES[bass.voice][0] === 'TIMPANI') {                  // a single stroke that rings on
+    const T = timpaniModes(m, t, isTouch ? 5 : 7); T.m = m; timpaniStrike(T, vel, t, bass.tone);
+    const end = t + 4; for (const M of T.modes) M.o.stop(end);
+    let done = false;
+    return { stop(at) { if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime); for (const M of T.modes) { M.g.gain.cancelScheduledValues(tt); M.g.gain.setTargetAtTime(0, tt, 0.45); } }, glide() {} };
+  }
   const f = mf(m), g = ac.createGain(), srcs = [], v = BS_VOICES[bass.voice][0], cut = bassCut(f);
   g.connect(bassAudio.in); g.gain.setValueAtTime(0, t);
   let filters = [], rel = 0.1, glideOsc = [];
@@ -3733,8 +3788,33 @@ function bassSync() {
   if (!bass.pat && bass.cur && !bass.held.size) { bass.cur.stop(); bass.cur = null; }
 }
 // live playing: one note at a time; a new pedal while one is held slides (TAURUS, ACID) or re-strikes
+// a held timpani pedal rolls: after a moment it starts striking about fourteen times a second, swelling
+function timpaniRoll(id, m) {
+  const R = { m, t0: ac.currentTime, nextT: ac.currentTime + 0.2, k: 0, T: null };
+  R.timer = setInterval(() => {
+    if (!bass.rolls.has(id)) return;
+    const now = ac.currentTime;
+    while (R.nextT < now + 0.06) {
+      if (!R.T) { R.T = timpaniModes(m, R.nextT, isTouch ? 4 : 6); R.T.m = m; }
+      const sw = Math.min(1, (R.nextT - R.t0) / 2.5), vel = (0.3 + 0.62 * sw) * (R.k % 2 ? 0.9 : 1) * (0.94 + Math.random() * 0.08);
+      timpaniStrike(R.T, vel, R.nextT, bass.tone);
+      R.k++; R.nextT += 1 / (13 + Math.random() * 2);
+    }
+  }, 20);
+  bass.rolls.set(id, R);
+}
+function timpaniRollStop(id) {
+  const R = bass.rolls.get(id); if (!R) return;
+  bass.rolls.delete(id); clearInterval(R.timer);
+  if (R.T) { const t = ac.currentTime; for (const M of R.T.modes) { M.g.gain.cancelScheduledValues(t); M.g.gain.setTargetAtTime(0, t, 0.6); M.o.stop(t + 4); } }
+}
 function bassLiveDown(id, m) {
   if (!ac || !bassAudio) return;
+  if (BS_VOICES[bass.voice][0] === 'TIMPANI') {                  // a stroke now; hold on and it becomes a roll
+    bass.held.set(id, m); bassVoice(m, 1, ac.currentTime + 0.003);
+    setTimeout(() => { if (bass.held.get(id) === m && !bass.rolls.has(id)) timpaniRoll(id, m); }, 220);
+    bass.curM = m; bass.notes.push({ m, t: ac.currentTime, end: Infinity }); return;
+  }
   const v = BS_VOICES[bass.voice][0], legato = bass.held.size > 0 && bass.cur && (v === 'TAURUS' || v === 'ACID');
   bass.held.set(id, m);
   if (legato) bass.cur.glide(m);
@@ -3742,6 +3822,8 @@ function bassLiveDown(id, m) {
   bass.curM = m; bass.notes.push({ m, t: ac.currentTime, end: Infinity });
 }
 function bassLiveUp(id) {
+  timpaniRollStop(id);
+  if (BS_VOICES[bass.voice][0] === 'TIMPANI' && bass.held.has(id)) { bass.held.delete(id); for (const n of bass.notes) if (n.end === Infinity) n.end = ac.currentTime; return; }
   if (!bass.held.has(id)) return;
   bass.held.delete(id);
   const last = [...bass.held.values()].pop();
@@ -3749,11 +3831,41 @@ function bassLiveUp(id) {
   else { if (bass.cur) bass.cur.stop(); bass.cur = null; for (const n of bass.notes) if (n.end === Infinity) n.end = ac.currentTime; }
 }
 
+/* ---------- the snare roll: hold the pad and the sticks go, soft at first and building; let go and it ends
+   on an accent. Each stroke is a burst of bright noise (the snares) over a short drumhead tone. */
+function snareStroke(vel, t) {
+  const n = ac.createBufferSource(); n.buffer = bassAudio.noise;
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200 + Math.random() * 600; bp.Q.value = 0.7;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+  const ng = ac.createGain(); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.24 * vel, t + 0.002); ng.gain.setTargetAtTime(0, t + 0.004, 0.045 + vel * 0.03);
+  n.connect(bp); bp.connect(hp); hp.connect(ng); ng.connect(bassAudio.out); n.start(t, Math.random() * 0.4); n.stop(t + 0.3);
+  const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(240, t); o.frequency.exponentialRampToValueAtTime(175, t + 0.05);
+  const og = ac.createGain(); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.16 * vel, t + 0.002); og.gain.setTargetAtTime(0, t + 0.004, 0.03);
+  o.connect(og); og.connect(bassAudio.out); o.start(t); o.stop(t + 0.25);
+}
+function bassSnare(on) {
+  if (!ac || !bassAudio) return;
+  if (on && !bass.snare) {
+    const S = { t0: ac.currentTime, nextT: ac.currentTime + 0.005, k: 0 };
+    S.timer = setInterval(() => {
+      const now = ac.currentTime;
+      while (S.nextT < now + 0.05) {
+        const sw = Math.min(1, (S.nextT - S.t0) / 3), vel = (0.22 + 0.7 * sw * sw) * (S.k % 2 ? 0.86 : 1) * (0.92 + Math.random() * 0.1);
+        snareStroke(vel, S.nextT); S.k++; S.nextT += 1 / 22 * (0.94 + Math.random() * 0.1);
+      }
+    }, 15);
+    bass.snare = S; bassValue = 'snare roll'; drawBassDisplay();
+  } else if (!on && bass.snare) {
+    clearInterval(bass.snare.timer); snareStroke(1.15, Math.max(ac.currentTime + 0.01, bass.snare.nextT)); bass.snare = null;
+  }
+}
+
 /* ---------- labels and display */
 let bassHelp = '', bassValue = '';
 const BASS_HELP = {
   start: 'Press the pedals to play a bass line, or pick a pattern and it plays in time with the Rhythm Wheel, following the Optigan’s chords. Lit pedals belong to the gallery’s key; green is home. Keys: ← → choose, Enter play. Controller: d-pad, Ⓐ, Ⓑ leave.',
-  voice: 'Voice: TAURUS is the big analogue synth pedal bass, UPRIGHT a plucked double bass, SUB a deep round tone, ACID a squelchy resonant synth that slides between held pedals.',
+  voice: 'Voice: TAURUS is the big analogue synth pedal bass, UPRIGHT a plucked double bass, SUB a deep round tone, ACID a squelchy resonant synth that slides between held pedals, TIMPANI thirteen tuned kettledrums: tap for a stroke, hold for a roll.',
+  snare: 'Snare roll: hold the drumhead pad and the sticks roll, soft at first and building; let go and it ends on an accent.',
   pat: 'Pattern: LIVE lets you play the pedals yourself. The others play a bass line on the beat: press a chord on the Optigan and the line follows it, or press a pedal to set the root yourself.',
   tone: 'Tone: dark and soft to the left, bright and growling to the right. On ACID it also turns up the squelch.',
   vol: 'Volume: slide it, or touch anywhere along it. 70% is its normal level, and it goes about twice as loud.',
@@ -3841,6 +3953,7 @@ function bassDown(e) {
   bFocus = -1;
   const u = h.object.userData, id = 'p' + e.pointerId;
   bassPtr.set(e.pointerId, u);
+  if (u.t === 'snare') { bassHelp = BASS_HELP.snare; bassSnare(true); buzz(8); return; }
   if (u.t === 'pedal') bassPedalDown(id, u.m);
   else { bassButton(u); if (u.t === 'slider') bassSliderTo(u.key, e); }
 }
@@ -3863,10 +3976,11 @@ function bassMove(e) {
 function bassUp(e) {
   const u = bassPtr.get(e.pointerId); if (!u) return;
   bassPtr.delete(e.pointerId);
+  if (u.t === 'snare') bassSnare(false);
   if (u.t === 'pedal') bassPedalUp('p' + e.pointerId);
 }
-const B_STATIONS = [...[0, 1, 2, 3].map((i) => ({ t: 'voice', i })), ...[0, 1, 2, 3, 4].map((i) => ({ t: 'pat', i })), { t: 'slider', key: 'tone' }, { t: 'mmute' },
-  ...Array.from({ length: BP_N }, (_, i) => ({ t: 'pedal', m: BP_LO + i })), { t: 'slider', key: 'vol' }];
+const B_STATIONS = [...[0, 1, 2, 3, 4].map((i) => ({ t: 'voice', i })), ...[0, 1, 2, 3, 4].map((i) => ({ t: 'pat', i })), { t: 'slider', key: 'tone' }, { t: 'mmute' },
+  { t: 'snare' }, ...Array.from({ length: BP_N }, (_, i) => ({ t: 'pedal', m: BP_LO + i })), { t: 'slider', key: 'vol' }];
 let bFocus = -1;
 function bFocusSet(i) {
   bFocus = i; if (i < 0) return;
@@ -3885,6 +3999,7 @@ function bassPress(down) {
   if (bFocus < 0) { if (down) bFocusSet(0); return; }
   const f = B_STATIONS[bFocus];
   if (f.t === 'pedal') { if (down) bassPedalDown('kb', f.m); else bassPedalUp('kb'); return; }
+  if (f.t === 'snare') { bassSnare(down); return; }
   if (down && f.t !== 'slider') bassButton(f);
 }
 function makeBassMachine() {
@@ -3897,7 +4012,7 @@ function makeBassMachine() {
     al: BASS_I, base: bassG, fit, fitL, elev: [0.95, 0.78], stand: 1.0,
     down: bassDown, move: bassMove, up: bassUp, step: bassStepF, adjust: bassAdjust, press: bassPress,
     enter() { bFocus = -1; bassHelp = BASS_HELP.start; bassValue = ''; drawBassButtons(); drawBassDisplay(); },
-    exit() { for (const id of [...bass.held.keys()]) bassPedalUp(id); bass.held.clear(); bassPtr.clear(); bassPedals.forEach((p) => { p.down = 0; }); bFocus = -1; },
+    exit() { for (const id of [...bass.held.keys()]) bassPedalUp(id); bass.held.clear(); for (const id of [...bass.rolls.keys()]) timpaniRollStop(id); if (bass.snare) bassSnare(false); bassPtr.clear(); bassPedals.forEach((p) => { p.down = 0; }); bFocus = -1; },
   };
 }
 
@@ -3927,6 +4042,18 @@ function updateBass(dt) {
   if (bassAudio) { bassAudio.an.getFloatTimeDomainData(bassAudio.buf); let s = 0; for (const x of bassAudio.buf) s += x * x; lvl = Math.min(1, Math.sqrt(s / bassAudio.buf.length) * 9); }
   bass.lvl += (lvl - bass.lvl) * Math.min(1, dt * (lvl > bass.lvl ? 40 : 10));
   bassCone.position.z = bass.lvl * 0.045 + Math.sin(time * 60) * bass.lvl * 0.004;
+  // the lamps: each flares when its note starts (or a drum is struck) and glows while it's held, then fades
+  for (const n of bass.notes) if (!n.lit && n.t <= now) { n.lit = true; bass.lampHits.push({ m: n.m, t: n.t, v: 1 }); }
+  bass.lampHits = bass.lampHits.filter((L) => { if (L.t > now) return true; const i = L.m - BP_LO; const k = i >= 0 && i < BP_N ? i : ((i % 12) + 12) % 12; bassLamps[k].lvl = Math.max(bassLamps[k].lvl, L.v); return false; });
+  const heldNow = new Set([...bass.held.values()].map((m) => m - BP_LO));
+  bassLamps.forEach((L, i) => {
+    if (heldNow.has(i)) L.lvl = Math.max(L.lvl, 0.75);
+    L.lvl *= Math.exp(-dt * 3.2);
+    L.mat.color.setRGB(0.16, 0.14, 0.13).lerp(L.col, Math.min(1, L.lvl * 1.2));
+  });
+  const lit = Math.round(bass.lvl * 24);
+  bassMeter.forEach((C, k) => C.mat.color.setRGB(0.16, 0.14, 0.13).lerp(C.col, k < lit ? 1 : 0));
+  bassSnareBtn.headMat.emissiveIntensity = bass.snare ? 0.25 + 0.15 * Math.sin(time * 70) : foc && foc.t === 'snare' ? 0.25 : 0;
   bassCap.material.emissiveIntensity = 0.1 + bass.lvl * 1.4;
 }
 
@@ -7791,6 +7918,7 @@ chordDown = netWrap(4, 'chordDown', chordDown, [1]);
 chordUp = netWrap(4, 'chordUp', chordUp, [0]);
 bassPedalDown = netWrap(7, 'bassPedalDown', bassPedalDown, [0]);
 bassPedalUp = netWrap(7, 'bassPedalUp', bassPedalUp, [0]);
+bassSnare = netWrap(7, 'bassSnare', bassSnare);
 poolDrop = netWrap(5, 'poolDrop', poolDrop);
 thunderClap = netWrap(3, 'thunderClap', thunderClap);
 
