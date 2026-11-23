@@ -185,7 +185,7 @@
     ['p', "Up to eight visitors share the gallery, one to a machine, so you may find yourself in a band of strangers. You can wave, point and dance. Or open a private room and send the link to your friends."],
     ['hd', 'THE RECORDING'],
     ['p', "At the centre of the hall, two giant ears turn slowly on a stage. They are the microphone. From the moment you step into the hall they record what they hear: nearby machines loud, faraway ones soft, the whole sound swinging slowly around as the stage turns. Only the music is recorded, never the clicks of the controls."],
-    ['p', "After five minutes you are shown out, and you can listen back and download your recording, or a WAV file for the best quality. It's yours to keep: a piece of music nobody else could have made."],
+    ['p', "After five minutes you are shown out, and you can listen back and download your recording, as an MP3 that plays anywhere, or a WAV file for the best quality. It's yours to keep: a piece of music nobody else could have made."],
     ['p', "Curious beginner or seasoned musician, there is something here for you. Play. Listen. Have fun. Headphones help."],
     ['sig', '— Steve'],
   ];
@@ -343,6 +343,7 @@
       <div id="recMeta"></div>
       <audio id="endAudio" controls preload="metadata"></audio>
       <a id="dlBtn" class="big dl" download>DOWNLOAD RECORDING</a>
+      <button id="mp3Btn" class="ghost on">Download as MP3 · plays anywhere</button>
       <button id="wavBtn" class="ghost on">Download as WAV · best quality, larger file</button>
     </div>
     <button id="againBtn" class="big" style="margin-top:14px">REJOIN THE QUEUE</button>
@@ -7894,8 +7895,19 @@ async function showRecording() {
   try { const buf = await blob.arrayBuffer(); decoded = await new Promise((ok, no) => { const p = ac.decodeAudioData(buf, ok, no); if (p && p.then) p.then(ok, no); }); } catch (e) { decoded = null; }
   drawWave(decoded);
   if (decoded) $('recMeta').textContent = $('recMeta').textContent.replace(/^[^·]+/, fmt(decoded.duration) + ' ');
-  const wb = $('wavBtn');
-  if (!decoded) { wb.classList.add('hidden'); return; }
+  const wb = $('wavBtn'), mb = $('mp3Btn');
+  if (!decoded) { wb.classList.add('hidden'); mb.classList.add('hidden'); return; }
+  const MP3_LABEL = 'Download as MP3 · plays anywhere';
+  mb.onclick = async () => {
+    mb.disabled = true; mb.textContent = 'Making the MP3… 0%';
+    try {
+      const mp3 = await toMp3(decoded, (p) => { mb.textContent = `Making the MP3… ${Math.round(p * 100)}%`; });
+      const m = URL.createObjectURL(mp3);
+      const a = document.createElement('a'); a.href = m; a.download = `${name}.mp3`; document.body.appendChild(a); a.click(); a.remove();
+      mb.textContent = MP3_LABEL;
+    } catch (e) { mb.textContent = "Couldn't make the MP3 here: try the WAV"; }
+    mb.disabled = false;
+  };
   wb.onclick = () => {
     wb.disabled = true; wb.textContent = 'Making the WAV file…';
     setTimeout(() => {
@@ -7925,6 +7937,32 @@ function drawWave(buf) {
     const h = Math.max(2, (pk / top) * (H * 0.86));
     g.fillStyle = cols[Math.floor(b / bars * cols.length)];
     g.fillRect(b * bw + 1, (H - h) / 2, Math.max(1, bw - 2), h);
+  });
+}
+/* MP3: encoded in a background worker with LAME (the lamejs port, fetched from cdnjs the first time it's
+   needed), 192 kbps stereo, so the page stays responsive while it works. Reports progress as it goes. */
+let mp3Worker = null;
+function toMp3(buf, progress) {
+  return new Promise((resolve, reject) => {
+    if (!mp3Worker) {
+      const src = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js');
+        onmessage = (e) => {
+          const { L, R, sr } = e.data, enc = new lamejs.Mp3Encoder(2, sr, 192), BLK = 1152 * 20, out = [];
+          const to16 = (f, a, b) => { const o = new Int16Array(b - a); for (let i = a; i < b; i++) { const s = Math.max(-1, Math.min(1, f[i])); o[i - a] = s < 0 ? s * 32768 : s * 32767; } return o; };
+          for (let i = 0; i < L.length; i += BLK) {
+            const j = Math.min(L.length, i + BLK), m = enc.encodeBuffer(to16(L, i, j), to16(R, i, j));
+            if (m.length) out.push(new Uint8Array(m));
+            if ((i / BLK) % 25 === 0) postMessage({ p: i / L.length });
+          }
+          const end = enc.flush(); if (end.length) out.push(new Uint8Array(end));
+          postMessage({ done: new Blob(out, { type: 'audio/mpeg' }) });
+        };`;
+      mp3Worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    }
+    mp3Worker.onmessage = (e) => { if (e.data.done) resolve(e.data.done); else progress(e.data.p); };
+    mp3Worker.onerror = (e) => { mp3Worker = null; reject(e); };
+    const L = buf.getChannelData(0).slice(), R = (buf.numberOfChannels > 1 ? buf.getChannelData(1) : buf.getChannelData(0)).slice();
+    mp3Worker.postMessage({ L, R, sr: buf.sampleRate }, [L.buffer, R.buffer]);
   });
 }
 function toWav(buf) {                                     // 16-bit stereo PCM
