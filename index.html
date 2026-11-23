@@ -235,6 +235,13 @@ svg use{overflow:visible}
 .kick{font-weight:700; font-size:13px; letter-spacing:.14em; text-transform:uppercase; opacity:.75}
 .btn-buy{display:inline-block; padding:12px 20px; background:#000; color:var(--cream); font-weight:900; text-transform:uppercase; letter-spacing:.06em; text-decoration:none; box-shadow:5px 6px 0 var(--blue); cursor:pointer}
 .btn-buy:hover{transform:translate(-1px,-1px)}
+.feature-app{display:grid; grid-template-columns:auto 1fr; gap:clamp(16px,3vw,32px); align-items:start}
+.feature-app img{width:clamp(64px,10vw,96px); height:auto; border-radius:50%; border:4px solid #000; box-shadow:5px 6px 0 var(--red,#C81627)}
+.feature-app h2{margin:4px 0 10px}
+.feature-app .warn{background:#000; color:var(--cream); padding:10px 14px; border-left:8px solid var(--yellow,#FFF800); font-size:15px}
+.feature-app .small{font-size:14px; opacity:.8}
+.feature-app .btn-buy{margin-top:4px}
+@media (max-width:520px){ .feature-app{grid-template-columns:1fr} }
 @media (max-width:480px){ .player{flex-direction:column; align-items:flex-start} .release{width:min(62vw,240px)} }
 @media (prefers-reduced-motion:reduce){ .vinyl{animation:none} }
 
@@ -410,6 +417,17 @@ svg use{overflow:visible}
         <h1>Steve's Mind<br>Wanders</h1>
         <p>Games, tools and odd experiments, almost all built as single HTML files that run right in your browser.</p>
         <div class="chips" role="group" aria-label="Filter apps" id="chips"></div>
+      </div>
+    </div>
+    <div class="card feature-app" id="cinearchive">
+      <img src="apps/cinearchive-icon.png" alt="" width="96" height="96">
+      <div>
+        <small class="kick">Android app · pilot version · free</small>
+        <h2>CineArchive</h2>
+        <p>A pocket cinema for public domain films. CineArchive browses the Internet Archive's feature film collection: thousands of old movies that are free for anyone to watch. Pick a featured film, browse the collection or search by title, then stream it right in the app or save the MP4 to your phone. Films you've opened are kept in a list so you can find them again.</p>
+        <p class="warn"><b>Viewer discretion:</b> the films come straight from the Internet Archive and aren't screened by me. Some may be intended for mature audiences, with violence, frightening scenes, adult themes or attitudes of their time.</p>
+        <p class="small">This is an early test build, so expect a few rough edges. To install it, download the file on your Android phone, open it, and allow your browser to install apps if Android asks. It's not on the Play Store yet.</p>
+        <a class="btn-buy" href="apps/CineArchive-pilot.apk" download="CineArchive-pilot.apk" type="application/vnd.android.package-archive">Download for Android · 3.2 MB</a>
       </div>
     </div>
     <div class="apps" id="apps"></div>
