@@ -241,6 +241,7 @@ svg use{overflow:visible}
 .feature-app .warn{background:#000; color:var(--cream); padding:10px 14px; border-left:8px solid var(--yellow,#FFF800); font-size:15px}
 .feature-app .small{font-size:14px; opacity:.8}
 .feature-app .btn-buy{margin-top:4px}
+.pa-badge{display:grid; place-items:center; width:clamp(64px,10vw,96px); aspect-ratio:1; background:#2F4538; color:#E8E1CE; font:900 clamp(24px,3.6vw,36px)/1 var(--font); letter-spacing:.04em; border:4px solid #000; box-shadow:5px 6px 0 var(--yellow)}
 @media (max-width:520px){ .feature-app{grid-template-columns:1fr} }
 @media (max-width:480px){ .player{flex-direction:column; align-items:flex-start} .release{width:min(62vw,240px)} }
 @media (prefers-reduced-motion:reduce){ .vinyl{animation:none} }
@@ -430,6 +431,17 @@ svg use{overflow:visible}
         <a class="btn-buy" href="apps/CineArchive-pilot.apk" download="CineArchive-pilot.apk" type="application/vnd.android.package-archive">Download for Android · 3.2 MB</a>
       </div>
     </div>
+    <div class="card feature-app" id="public-archive">
+      <span class="pa-badge" aria-hidden="true">PA</span>
+      <div>
+        <small class="kick">Web app · runs in your browser · free</small>
+        <h2>The Public Archive</h2>
+        <p>A card catalogue for work that belongs to everyone. The Public Archive gathers public-domain books, comics, newspapers, films, sound recordings, art, ephemera and games into one reading room, pulled live from the Internet Archive, the Library of Congress, the Art Institute of Chicago, the Cleveland Museum of Art, Wikimedia Commons and more. Everything is free to view, most of it is free to download, and every item links back to its original record.</p>
+        <p class="warn"><b>Viewer discretion:</b> the items come straight from these collections and aren't screened by me. Some may be intended for mature audiences, with violence, frightening scenes, adult themes or attitudes of their time.</p>
+        <p class="small">This is an early test build.</p>
+        <a class="btn-buy" href="https://swowanders.github.io/The-Public-Archive/" target="_blank" rel="noopener">Open the archive →</a>
+      </div>
+    </div>
     <div class="apps" id="apps"></div>
     <div class="tiles">
       <a class="tile t-black" data-link="mind.github" data-name="GitHub">Source<small>GitHub</small></a>
@@ -519,7 +531,6 @@ const APPS = [
   ['Apple II Emulator','A full 6502 core with WOZ disk support — an entire Apple II in one HTML file.','a',''],
   ['Retro Broadcast Day Player','An 80s TV channel simulator with CRT effects and a real broadcast-day schedule.','a',''],
   ['Pulp Vault','A swipe-through reader for public domain comics and pulp magazines from Archive.org.','a',''],
-  ['Public Archive','Public domain film, music, comics and ephemera, gathered into one feed.','a',''],
   ['Ottawa Archive Collector','Collects archival Ottawa photographs from several archives in one pass.','oa',''],
   ['Neighbourhood Simplifier','Turns real Ottawa neighbourhoods into simple line-drawing maps for hand-drawing reference.','om',''],
   ['Ottawa Field Guide','A geofenced audio walking tour of Ottawa with a map, compass navigation and historic photos.','o',''],
