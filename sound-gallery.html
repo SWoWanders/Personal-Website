@@ -2637,7 +2637,8 @@ const OPT_DISCS = [['ORGAN', '#e8262b'], ['HAMMOND', '#8a4bff'], ['HARPSICHORD',
   ['ACCORDION', '#2b8fd8'], ['E.PIANO', '#e8902b'], ['THEATRE', '#ff1f8f']];
 const KB_LO = 48, KB_HI = 72;                            // C3 to C5, two octaves
 const mel = { voice: 2, sus: 1, disc: 0, plateChord: 0, plates: Array.from({ length: SP_N }, () => ({ h: null, m: 0, t0: -9, tau: 1 })),
-  style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null };
+  style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null,
+  leslie: 0, hornV: 0, drumV: 0, hornA: 0, drumA: 0 };   // leslie: 0 STOP, 1 SLOW, 2 FAST; V = rotor turns/s, A = rotor angle
 function galleryScale() { const root = NOTE_SEMI[org.root]; return SCALES[org.mood].map((x) => (root + x) % 12); }
 function triad(d) {                                     // the chord on scale degree d, as semitones above the home note
   const sc = SCALES[org.mood], n = (k) => sc[(d + k) % 7] + (d + k >= 7 ? 12 : 0);
@@ -2693,7 +2694,7 @@ function melLocalAt(e, y) {
   return melG.worldToLocal(_melV.clone());
 }
 function melVolTo(key, e) { const p = melLocalAt(e, melVolK[key].y + 0.03); if (p) { setVol(key, (p.x - VS.x0) / VS.len); drawVolKnob(key); melValue = volText(key); drawMelDisplay(); } }
-let voiceBtns = [], susBtns = [], styleBtns = [], chordBtns = [], plateSegs = [], plateNamesL, melDispL, optDisc;
+let voiceBtns = [], susBtns = [], styleBtns = [], lesBtns = [], lesHorn, lesDrum, chordBtns = [], plateSegs = [], plateNamesL, melDispL, optDisc;
 function buildKeys(kb, parent, y, z) {
   const g = new THREE.Group(); g.position.set(0, y, z); parent.add(g);
   const WW = 0.086, startX = -(15 * WW) / 2 + WW / 2, WI = [0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6], LEFT = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
@@ -2753,6 +2754,23 @@ function buildKeys(kb, parent, y, z) {
     b.position.set(k < 4 ? -1.06 : -0.79, 1.17, -0.27 - (k % 4) * 0.083); melG.add(b); b.userData = { t: 'style', i: k }; melCtrls.push(b);
     const L = flatLabel(0.24, 0.07, 256, 72, b, 0, 0.0205, 0); styleBtns[k] = { mat, L, name };
   });
+  // the Leslie: STOP / SLOW / FAST on the right cheek, and a little window where the rotors turn
+  try {
+    ['STOP', 'SLOW', 'FAST'].forEach((name, k) => {
+      const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.04, 0.075), mat);
+      b.position.set(1.09, 1.17, -0.27 - k * 0.083); melG.add(b); b.userData = { t: 'leslie', i: k }; melCtrls.push(b);
+      const L = flatLabel(0.16, 0.07, 256, 104, b, 0, 0.0205, 0); lesBtns[k] = { mat, L, name };
+    });
+    const win = new THREE.Group(); win.position.set(1.09, 1.145, -0.575); melG.add(win);
+    const well = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 32), new THREE.MeshStandardMaterial({ color: '#16110d', roughness: 0.6 }));
+    well.position.y = 0.004; win.add(well); well.userData = { t: 'leslie', i: -1 }; melCtrls.push(well);
+    const brass = new THREE.MeshStandardMaterial({ color: '#c9a45a', metalness: 0.8, roughness: 0.3 });
+    lesDrum = new THREE.Group(); lesDrum.position.y = 0.012; win.add(lesDrum);                // the bass drum: a fat baffle
+    { const m = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.014, 0.03), brass); lesDrum.add(m); }
+    lesHorn = new THREE.Group(); lesHorn.position.y = 0.026; win.add(lesHorn);                // the treble horn: a slim bar with a bell
+    { const m = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.012, 0.016), mChrome); lesHorn.add(m);
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.008, 0.02, 12), brass); bell.rotation.z = Math.PI / 2; bell.position.x = 0.07; lesHorn.add(bell); }
+  } catch (err) { console.warn('leslie window', err); }
   // the Optigan's spinning disc, right cheek
   optDisc = new THREE.Group(); optDisc.position.set(0.84, 1.16, -0.4); melG.add(optDisc);
   { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 48), new THREE.MeshPhysicalMaterial({ color: '#d8e4ea', roughness: 0.1, transmission: 0.5, thickness: 0.01, transparent: true, opacity: 0.85 }));
@@ -2821,17 +2839,44 @@ function initMelodyAudio() {
   spIn.connect(spHP); spHP.connect(spLP); spLP.connect(spLP2); const spVol = ac.createGain(); volRegister('strum', spVol, 1);
   spLP2.connect(spSat); spSat.connect(spVol); spVol.connect(out);
   const spWavy = wobbleDelay(5.6, 16); spWavy.connect(spIn);       // the WAVY voice's vibrato, shared by every zone
-  const opt = ac.createGain(); volRegister('optigan', opt, 1.6); opt.connect(out);   // the Optigan sat low next to the plate
-  // shared effects for the disc voices: a Leslie for the Hammond, the vibraphone's fan tremolo,
-  // the theatre organ's tremulant
+  const opt = ac.createGain(); volRegister('optigan', opt, 1.6);   // the Optigan sat low next to the plate
+  // the Leslie: everything the Optigan plays goes through a rotating-speaker cabinet. A crossover at
+  // 800 Hz sends the lows to a slow, heavy drum and the highs to a quick horn; each rotor swings its
+  // level and its distance (the delay, which gives the Doppler warble) in quadrature, like the real thing.
+  const les = (() => {
+    const lin = ac.createGain(), lout = ac.createGain();
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 800; lp.Q.value = 0.55;
+    const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 800; hp.Q.value = 0.55;
+    lin.connect(lp); lin.connect(hp);
+    const cosW = ac.createPeriodicWave(new Float32Array([0, 1]), new Float32Array([0, 0]));
+    const rotor = (src, ampDepth, dly) => {
+      const rate = ac.createConstantSource(); rate.offset.value = 0; rate.start();
+      const sinO = ac.createOscillator(), cosO = ac.createOscillator();
+      sinO.frequency.value = 0; cosO.frequency.value = 0; cosO.setPeriodicWave(cosW);
+      rate.connect(sinO.frequency); rate.connect(cosO.frequency);
+      const amp = ac.createGain(); amp.gain.value = 0.8;
+      const ad = ac.createGain(); ad.gain.value = 0; sinO.connect(ad); ad.connect(amp.gain);
+      const d = ac.createDelay(0.02); d.delayTime.value = 0.004;
+      const dd = ac.createGain(); dd.gain.value = 0; cosO.connect(dd); dd.connect(d.delayTime);
+      sinO.start(); cosO.start();
+      src.connect(d); d.connect(amp); amp.connect(lout);
+      return { rate, ad, dd, ampDepth, dly };
+    };
+    const horn = rotor(hp, 0.5, 0.00055), drum = rotor(lp, 0.3, 0.0007);
+    lout.connect(out);
+    return { lin, horn, drum, lout };
+  })();
+  opt.connect(les.lin);
+  // shared effects for the disc voices: the vibraphone's fan tremolo and the theatre organ's tremulant
   const lfoBus = (rate, depth, cents) => {
     const bus = ac.createGain(); bus.gain.value = 1;
     const l = ac.createOscillator(); l.frequency.value = rate; const lg = ac.createGain(); lg.gain.value = depth; l.connect(lg); lg.connect(bus.gain); l.start();
     if (cents) { const w = wobbleDelay(rate, cents); bus.connect(w); w.connect(opt); } else bus.connect(opt);
     return [bus];
   };
-  const [leslie] = lfoBus(6.7, 0.14, 9), [vibBus] = lfoBus(4.8, 0.32, 0), [tremBus] = lfoBus(6.9, 0.2, 14);
-  melAudio = { out, opt, noise: nb, spIn, spWavy, leslie, vibBus, tremBus };
+  const leslie = ac.createGain(); leslie.connect(opt);                  // the Hammond now takes its swirl from the real Leslie above
+  const [vibBus] = lfoBus(4.8, 0.32, 0), [tremBus] = lfoBus(6.9, 0.2, 14);
+  melAudio = { out, opt, noise: nb, spIn, spWavy, leslie, vibBus, tremBus, les };
 }
 function wobbleDelay(rate, cents) {                        // vibrato for a whole bus: a gently swinging short delay
   const d = ac.createDelay(0.05); d.delayTime.value = 0.006;
@@ -3057,6 +3102,7 @@ const MEL_HELP = {
   mmute: 'Mute: silences the whole console, strum plate and Optigan, at once. Press again to bring it back.',
   disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. Chords you hold on the chord buttons play in it too; the rhythm backings stay the same.',
   vol: 'Volume: slide it, or touch anywhere along it. Each instrument has its own; 70% is its normal level, and it goes about twice as loud.',
+  leslie: 'Leslie speaker: the whole Optigan plays through a rotating speaker. STOP holds it still, SLOW is a gentle chorale, FAST is the full tremolo. The rotors take a moment to speed up or slow down, the horn quicker than the heavy drum, just like the real cabinet.',
   sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
   plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
   style: 'Optigan backing: pick a style (strum, bossa nova, ballad, polka, swing, tango or reggae), then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
@@ -3096,9 +3142,11 @@ function drawMelButtons() {
     const home = NOTE_SEMI[org.root];
     for (let i = 0; i < SP_N; i++) { const m = plateMidi(i); g.fillStyle = m % 12 === (home + triad(mel.plateChord)[0]) % 12 ? '#3d7a12' : '#5a554d'; g.fillText(`${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`, sw * (i + 0.5), c.height / 2); }
     t.needsUpdate = true; }
+  lesBtns.forEach((b, k) => printText(b.L, [[b.name, 40, k === mel.leslie ? '#ffffff' : '#1d1b18']], k === mel.leslie ? { bg: '#1d1b18', radius: 12 } : {}));
   styleBtns.forEach((b, k) => printText(b.L, [[b.name, 36, k === mel.style ? '#ffffff' : '#1d1b18']], k === mel.style ? { bg: '#1d1b18', radius: 12 } : {}));
   chordBtns.forEach((b, d) => printText(b.L, [[chordLabel(d), 76, d === mel.chord ? '#ffffff' : '#1d1b18'], [ROMANS[d], 40, d === mel.chord ? '#cfe9b8' : '#5a554d']], d === mel.chord ? { bg: '#3d7a12' } : {}));
 }
+const LESLIE_NAMES = ['STOP', 'SLOW', 'FAST'];
 const KEY_TINT = { inW: new THREE.Color('#fbf8f2'), outW: new THREE.Color('#a9a297'), homeW: new THREE.Color('#bfe39a'), inB: new THREE.Color('#6e665b'), outB: new THREE.Color('#121110'), homeB: new THREE.Color('#4d7a2a') };
 function melKeyChanged() {
   const sc = galleryScale(), home = NOTE_SEMI[org.root];
@@ -3148,6 +3196,7 @@ function melButton(u, id) {
   if (u.t === 'voice') { mel.voice = u.i; melHelp = MEL_HELP.voice; melValue = SP_VOICES[u.i][0]; buzz(8); }
   if (u.t === 'sus') { mel.sus = u.i; melHelp = MEL_HELP.sus; melValue = 'sustain ' + SP_SUS[u.i][0].toLowerCase(); buzz(8); }
   if (u.t === 'plate') { melHelp = MEL_HELP.plate; strumZone(u.i); buzz(6); drawMelDisplay(); return; }
+  if (u.t === 'leslie') { if (u.i >= 0) mel.leslie = u.i; else mel.leslie = (mel.leslie + 1) % 3; melHelp = MEL_HELP.leslie; melValue = 'leslie: ' + LESLIE_NAMES[mel.leslie].toLowerCase(); buzz(8); }
   if (u.t === 'disc') { setDisc(mel.disc + 1); return; }
   if (u.t === 'mmute') { const on = machineMute('melody'); melHelp = MEL_HELP.mmute; melValue = on ? 'console muted' : 'sound on'; drawMelDisplay(); return; }
   if (u.t === 'vol') { melHelp = MEL_HELP.vol; melValue = volText(u.key); drawMelDisplay(); return; }
@@ -3197,7 +3246,7 @@ function melUp(e) {
   if (u.t === 'key') noteOff('p' + e.pointerId);
   if (u.t === 'chord') chordUp('p' + e.pointerId);
 }
-const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ t: 'style', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i })), { t: 'mmute' }];
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ t: 'style', i })), ...[0, 1, 2].map((i) => ({ t: 'leslie', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i })), { t: 'mmute' }];
 for (let i = 0; i < SP_N; i++) M_STATIONS.push({ t: 'plate', i });
 for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb: 1, m });
 let mFocus = -1;
@@ -3205,7 +3254,7 @@ function mFocusSet(i) {
   mFocus = i; if (i < 0) return;
   const f = M_STATIONS[i]; melHelp = MEL_HELP[f.t];
   melValue = f.t === 'key' ? `Optigan ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}`
-    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : f.t === 'disc' ? `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}` : f.t === 'mmute' ? (MUTED.melody ? 'muted' : 'mute') : OPT_STYLES[f.i];
+    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : f.t === 'leslie' ? 'leslie: ' + LESLIE_NAMES[f.i].toLowerCase() : f.t === 'disc' ? `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}` : f.t === 'mmute' ? (MUTED.melody ? 'muted' : 'mute') : OPT_STYLES[f.i];
   drawMelDisplay(); blip(660, 0.04, 0.03);
 }
 function melStep(d) { mFocusSet(mFocus < 0 ? (d > 0 ? 0 : M_STATIONS.length - 1) : (mFocus + d + M_STATIONS.length) % M_STATIONS.length); }
@@ -3355,6 +3404,20 @@ function updateMelody(dt) {
     s.mat.emissive.set(lvl > 0.02 ? '#ffc27a' : '#ffffff'); s.mat.emissiveIntensity = lvl > 0.02 ? 0.15 + lvl * 0.75 : isF ? 0.35 : 0;
   });
   styleBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'style' && foc.i === k));
+  lesBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'leslie' && foc.i === k));
+  // the Leslie's rotors: the horn is light and answers quickly, the bass drum is heavy and lags behind,
+  // and each is slower to coast down than to spin up
+  { const T = [[0, 0], [0.8, 0.7], [6.7, 5.7]][mel.leslie] || [0, 0];
+    const ease = (v, tgt, up, down) => v + (tgt - v) * (1 - Math.exp(-dt / (tgt > v ? up : down)));
+    mel.hornV = ease(mel.hornV, T[0], 0.7, 1.6); mel.drumV = ease(mel.drumV, T[1], 2.2, 3.5);
+    if (mel.hornV < 0.002 && !T[0]) mel.hornV = 0; if (mel.drumV < 0.002 && !T[1]) mel.drumV = 0;
+    mel.hornA += mel.hornV * dt * Math.PI * 2; mel.drumA += mel.drumV * dt * Math.PI * 2;
+    if (lesHorn) { lesHorn.rotation.y = mel.hornA; lesDrum.rotation.y = -mel.drumA; }
+    const L = melAudio && melAudio.les;
+    if (L) for (const [r, v] of [[L.horn, mel.hornV], [L.drum, mel.drumV]]) {
+      const k = Math.min(1, v / 0.6);                        // a stopped rotor has no swing, so it never freezes on a quiet spot
+      r.rate.offset.value = v; r.ad.gain.value = r.ampDepth * k; r.dd.gain.value = r.dly * k;
+    } }
   chordBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'chord' && foc.i === k));
   // the disc's motor runs while anyone is at the console or the backing plays; it spins up and coasts down
   const motor = optRunning() || mel.holdChord || mel.held.size || (playing && curM === MEL_M) ? 2.4 : 0;
@@ -8068,10 +8131,10 @@ const SYNC = {
     set: (s) => { Object.assign(org, s); orgChanged(); } },
   8: { get: () => ({ run: rhy.run, bpm: rhy.bpm, swing: rhy.swing, mute: rhy.mute, steps: rhy.steps.map((r) => r.map((b) => (b ? 1 : 0)).join('')) }),
     set: (s) => { rhy.bpm = s.bpm; rhy.swing = s.swing; rhy.mute = s.mute; rhy.steps = s.steps.map((r) => [...r].map((c) => c === '1')); if (s.run !== rhy.run) setRun(s.run); drawRhyAll(); } },
-  4: { get: () => ({ voice: mel.voice, sus: mel.sus, disc: mel.disc, style: mel.style, chord: mel.style ? mel.chord : null, plate: mel.plateChord }),
+  4: { get: () => ({ voice: mel.voice, sus: mel.sus, disc: mel.disc, style: mel.style, chord: mel.style ? mel.chord : null, plate: mel.plateChord, leslie: mel.leslie }),
     set: (s) => {
       const styleChanged = s.style !== mel.style;
-      Object.assign(mel, { voice: s.voice, sus: s.sus, disc: s.disc, style: s.style, plateChord: s.plate });
+      Object.assign(mel, { voice: s.voice, sus: s.sus, disc: s.disc, style: s.style, plateChord: s.plate, leslie: s.leslie | 0 });
       if (s.style) mel.chord = s.chord;
       if (styleChanged && mel.timer) { clearInterval(mel.timer); mel.timer = null; }
       syncOptigan(); drawMelButtons(); drawMelDisplay(); drawVolKnob('strum'); drawVolKnob('optigan');
